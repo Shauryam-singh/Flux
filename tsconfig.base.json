@@ -5,8 +5,9 @@
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
 
+    "types": ["node"],
+
     "strict": true,
-    "useDefineForClassFields": true,
 
     "declaration": true,
     "declarationMap": true,

@@ -1,3 +1,5 @@
+import type { ExecutionContext } from "../context/execution-context.js";
+import type { ExecutionResult } from "../context/execution-result.js";
 import type { ProviderRegistry } from "../interfaces/provider-registry.js";
 import type { Router } from "../interfaces/router.js";
 import type { RoutingStrategy } from "../interfaces/routing-strategy.js";
@@ -16,11 +18,25 @@ export class DefaultRouter implements Router {
       this.registry.getAll(),
     );
 
-    const response = await provider.complete(request.request);
-
-    return {
-      provider: provider.name,
-      response,
+    const context: ExecutionContext = {
+      request,
+      provider,
+      startedAt: new Date(),
+      metadata: {},
     };
+
+    const response = await provider.complete(context.request.request);
+
+    const durationMs = Date.now() - context.startedAt.getTime();
+
+    const result: ExecutionResult = {
+      response: {
+        provider: provider.name,
+        response,
+      },
+      durationMs,
+    };
+
+    return result.response;
   }
 }

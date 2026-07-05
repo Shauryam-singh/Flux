@@ -1,7 +1,7 @@
+export * from "./context/index.js";
 export * from "./interfaces/provider-registry.js";
 export * from "./interfaces/router.js";
 export * from "./interfaces/routing-strategy.js";
-
 export * from "./registry/default-provider-registry.js";
 export * from "./router/default-router.js";
 export * from "./strategies/index.js";

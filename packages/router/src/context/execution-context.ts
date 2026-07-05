@@ -9,4 +9,6 @@ export interface ExecutionContext {
   readonly startedAt: Date;
 
   readonly metadata: Readonly<Record<string, unknown>>;
+
+  readonly abortController: AbortController;
 }

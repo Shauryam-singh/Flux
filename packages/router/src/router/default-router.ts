@@ -24,6 +24,7 @@ export class DefaultRouter implements Router {
       provider,
       startedAt: new Date(),
       metadata: {},
+      abortController: new AbortController(),
     };
 
     const result = await this.pipeline.execute(context);

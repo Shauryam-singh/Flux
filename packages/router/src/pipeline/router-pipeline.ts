@@ -8,16 +8,21 @@ export class RouterPipeline {
   ) {}
 
   public async execute(context: ExecutionContext): Promise<ExecutionResult> {
-    const dispatch = async (index: number): Promise<ExecutionResult> => {
+    const dispatch = async (
+      index: number,
+      current: ExecutionContext,
+    ): Promise<ExecutionResult> => {
       const middleware = this.middleware[index];
 
       if (!middleware) {
         throw new Error("Pipeline terminated unexpectedly.");
       }
 
-      return middleware.execute(context, () => dispatch(index + 1));
+      return middleware.execute(current, (nextContext) =>
+        dispatch(index + 1, nextContext),
+      );
     };
 
-    return dispatch(0);
+    return dispatch(0, context);
   }
 }

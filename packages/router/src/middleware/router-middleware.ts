@@ -4,6 +4,6 @@ import type { ExecutionResult } from "../context/execution-result.js";
 export interface RouterMiddleware {
   execute(
     context: ExecutionContext,
-    next: () => Promise<ExecutionResult>,
+    next: (context: ExecutionContext) => Promise<ExecutionResult>,
   ): Promise<ExecutionResult>;
 }

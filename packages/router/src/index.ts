@@ -1,4 +1,5 @@
 export * from "./context/index.js";
+export * from "./failover/index.js";
 export * from "./interfaces/provider-registry.js";
 export * from "./interfaces/router.js";
 export * from "./interfaces/routing-strategy.js";

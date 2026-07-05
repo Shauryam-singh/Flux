@@ -5,7 +5,7 @@ import type { RouterMiddleware } from "./router-middleware.js";
 export class ProviderExecutionMiddleware implements RouterMiddleware {
   public async execute(
     context: ExecutionContext,
-    _next: () => Promise<ExecutionResult>,
+    _next: (context: ExecutionContext) => Promise<ExecutionResult>,
   ): Promise<ExecutionResult> {
     const response = await context.provider.complete(context.request.request);
 

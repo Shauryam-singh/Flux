@@ -7,16 +7,16 @@ export class TimeoutMiddleware implements RouterMiddleware {
 
   public async execute(
     context: ExecutionContext,
-    next: () => Promise<ExecutionResult>,
+    next: (context: ExecutionContext) => Promise<ExecutionResult>,
   ): Promise<ExecutionResult> {
-    const timer = setTimeout(() => {
+    const timer = globalThis.setTimeout(() => {
       context.abortController.abort();
     }, this.timeoutMs);
 
     try {
-      return await next();
+      return await next(context);
     } finally {
-      clearTimeout(timer);
+      globalThis.clearTimeout(timer);
     }
   }
 }

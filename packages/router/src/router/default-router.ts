@@ -1,8 +1,8 @@
 import type { ExecutionContext } from "../context/execution-context.js";
-import type { ExecutionResult } from "../context/execution-result.js";
 import type { ProviderRegistry } from "../interfaces/provider-registry.js";
 import type { Router } from "../interfaces/router.js";
 import type { RoutingStrategy } from "../interfaces/routing-strategy.js";
+import type { RouterPipeline } from "../pipeline/index.js";
 import type { RouteRequest } from "../types/route-request.js";
 import type { RouteResponse } from "../types/route-response.js";
 
@@ -10,6 +10,7 @@ export class DefaultRouter implements Router {
   public constructor(
     private readonly registry: ProviderRegistry,
     private readonly strategy: RoutingStrategy,
+    private readonly pipeline: RouterPipeline,
   ) {}
 
   public async route(request: RouteRequest): Promise<RouteResponse> {
@@ -25,17 +26,7 @@ export class DefaultRouter implements Router {
       metadata: {},
     };
 
-    const response = await provider.complete(context.request.request);
-
-    const durationMs = Date.now() - context.startedAt.getTime();
-
-    const result: ExecutionResult = {
-      response: {
-        provider: provider.name,
-        response,
-      },
-      durationMs,
-    };
+    const result = await this.pipeline.execute(context);
 
     return result.response;
   }

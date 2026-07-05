@@ -3,8 +3,10 @@
   "references": [
     { "path": "./packages/shared" },
     { "path": "./packages/config" },
+    { "path": "./packages/tools" },
     { "path": "./packages/providers" },
     { "path": "./packages/router" },
-    { "path": "./packages/agent" }
+    { "path": "./packages/agent" },
+    { "path": "./apps/cli" }
   ]
 }

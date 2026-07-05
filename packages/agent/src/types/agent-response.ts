@@ -1,3 +1,7 @@
+import type { ToolResult } from "@ai-agent/tools";
+
 export interface AgentResponse {
-  output: string;
+  success: boolean;
+  result?: ToolResult;
+  error?: string;
 }

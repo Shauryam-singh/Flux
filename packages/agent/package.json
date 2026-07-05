@@ -19,6 +19,7 @@
   },
   "dependencies": {
     "@ai-agent/shared": "workspace:*",
-    "@ai-agent/router": "workspace:*"
+    "@ai-agent/router": "workspace:*",
+    "@ai-agent/tools": "workspace:*"
   }
 }

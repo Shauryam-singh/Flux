@@ -1,3 +1,3 @@
 export interface AgentRequest {
-  prompt: string;
+  input: Record<string, unknown>;
 }

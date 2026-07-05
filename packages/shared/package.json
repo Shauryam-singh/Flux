@@ -12,8 +12,8 @@
     }
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "typecheck": "tsc --noEmit",
+    "build": "tsc -b",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
     "lint": "biome check src",
     "test": "echo \"No tests yet\""
   }

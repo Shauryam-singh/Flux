@@ -217,11 +217,41 @@ importers:
         specifier: ^6.0.3
         version: 6.0.3
 
-  packages/agent: {}
+  packages/agent:
+    dependencies:
+      '@ai-agent/router':
+        specifier: workspace:*
+        version: link:../router
+      '@ai-agent/shared':
+        specifier: workspace:*
+        version: link:../shared
 
-  packages/providers: {}
+  packages/config:
+    dependencies:
+      '@ai-agent/shared':
+        specifier: workspace:*
+        version: link:../shared
 
-  packages/router: {}
+  packages/providers:
+    dependencies:
+      '@ai-agent/config':
+        specifier: workspace:*
+        version: link:../config
+      '@ai-agent/shared':
+        specifier: workspace:*
+        version: link:../shared
+
+  packages/router:
+    dependencies:
+      '@ai-agent/config':
+        specifier: workspace:*
+        version: link:../config
+      '@ai-agent/providers':
+        specifier: workspace:*
+        version: link:../providers
+      '@ai-agent/shared':
+        specifier: workspace:*
+        version: link:../shared
 
   packages/shared: {}
 

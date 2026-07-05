@@ -8,7 +8,12 @@
     "typecheck": {
       "dependsOn": ["^typecheck"]
     },
-    "lint": {},
-    "test": {}
+    "lint": {
+      "outputs": []
+    },
+    "test": {
+      "dependsOn": ["build"],
+      "outputs": []
+    }
   }
 }

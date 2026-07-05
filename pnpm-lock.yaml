@@ -219,6 +219,8 @@ importers:
 
   packages/agent: {}
 
+  packages/providers: {}
+
   packages/router: {}
 
   packages/shared: {}

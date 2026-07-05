@@ -1,10 +1,11 @@
+import type { ToolCall } from "@ai-agent/tools";
+
 import type { Session } from "../session/session.js";
 import type { AgentRequest } from "../types/agent-request.js";
-import type { AgentResponse } from "../types/agent-response.js";
 
-export interface Agent {
-  run(
+export interface Planner {
+  plan(
     session: Session,
     request: AgentRequest,
-  ): Promise<AgentResponse>;
+  ): Promise<ToolCall>;
 }

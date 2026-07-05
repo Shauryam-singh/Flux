@@ -1,5 +1,4 @@
 export interface ToolCall {
-  tool: string;
-
-  arguments: Record<string, unknown>;
+  readonly name: string;
+  readonly input: unknown;
 }

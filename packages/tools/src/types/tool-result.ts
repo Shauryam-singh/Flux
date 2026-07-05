@@ -1,7 +1,4 @@
 export interface ToolResult {
-  success: boolean;
-
-  output: unknown;
-
-  error?: string;
+  readonly success: boolean;
+  readonly output: unknown;
 }

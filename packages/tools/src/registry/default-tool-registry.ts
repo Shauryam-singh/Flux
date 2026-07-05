@@ -1,27 +1,22 @@
-import type { ToolExecutor } from "../interfaces/tool-executor.js";
+import type { Tool } from "../interfaces/tool.js";
 import type { ToolRegistry } from "../interfaces/tool-registry.js";
-import type { ToolCall } from "../types/tool-call.js";
-import type { ToolContext } from "../types/tool-context.js";
-import type { ToolResult } from "../types/tool-result.js";
 
-export class DefaultToolExecutor implements ToolExecutor {
-  public constructor(private readonly registry: ToolRegistry) {}
+export class DefaultToolRegistry implements ToolRegistry {
+  private readonly tools = new Map<string, Tool>();
 
-  public async execute(call: ToolCall): Promise<ToolResult> {
-    const tool = this.registry.get(call.tool);
+  public register(tool: Tool): void {
+    this.tools.set(tool.name, tool);
+  }
 
-    if (!tool) {
-      return {
-        success: false,
-        output: null,
-        error: `Tool '${call.tool}' not found.`,
-      };
-    }
+  public unregister(name: string): void {
+    this.tools.delete(name);
+  }
 
-    const context: ToolContext = {
-      arguments: call.arguments,
-    };
+  public get(name: string): Tool | undefined {
+    return this.tools.get(name);
+  }
 
-    return tool.execute(context);
+  public getAll(): readonly Tool[] {
+    return [...this.tools.values()];
   }
 }

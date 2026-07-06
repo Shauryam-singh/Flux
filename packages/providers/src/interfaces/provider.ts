@@ -1,13 +1,18 @@
 import type { CompletionRequest } from "../types/completion-request.js";
 import type { CompletionResponse } from "../types/completion-response.js";
-import type { ProviderName } from "../types/provider-name.js";
+
+import type { ProviderMetadata } from "../metadata/provider-metadata.js";
 
 export interface Provider {
-  readonly name: ProviderName;
+  readonly name: string;
+
+  readonly metadata: ProviderMetadata;
 
   isAvailable(): Promise<boolean>;
 
   listModels(): Promise<readonly string[]>;
 
-  complete(request: CompletionRequest): Promise<CompletionResponse>;
+  complete(
+    request: CompletionRequest,
+  ): Promise<CompletionResponse>;
 }

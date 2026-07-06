@@ -2,6 +2,7 @@ import { BaseProvider } from "../../base/base-provider.js";
 import type { HttpClient } from "../../http/http-client.js";
 import type { CompletionRequest } from "../../types/completion-request.js";
 import type { CompletionResponse } from "../../types/completion-response.js";
+import { DEFAULT_PROVIDER_METADATA } from "../../metadata/default-provider-metadata.js";
 
 import type {
   OllamaChatRequest,
@@ -16,7 +17,11 @@ export class OllamaProvider extends BaseProvider {
     http: HttpClient,
     baseUrl = "http://localhost:11434",
   ) {
-    super("ollama", http);
+    super(
+      "ollama",
+      DEFAULT_PROVIDER_METADATA.ollama!,
+      http,
+    );
 
     this.baseUrl = baseUrl.replace(/\/$/, "");
   }

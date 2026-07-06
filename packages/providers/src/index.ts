@@ -8,3 +8,4 @@ export * from "./registry/index.js";
 export * from "./interfaces/index.js";
 export * from "./factory/index.js";
 export * from "./manager/index.js";
+export * from "./metadata/index.js";

@@ -4,6 +4,9 @@ import type { Provider } from "../interfaces/provider.js";
 
 import type { ProviderMetadata } from "../metadata/provider-metadata.js";
 
+import type { CompletionRequest } from "../types/completion-request.js";
+import type { CompletionResponse } from "../types/completion-response.js";
+
 export abstract class BaseProvider
   implements Provider
 {
@@ -19,7 +22,7 @@ export abstract class BaseProvider
     http: HttpClient,
   ) {
     this.name = name;
-    this.metadata = metadata;
+    this.metadata = structuredClone(metadata);
     this.http = http;
   }
 
@@ -29,9 +32,9 @@ export abstract class BaseProvider
     readonly string[]
   >;
 
+  public abstract refreshMetadata(): Promise<void>;
+
   public abstract complete(
-    request: import("../types/completion-request.js").CompletionRequest,
-  ): Promise<
-    import("../types/completion-response.js").CompletionResponse
-  >;
+    request: CompletionRequest,
+  ): Promise<CompletionResponse>;
 }

@@ -10,5 +10,5 @@ export interface ProviderMetadata {
 
   readonly capabilities: ProviderCapabilities;
 
-  readonly models: readonly ModelMetadata[];
+  models: ModelMetadata[];
 }

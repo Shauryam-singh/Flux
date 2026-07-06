@@ -80,6 +80,30 @@ export class OpenRouterProvider extends BaseProvider {
     );
   }
 
+  public async refreshMetadata(): Promise<void> {
+    const models = await this.listModels();
+
+    this.metadata.models.length = 0;
+
+    for (const model of models) {
+      this.metadata.models.push({
+        id: model,
+
+        displayName: model,
+
+        contextWindow: 128000,
+
+        maxOutputTokens: 4096,
+
+        vision: true,
+
+        toolCalling: true,
+
+        embeddings: false,
+      });
+    }
+  }
+
   public async complete(
     request: CompletionRequest,
   ): Promise<CompletionResponse> {
@@ -110,7 +134,7 @@ export class OpenRouterProvider extends BaseProvider {
     if (!choice) {
       throw new Error("No choices in response");
     }
-
+    
     const result: CompletionResponse = {
       text: choice.message.content,
     };

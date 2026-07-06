@@ -38,6 +38,30 @@ export class OllamaProvider extends BaseProvider {
     }
   }
 
+  public async refreshMetadata(): Promise<void> {
+    const models = await this.listModels();
+
+    this.metadata.models.length = 0;
+
+    for (const model of models) {
+      this.metadata.models.push({
+        id: model,
+
+        displayName: model,
+
+        contextWindow: 32768,
+
+        maxOutputTokens: 4096,
+
+        vision: model.includes("vision"),
+
+        toolCalling: true,
+
+        embeddings: true,
+      });
+    }
+  }
+
   public async listModels(): Promise<readonly string[]> {
     const response = await this.http.get<OllamaTagsResponse>(
       `${this.baseUrl}/api/tags`,

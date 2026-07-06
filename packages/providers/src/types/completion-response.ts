@@ -1,9 +1,9 @@
 export interface CompletionResponse {
-  readonly text: string;
+  text: string;
 
-  readonly inputTokens?: number;
+  inputTokens?: number;
 
-  readonly outputTokens?: number;
+  outputTokens?: number;
 
-  readonly finishReason?: string;
+  finishReason?: string;
 }

@@ -5,6 +5,8 @@ import type { HttpClient } from "../../http/http-client.js";
 
 import type { CompletionRequest } from "../../types/completion-request.js";
 import type { CompletionResponse } from "../../types/completion-response.js";
+import { ProviderCapabilities } from "../../capabilities/provider-capabilities.js";
+import { ProviderModel } from "../../models/provider-model.js";
 
 interface OpenRouterModelsResponse {
   readonly data: readonly {
@@ -29,6 +31,43 @@ interface OpenRouterChatResponse {
 }
 
 export class OpenRouterProvider extends BaseProvider {
+  public getCapabilities(): ProviderCapabilities {
+    return {
+      chat: true,
+      completion: true,
+      streaming: true,
+      tools: true,
+      vision: true,
+      embeddings: false,
+      local: false,
+    };
+  }
+
+  public getModels(): readonly ProviderModel[] {
+    return [
+      {
+        id: "openai/gpt-4.1",
+        name: "GPT-4.1",
+        contextWindow: 1_048_576,
+        maxOutputTokens: 32_768,
+        supportsVision: true,
+        supportsTools: true,
+        supportsStreaming: true,
+        local: false,
+      },
+      {
+        id: "anthropic/claude-sonnet-4",
+        name: "Claude Sonnet 4",
+        contextWindow: 200_000,
+        maxOutputTokens: 8_192,
+        supportsVision: true,
+        supportsTools: true,
+        supportsStreaming: true,
+        local: false,
+      },
+    ];
+  }
+  
   private readonly apiKey: string;
 
   private readonly baseUrl =

@@ -3,6 +3,11 @@ import type { HttpClient } from "../../http/http-client.js";
 import type { CompletionRequest } from "../../types/completion-request.js";
 import type { CompletionResponse } from "../../types/completion-response.js";
 import { DEFAULT_PROVIDER_METADATA } from "../../metadata/default-provider-metadata.js";
+import type { ProviderCapabilities }
+from "../../capabilities/provider-capabilities.js";
+
+import type { ProviderModel }
+from "../../models/provider-model.js";
 
 import type {
   OllamaChatRequest,
@@ -36,6 +41,33 @@ export class OllamaProvider extends BaseProvider {
     } catch {
       return false;
     }
+  }
+
+  public getCapabilities(): ProviderCapabilities {
+    return {
+      chat: true,
+      completion: true,
+      streaming: false,
+      tools: false,
+      vision: false,
+      embeddings: false,
+      local: true,
+    };
+  }
+
+  public getModels(): readonly ProviderModel[] {
+    return [
+      {
+        id: "qwen2.5:0.5b",
+        name: "Qwen 2.5 0.5B",
+        contextWindow: 32768,
+        maxOutputTokens: 8192,
+        supportsVision: false,
+        supportsTools: false,
+        supportsStreaming: false,
+        local: true,
+      },
+    ];
   }
 
   public async refreshMetadata(): Promise<void> {

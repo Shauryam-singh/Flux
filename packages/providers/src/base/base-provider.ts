@@ -7,6 +7,12 @@ import type { ProviderMetadata } from "../metadata/provider-metadata.js";
 import type { CompletionRequest } from "../types/completion-request.js";
 import type { CompletionResponse } from "../types/completion-response.js";
 
+import type { ProviderCapabilities }
+from "../capabilities/provider-capabilities.js";
+
+import type { ProviderModel }
+from "../models/provider-model.js";
+
 export abstract class BaseProvider
   implements Provider
 {
@@ -37,4 +43,10 @@ export abstract class BaseProvider
   public abstract complete(
     request: CompletionRequest,
   ): Promise<CompletionResponse>;
+
+  public abstract getCapabilities():
+    ProviderCapabilities;
+
+  public abstract getModels():
+      readonly ProviderModel[];
 }

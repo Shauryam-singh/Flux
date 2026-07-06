@@ -1,13 +1,18 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
+    "outDir": "dist",
     "rootDir": "src",
-    "outDir": "dist"
+
+    "composite": true,
+
+    "declaration": true,
+    "declarationMap": false,
+
+    "emitDeclarationOnly": false,
+
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext"
   },
-  "include": ["src"],
-  "references": [
-    { "path": "../shared" },
-    { "path": "../router" },
-    { "path": "../tools" }
-  ]
+  "include": ["src"]
 }

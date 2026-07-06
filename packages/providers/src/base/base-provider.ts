@@ -1,13 +1,27 @@
+import type { HttpClient } from "../http/http-client.js";
 import type { Provider } from "../interfaces/provider.js";
+import type { CompletionRequest } from "../types/completion-request.js";
+import type { CompletionResponse } from "../types/completion-response.js";
+import type { ProviderName } from "../types/provider-name.js";
 
 export abstract class BaseProvider implements Provider {
-  abstract readonly name: Provider["name"];
+  public readonly name: ProviderName;
 
-  abstract isAvailable(): Promise<boolean>;
+  protected readonly http: HttpClient;
 
-  abstract listModels(): Promise<readonly string[]>;
+  protected constructor(
+    name: ProviderName,
+    http: HttpClient,
+  ) {
+    this.name = name;
+    this.http = http;
+  }
 
-  abstract complete(
-    request: Parameters<Provider["complete"]>[0],
-  ): ReturnType<Provider["complete"]>;
+  public abstract isAvailable(): Promise<boolean>;
+
+  public abstract listModels(): Promise<readonly string[]>;
+
+  public abstract complete(
+    request: CompletionRequest,
+  ): Promise<CompletionResponse>;
 }

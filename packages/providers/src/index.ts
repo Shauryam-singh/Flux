@@ -1,4 +1,4 @@
-export * from "./base/base-provider.js";
+export * from "./base/index.js";
 export * from "./interfaces/provider.js";
 export * from "./interfaces/provider-factory.js";
 export * from "./interfaces/provider-registry.js";

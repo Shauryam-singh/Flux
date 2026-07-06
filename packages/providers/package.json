@@ -18,7 +18,9 @@
     "test": "echo \"No tests yet\""
   },
   "dependencies": {
+    "@ai-agent/config": "workspace:*",
     "@ai-agent/shared": "workspace:*",
-    "@ai-agent/config": "workspace:*"
+    "axios": "^1.18.1",
+    "zod": "^4.4.3"
   }
 }

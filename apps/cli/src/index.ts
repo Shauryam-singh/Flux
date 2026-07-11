@@ -2,6 +2,11 @@
 
 import { DefaultAgent, DefaultPlanner, DefaultSession } from "@ai-agent/agent";
 import {
+  DefaultProviderFactory,
+  type Provider,
+  type ProviderName,
+} from "@ai-agent/providers";
+import {
   DefaultToolExecutor,
   DefaultToolRegistry,
   echoTool,
@@ -25,6 +30,7 @@ const COMMAND_NAMES = [
   "help",
   "history",
   "suggest",
+  "models",
   "clear",
   "save",
   "load",
@@ -47,6 +53,16 @@ const executor = new DefaultToolExecutor(registry);
 const planner = new DefaultPlanner();
 const agent = new DefaultAgent(planner, executor);
 const session = new DefaultSession("cli-interactive");
+
+const providerFactory = new DefaultProviderFactory();
+const availableProviders: ProviderName[] = [
+  "ollama",
+  "openai",
+  "anthropic",
+  "openrouter",
+];
+let currentProvider: ProviderName = "ollama";
+let currentModel = "qwen2.5:0.5b";
 
 /* -------------------------------------------------
    Theme — 256-color palette + truecolor gradients
@@ -182,7 +198,7 @@ function buildHeader(): void {
 
   const infoLines = [
     `${paint(`⚡${APP_NAME} ${APP_VERSION}`, `${bold}${theme.primary}`)}`,
-    paint("Default • API", theme.muted),
+    `${paint(currentProvider, theme.muted)} • ${paint(currentModel, theme.text)}`,
     paint(cachedCwd, theme.text),
     `${paint("Branch:", theme.muted)} ${paint(cachedBranch, theme.success)}`,
     paint("Type /help to see available commands", theme.muted),
@@ -567,6 +583,7 @@ async function showHelp(): Promise<void> {
     `  ${paint("/help", theme.primary)}      Show this help`,
     `  ${paint("/history", theme.primary)}   Show command log`,
     `  ${paint("/suggest", theme.primary)}   Show smart tips`,
+    `  ${paint("/models", theme.primary)}    Configure models & providers`,
     `  ${paint("/clear", theme.primary)}     Clear the screen`,
     `  ${paint("/save", theme.primary)}      Save current session`,
     `  ${paint("/load", theme.primary)}      Load saved session`,
@@ -624,10 +641,123 @@ async function showSuggestions(): Promise<void> {
 }
 
 /* -------------------------------------------------
+   UI: models (/models command)
+   ------------------------------------------------- */
+async function showModels(args: string): Promise<void> {
+  const spinner = new Spinner(["Loading models"]);
+  spinner.start();
+
+  try {
+    const provider = providerFactory.create(currentProvider);
+    const models = await provider.listModels();
+
+    spinner.stop();
+
+    if (args) {
+      const parts = args.split(/\s+/);
+      const subcommand = parts[0]?.toLowerCase();
+
+      if (subcommand === "set" || subcommand === "select") {
+        const providerName = parts[1] as ProviderName | undefined;
+        const modelName = parts[2];
+
+        if (providerName && availableProviders.includes(providerName)) {
+          currentProvider = providerName;
+          if (modelName) {
+            currentModel = modelName;
+          } else {
+            const newProvider = providerFactory.create(providerName);
+            const newModels = await newProvider.listModels();
+            currentModel = newModels[0] ?? "unknown";
+          }
+          printLine();
+          await revealBox(
+            [
+              paint("✓ Model updated", `${bold}${theme.success}`),
+              `${paint("Provider:", theme.muted)} ${paint(currentProvider, theme.primary)}`,
+              `${paint("Model:", theme.muted)} ${paint(currentModel, theme.primary)}`,
+            ],
+            theme.success,
+            45,
+            18,
+          );
+          printLine();
+          return;
+        }
+
+        printLine();
+        await revealBox(
+          [
+            paint("Invalid provider", theme.error),
+            `${paint("Available:", theme.muted)} ${availableProviders.join(", ")}`,
+          ],
+          theme.error,
+          45,
+          18,
+        );
+        printLine();
+        return;
+      }
+
+      if (subcommand === "refresh") {
+        const freshProvider = providerFactory.create(currentProvider);
+        await freshProvider.refreshMetadata();
+        printLine();
+        await revealBox(
+          [paint("✓ Models refreshed", `${bold}${theme.success}`)],
+          theme.success,
+          45,
+          18,
+        );
+        printLine();
+        return;
+      }
+    }
+
+    const lines = [
+      `${paint(`📦 Models — ${currentProvider}`, `${bold}${theme.primary}`)}`,
+      "",
+      `${paint("Current:", theme.muted)} ${paint(currentModel, theme.success)}`,
+      "",
+      paint("Available models:", theme.accent),
+      ...models.map(
+        (m) =>
+          `${m === currentModel ? paint("●", theme.success) : paint("○", theme.muted)} ${m === currentModel ? paint(m, theme.success) : paint(m, theme.text)}`,
+      ),
+      "",
+      paint("Usage:", theme.accent),
+      `  ${paint("/models", theme.primary)}               List models`,
+      `  ${paint("/models set ollama llama3", theme.primary)}  Switch provider & model`,
+      `  ${paint("/models set openai", theme.primary)}      Switch provider`,
+      `  ${paint("/models refresh", theme.primary)}        Refresh model list`,
+    ];
+
+    printLine();
+    await revealBox(lines, theme.primary, 45, 14);
+    printLine();
+  } catch (err) {
+    spinner.stop();
+    const message = err instanceof Error ? err.message : String(err);
+    printLine();
+    await revealBox(
+      [
+        paint("Failed to load models", theme.error),
+        paint(message, theme.text),
+      ],
+      theme.error,
+      45,
+      18,
+    );
+    printLine();
+  }
+}
+
+/* -------------------------------------------------
    Fixed bottom input bar
    ------------------------------------------------- */
 const TIPS = [
   "Tip: /suggest shows smart prompt ideas",
+  "Tip: /models to configure providers & models",
   "Tip: /save keeps this session for later",
   "Tip: ↑ / ↓ browse your command history",
   "Tip: /clear wipes the screen",
@@ -709,6 +839,7 @@ async function main(): Promise<void> {
     history: () => showHistory(history),
     clear: () => clearChatArea(),
     suggest: () => showSuggestions(),
+    models: (args) => showModels(args),
     save: () => saveSession(history),
     load: async () => {
       history = await loadSession();

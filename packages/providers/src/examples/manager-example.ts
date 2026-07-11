@@ -1,7 +1,4 @@
-import {
-  DefaultProviderFactory,
-  DefaultProviderManager,
-} from "../index.js";
+import { DefaultProviderFactory, DefaultProviderManager } from "../index.js";
 
 async function main(): Promise<void> {
   const factory = new DefaultProviderFactory();

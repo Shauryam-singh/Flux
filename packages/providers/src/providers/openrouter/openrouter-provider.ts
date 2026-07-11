@@ -1,12 +1,11 @@
 import { BaseProvider } from "../../base/base-provider.js";
-import { DEFAULT_PROVIDER_METADATA } from "../../metadata/default-provider-metadata.js";
+import type { ProviderCapabilities } from "../../capabilities/provider-capabilities.js";
 
 import type { HttpClient } from "../../http/http-client.js";
-
+import { DEFAULT_PROVIDER_METADATA } from "../../metadata/default-provider-metadata.js";
+import type { ProviderModel } from "../../models/provider-model.js";
 import type { CompletionRequest } from "../../types/completion-request.js";
 import type { CompletionResponse } from "../../types/completion-response.js";
-import { ProviderCapabilities } from "../../capabilities/provider-capabilities.js";
-import { ProviderModel } from "../../models/provider-model.js";
 
 interface OpenRouterModelsResponse {
   readonly data: readonly {
@@ -67,21 +66,13 @@ export class OpenRouterProvider extends BaseProvider {
       },
     ];
   }
-  
+
   private readonly apiKey: string;
 
-  private readonly baseUrl =
-    "https://openrouter.ai/api/v1";
+  private readonly baseUrl = "https://openrouter.ai/api/v1";
 
-  public constructor(
-    http: HttpClient,
-    apiKey: string,
-  ) {
-    super(
-      "openrouter",
-      DEFAULT_PROVIDER_METADATA.openrouter!,
-      http,
-    );
+  public constructor(http: HttpClient, apiKey: string) {
+    super("openrouter", DEFAULT_PROVIDER_METADATA.openrouter!, http);
 
     this.apiKey = apiKey;
   }
@@ -92,12 +83,9 @@ export class OpenRouterProvider extends BaseProvider {
     }
 
     try {
-      await this.http.get<OpenRouterModelsResponse>(
-        `${this.baseUrl}/models`,
-        {
-          headers: this.headers,
-        },
-      );
+      await this.http.get<OpenRouterModelsResponse>(`${this.baseUrl}/models`, {
+        headers: this.headers,
+      });
 
       return true;
     } catch {
@@ -106,17 +94,14 @@ export class OpenRouterProvider extends BaseProvider {
   }
 
   public async listModels(): Promise<readonly string[]> {
-    const response =
-      await this.http.get<OpenRouterModelsResponse>(
-        `${this.baseUrl}/models`,
-        {
-          headers: this.headers,
-        },
-      );
-
-    return response.data.data.map(
-      (model) => model.id,
+    const response = await this.http.get<OpenRouterModelsResponse>(
+      `${this.baseUrl}/models`,
+      {
+        headers: this.headers,
+      },
     );
+
+    return response.data.data.map((model) => model.id);
   }
 
   public async refreshMetadata(): Promise<void> {
@@ -146,57 +131,47 @@ export class OpenRouterProvider extends BaseProvider {
   public async complete(
     request: CompletionRequest,
   ): Promise<CompletionResponse> {
-    const response =
-      await this.http.post<OpenRouterChatResponse>(
-        `${this.baseUrl}/chat/completions`,
-        {
-          model: request.model,
+    const response = await this.http.post<OpenRouterChatResponse>(
+      `${this.baseUrl}/chat/completions`,
+      {
+        model: request.model,
 
-          messages: [
-            {
-              role: "user",
-              content: request.prompt,
-            },
-          ],
+        messages: [
+          {
+            role: "user",
+            content: request.prompt,
+          },
+        ],
 
-          temperature: request.temperature,
+        temperature: request.temperature,
 
-          max_tokens: request.maxTokens,
-        },
-        {
-          headers: this.headers,
-        },
-      );
+        max_tokens: request.maxTokens,
+      },
+      {
+        headers: this.headers,
+      },
+    );
 
     const choice = response.data.choices[0];
 
     if (!choice) {
       throw new Error("No choices in response");
     }
-    
+
     const result: CompletionResponse = {
       text: choice.message.content,
     };
 
-    if (
-      response.data.usage?.prompt_tokens !==
-      undefined
-    ) {
-      result.inputTokens =
-        response.data.usage.prompt_tokens;
+    if (response.data.usage?.prompt_tokens !== undefined) {
+      result.inputTokens = response.data.usage.prompt_tokens;
     }
 
-    if (
-      response.data.usage
-        ?.completion_tokens !== undefined
-    ) {
-      result.outputTokens =
-        response.data.usage.completion_tokens;
+    if (response.data.usage?.completion_tokens !== undefined) {
+      result.outputTokens = response.data.usage.completion_tokens;
     }
 
     if (choice.finish_reason !== undefined) {
-      result.finishReason =
-        choice.finish_reason;
+      result.finishReason = choice.finish_reason;
     }
 
     return result;

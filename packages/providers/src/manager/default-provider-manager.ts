@@ -5,9 +5,7 @@ import type { ProviderManager } from "../interfaces/provider-manager.js";
 export class DefaultProviderManager implements ProviderManager {
   private readonly providers = new Map<string, Provider>();
 
-  public constructor(
-    private readonly factory: ProviderFactory,
-  ) {}
+  public constructor(private readonly factory: ProviderFactory) {}
 
   public register(name: string): void {
     if (this.providers.has(name)) {

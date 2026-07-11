@@ -1,16 +1,14 @@
 #!/usr/bin/env node
 
-import { DefaultAgent, DefaultPlanner } from "@ai-agent/agent";
+import { DefaultAgent, DefaultPlanner, DefaultSession } from "@ai-agent/agent";
 import {
-  DefaultToolRegistry,
   DefaultToolExecutor,
+  DefaultToolRegistry,
+  echoTool,
 } from "@ai-agent/tools";
-
-import { echoTool } from "@ai-agent/tools";
-import { DefaultSession } from "@ai-agent/agent";
-import * as readline from "readline";
-import * as fs from "fs";
 import { execSync } from "child_process";
+import * as fs from "fs";
+import * as readline from "readline";
 
 /* -------------------------------------------------
    App identity
@@ -18,7 +16,16 @@ import { execSync } from "child_process";
 const APP_NAME = "Flux";
 const APP_VERSION = "v0.0.18";
 const SESSION_FILE = ".flux-session.json";
-const COMMAND_NAMES = ["help", "history", "suggest", "clear", "save", "load", "exit", "quit"];
+const COMMAND_NAMES = [
+  "help",
+  "history",
+  "suggest",
+  "clear",
+  "save",
+  "load",
+  "exit",
+  "quit",
+];
 
 /* -------------------------------------------------
    Setup core components
@@ -39,13 +46,13 @@ const bold = "\x1b[1m";
 const dim = "\x1b[2m";
 
 const theme = {
-  primary: "\x1b[38;5;39m",  // blue
+  primary: "\x1b[38;5;39m", // blue
   accent: "\x1b[38;5;213m", // pink
   success: "\x1b[38;5;42m", // green
-  warning: "\x1b[38;5;220m",// yellow
-  error: "\x1b[38;5;196m",  // red
-  muted: "\x1b[38;5;245m",  // gray
-  text: "\x1b[38;5;255m",   // white
+  warning: "\x1b[38;5;220m", // yellow
+  error: "\x1b[38;5;196m", // red
+  muted: "\x1b[38;5;245m", // gray
+  text: "\x1b[38;5;255m", // white
 };
 
 function paint(text: string, color: string): string {
@@ -75,13 +82,7 @@ function centerLine(text: string, width: number): string {
 /* -------------------------------------------------
    Cat logo (Flux's mascot)
    ------------------------------------------------- */
-const FLUX_ART = [
-  "╭──╮ ",
-  "╰╮╭╯",
-  " ╰╯ ",
-  "╭╯╰╮",
-  "╰──╯",
-];
+const FLUX_ART = ["╭──╮ ", "╰╮╭╯", " ╰╯ ", "╭╯╰╮", "╰──╯"];
 const FLUX_WIDTH = 11;
 
 function fluxBlock(): string[] {
@@ -89,15 +90,26 @@ function fluxBlock(): string[] {
 }
 
 /** Wraps plain content lines in a box border, returned as separate rows. */
-function boxLinesArr(lines: string[], borderColor: string, width: number): string[] {
+function boxLinesArr(
+  lines: string[],
+  borderColor: string,
+  width: number,
+): string[] {
   const top = `${borderColor}╭${"─".repeat(width)}╮${reset}`;
   const bottom = `${borderColor}╰${"─".repeat(width)}╯${reset}`;
-  const body = lines.map((l) => `${borderColor}│${reset} ${padLine(l, width - 2)} ${borderColor}│${reset}`);
+  const body = lines.map(
+    (l) =>
+      `${borderColor}│${reset} ${padLine(l, width - 2)} ${borderColor}│${reset}`,
+  );
   return [top, ...body, bottom];
 }
 
 /** Centers a block of same-width lines within a taller block, padding with blank lines. */
-function padVertical(lines: string[], targetHeight: number, width: number): string[] {
+function padVertical(
+  lines: string[],
+  targetHeight: number,
+  width: number,
+): string[] {
   const extra = Math.max(0, targetHeight - lines.length);
   const top = Math.floor(extra / 2);
   const bottom = extra - top;
@@ -106,7 +118,13 @@ function padVertical(lines: string[], targetHeight: number, width: number): stri
 }
 
 /** Joins two blocks of lines side by side, vertically centering the shorter one. */
-function sideBySide(left: string[], leftWidth: number, right: string[], rightWidth: number, gap = 3): string[] {
+function sideBySide(
+  left: string[],
+  leftWidth: number,
+  right: string[],
+  rightWidth: number,
+  gap = 3,
+): string[] {
   const height = Math.max(left.length, right.length);
   const l = padVertical(left, height, leftWidth);
   const r = padVertical(right, height, rightWidth);
@@ -133,9 +151,12 @@ let cachedCwd = "";
 /** Builds the pinned header (cat on the left, info box on the right) for the current width. */
 function buildHeader(): void {
   if (!cachedBranch) {
-    cachedBranch = execSync("git rev-parse --abbrev-ref HEAD 2>/dev/null || echo 'main'", {
-      stdio: "pipe",
-    })
+    cachedBranch = execSync(
+      "git rev-parse --abbrev-ref HEAD 2>/dev/null || echo 'main'",
+      {
+        stdio: "pipe",
+      },
+    )
       .toString()
       .trim();
     cachedCwd = process.cwd();
@@ -144,7 +165,10 @@ function buildHeader(): void {
   const cols = process.stdout.columns || 80;
   const gap = 3;
   const minBoxWidth = 30;
-  const boxWidth = Math.max(minBoxWidth, Math.min(INFO_BOX_WIDTH, cols - FLUX_WIDTH - gap - 4));
+  const boxWidth = Math.max(
+    minBoxWidth,
+    Math.min(INFO_BOX_WIDTH, cols - FLUX_WIDTH - gap - 4),
+  );
 
   const infoLines = [
     `${paint(`⚡${APP_NAME} ${APP_VERSION}`, `${bold}${theme.primary}`)}`,
@@ -246,24 +270,37 @@ function clearChatArea(): void {
 /* -------------------------------------------------
    Animation primitives
    ------------------------------------------------- */
-const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
+const sleep = (ms: number): Promise<void> =>
+  new Promise((r) => setTimeout(r, ms));
 
 /**
  * Reveals a box line-by-line, top border first, so content
  * appears to stream in rather than popping onto the screen at once.
  */
-async function revealBox(lines: string[], borderColor: string, width = 45, lineDelay = 28): Promise<void> {
+async function revealBox(
+  lines: string[],
+  borderColor: string,
+  width = 45,
+  lineDelay = 28,
+): Promise<void> {
   printLine(`${borderColor}╭${"─".repeat(width)}╮${reset}`);
   for (const l of lines) {
-    printLine(`${borderColor}│${reset} ${padLine(l, width - 2)} ${borderColor}│${reset}`);
+    printLine(
+      `${borderColor}│${reset} ${padLine(l, width - 2)} ${borderColor}│${reset}`,
+    );
     if (lineDelay) await sleep(lineDelay);
   }
   printLine(`${borderColor}╰${"─".repeat(width)}╯${reset}`);
 }
 
 function progressBar(percent: number, width = 24): string {
-  const filled = Math.max(0, Math.min(width, Math.round((percent / 100) * width)));
-  const bar = paint("█".repeat(filled), theme.primary) + paint("░".repeat(width - filled), theme.muted);
+  const filled = Math.max(
+    0,
+    Math.min(width, Math.round((percent / 100) * width)),
+  );
+  const bar =
+    paint("█".repeat(filled), theme.primary) +
+    paint("░".repeat(width - filled), theme.muted);
   return `${bar} ${paint(percent + "%", theme.muted)}`;
 }
 
@@ -285,7 +322,9 @@ async function animateSteps(steps: string[]): Promise<void> {
   for (const step of steps) {
     let f = 0;
     const spin = setInterval(() => {
-      printRaw(`${paint(frames[f++ % frames.length]!, theme.warning)} ${paint(step, theme.muted)}`);
+      printRaw(
+        `${paint(frames[f++ % frames.length]!, theme.warning)} ${paint(step, theme.muted)}`,
+      );
     }, 60);
     await sleep(260);
     clearInterval(spin);
@@ -322,7 +361,9 @@ class Spinner {
   private render(): void {
     const frame = this.frames[this.frameIdx++ % this.frames.length];
     const phrase = this.phrases[this.phraseIdx];
-    printRaw(`${paint(frame!, theme.warning)} ${paint(phrase + "…", theme.muted)}`);
+    printRaw(
+      `${paint(frame!, theme.warning)} ${paint(phrase + "…", theme.muted)}`,
+    );
   }
 
   stop(): void {
@@ -350,7 +391,9 @@ async function typeOut(text: string, delayMs = 12): Promise<void> {
 async function runBootSequence(): Promise<void> {
   printLine();
   await animateBootBar("Initializing tools", 400);
-  printLine(paint("Ready — type a message or /help to see commands", theme.muted));
+  printLine(
+    paint("Ready — type a message or /help to see commands", theme.muted),
+  );
   printLine();
 }
 
@@ -358,16 +401,21 @@ async function runBootSequence(): Promise<void> {
    UI: error card
    ------------------------------------------------- */
 async function showErrorCard(
-  error: Error & { suggestion?: string; docLink?: string }
+  error: Error & { suggestion?: string; docLink?: string },
 ): Promise<void> {
-  const lines = [paint(`🔴 Error`, `${bold}${theme.error}`), paint(error.message, theme.text)];
+  const lines = [
+    paint(`🔴 Error`, `${bold}${theme.error}`),
+    paint(error.message, theme.text),
+  ];
 
   if (error.suggestion) {
     lines.push("");
     lines.push(`${paint("Suggested fix:", theme.warning)} ${error.suggestion}`);
   }
   if (error.docLink) {
-    lines.push(`${paint("Docs:", theme.muted)} ${paint(error.docLink, theme.primary)}`);
+    lines.push(
+      `${paint("Docs:", theme.muted)} ${paint(error.docLink, theme.primary)}`,
+    );
   }
 
   printLine();
@@ -431,24 +479,30 @@ async function saveSession(history: string[]): Promise<void> {
   try {
     fs.writeFileSync(
       SESSION_FILE,
-      JSON.stringify({ history, savedAt: new Date().toISOString() }, null, 2)
+      JSON.stringify({ history, savedAt: new Date().toISOString() }, null, 2),
     );
     spinner.stop();
     printLine();
     await revealBox(
-      [paint("💾 Session saved", `${bold}${theme.success}`), paint(SESSION_FILE, theme.text)],
+      [
+        paint("💾 Session saved", `${bold}${theme.success}`),
+        paint(SESSION_FILE, theme.text),
+      ],
       theme.success,
       45,
-      18
+      18,
     );
   } catch (err) {
     spinner.stop();
     printLine();
     await revealBox(
-      [paint("Could not save session", theme.error), paint(String(err), theme.text)],
+      [
+        paint("Could not save session", theme.error),
+        paint(String(err), theme.text),
+      ],
       theme.error,
       45,
-      18
+      18,
     );
   }
   printLine();
@@ -471,7 +525,7 @@ async function loadSession(): Promise<string[]> {
       ],
       theme.success,
       45,
-      18
+      18,
     );
     printLine();
     return loaded;
@@ -479,10 +533,13 @@ async function loadSession(): Promise<string[]> {
     spinner.stop();
     printLine();
     await revealBox(
-      [paint("No saved session found", theme.warning), paint(SESSION_FILE, theme.muted)],
+      [
+        paint("No saved session found", theme.warning),
+        paint(SESSION_FILE, theme.muted),
+      ],
       theme.warning,
       45,
-      18
+      18,
     );
     printLine();
     return [];
@@ -522,7 +579,9 @@ async function showHistory(history: string[]): Promise<void> {
   if (history.length === 0) {
     lines.push(paint("No commands yet.", theme.muted));
   } else {
-    history.forEach((h, i) => lines.push(`${paint((i + 1).toString(), theme.muted)}. ${h}`));
+    history.forEach((h, i) =>
+      lines.push(`${paint((i + 1).toString(), theme.muted)}. ${h}`),
+    );
   }
   printLine();
   await revealBox(lines, theme.success, 45, 14);
@@ -563,7 +622,9 @@ let tipIdx = 0;
 function currentFooterHint(buffer: string): string {
   if (buffer.startsWith("/")) {
     const partial = buffer.slice(1).toLowerCase();
-    const matches = partial ? COMMAND_NAMES.filter((c) => c.startsWith(partial)) : COMMAND_NAMES;
+    const matches = partial
+      ? COMMAND_NAMES.filter((c) => c.startsWith(partial))
+      : COMMAND_NAMES;
     if (matches.length) return `→ ${matches.map((m) => "/" + m).join("  ")}`;
     return paint("No matching command", theme.error);
   }
@@ -664,7 +725,7 @@ async function main(): Promise<void> {
           ],
           theme.error,
           45,
-          18
+          18,
         );
         printLine();
       }
@@ -678,7 +739,12 @@ async function main(): Promise<void> {
     }
 
     pushHistory(input);
-    const spinner = new Spinner(["Thinking", "Reasoning", "Drafting response", "Double-checking"]);
+    const spinner = new Spinner([
+      "Thinking",
+      "Reasoning",
+      "Drafting response",
+      "Double-checking",
+    ]);
     spinner.start();
 
     try {
@@ -709,82 +775,88 @@ async function main(): Promise<void> {
       spinner.stop();
       printLine();
       const error = err instanceof Error ? err : new Error(String(err));
-      await showErrorCard(error as Error & { suggestion?: string; docLink?: string });
+      await showErrorCard(
+        error as Error & { suggestion?: string; docLink?: string },
+      );
     } finally {
       redraw();
     }
   }
 
-  process.stdin.on("keypress", (str: string, key: readline.Key & { sequence?: string }) => {
-    if (!key) return;
+  process.stdin.on(
+    "keypress",
+    (str: string, key: readline.Key & { sequence?: string }) => {
+      if (!key) return;
 
-    if (key.ctrl && key.name === "c") {
-      void animatedExit();
-      return;
-    }
-    if (key.name === "return" || key.name === "enter") {
-      void handleSubmit();
-      return;
-    }
-    if (key.name === "backspace") {
-      if (cursorPos > 0) {
-        buffer = buffer.slice(0, cursorPos - 1) + buffer.slice(cursorPos);
-        cursorPos--;
+      if (key.ctrl && key.name === "c") {
+        void animatedExit();
+        return;
       }
-      redraw();
-      return;
-    }
-    if (key.name === "delete") {
-      buffer = buffer.slice(0, cursorPos) + buffer.slice(cursorPos + 1);
-      redraw();
-      return;
-    }
-    if (key.name === "left") {
-      if (cursorPos > 0) cursorPos--;
-      redraw();
-      return;
-    }
-    if (key.name === "right") {
-      if (cursorPos < buffer.length) cursorPos++;
-      redraw();
-      return;
-    }
-    if (key.name === "up") {
-      if (history.length === 0) return;
-      if (historyPointer === -1) draftBuffer = buffer;
-      historyPointer = Math.min(historyPointer + 1, history.length - 1);
-      buffer = history[historyPointer] ?? "";
-      cursorPos = buffer.length;
-      redraw();
-      return;
-    }
-    if (key.name === "down") {
-      if (historyPointer === -1) return;
-      historyPointer--;
-      buffer = historyPointer === -1 ? draftBuffer : history[historyPointer] ?? "";
-      cursorPos = buffer.length;
-      redraw();
-      return;
-    }
-    if (key.name === "tab") {
-      if (buffer.startsWith("/")) {
-        const partial = buffer.slice(1).toLowerCase();
-        const match = COMMAND_NAMES.find((c) => c.startsWith(partial));
-        if (match) {
-          buffer = "/" + match;
-          cursorPos = buffer.length;
+      if (key.name === "return" || key.name === "enter") {
+        void handleSubmit();
+        return;
+      }
+      if (key.name === "backspace") {
+        if (cursorPos > 0) {
+          buffer = buffer.slice(0, cursorPos - 1) + buffer.slice(cursorPos);
+          cursorPos--;
         }
+        redraw();
+        return;
       }
-      redraw();
-      return;
-    }
-    if (str && !key.ctrl && !key.meta) {
-      buffer = buffer.slice(0, cursorPos) + str + buffer.slice(cursorPos);
-      cursorPos += str.length;
-      historyPointer = -1;
-      redraw();
-    }
-  });
+      if (key.name === "delete") {
+        buffer = buffer.slice(0, cursorPos) + buffer.slice(cursorPos + 1);
+        redraw();
+        return;
+      }
+      if (key.name === "left") {
+        if (cursorPos > 0) cursorPos--;
+        redraw();
+        return;
+      }
+      if (key.name === "right") {
+        if (cursorPos < buffer.length) cursorPos++;
+        redraw();
+        return;
+      }
+      if (key.name === "up") {
+        if (history.length === 0) return;
+        if (historyPointer === -1) draftBuffer = buffer;
+        historyPointer = Math.min(historyPointer + 1, history.length - 1);
+        buffer = history[historyPointer] ?? "";
+        cursorPos = buffer.length;
+        redraw();
+        return;
+      }
+      if (key.name === "down") {
+        if (historyPointer === -1) return;
+        historyPointer--;
+        buffer =
+          historyPointer === -1 ? draftBuffer : (history[historyPointer] ?? "");
+        cursorPos = buffer.length;
+        redraw();
+        return;
+      }
+      if (key.name === "tab") {
+        if (buffer.startsWith("/")) {
+          const partial = buffer.slice(1).toLowerCase();
+          const match = COMMAND_NAMES.find((c) => c.startsWith(partial));
+          if (match) {
+            buffer = "/" + match;
+            cursorPos = buffer.length;
+          }
+        }
+        redraw();
+        return;
+      }
+      if (str && !key.ctrl && !key.meta) {
+        buffer = buffer.slice(0, cursorPos) + str + buffer.slice(cursorPos);
+        cursorPos += str.length;
+        historyPointer = -1;
+        redraw();
+      }
+    },
+  );
 
   process.stdout.on("resize", () => {
     buildHeader();

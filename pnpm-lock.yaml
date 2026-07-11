@@ -39,6 +39,9 @@ importers:
 
   packages/agent:
     dependencies:
+      '@ai-agent/providers':
+        specifier: workspace:*
+        version: link:../providers
       '@ai-agent/router':
         specifier: workspace:*
         version: link:../router

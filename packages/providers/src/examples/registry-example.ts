@@ -5,19 +5,14 @@ import { DefaultProviderRegistry } from "../registry/index.js";
 async function main(): Promise<void> {
   const registry = new DefaultProviderRegistry();
 
-  registry.register(
-    new OllamaProvider(new AxiosHttpClient()),
-  );
+  registry.register(new OllamaProvider(new AxiosHttpClient()));
 
   console.log(
     "Registered:",
     registry.list().map((p) => p.name),
   );
 
-  console.log(
-    "Has Ollama:",
-    registry.has("ollama"),
-  );
+  console.log("Has Ollama:", registry.has("ollama"));
 
   const provider = registry.get("ollama");
 
@@ -25,10 +20,7 @@ async function main(): Promise<void> {
     throw new Error("Provider not found.");
   }
 
-  console.log(
-    "Models:",
-    await provider.listModels(),
-  );
+  console.log("Models:", await provider.listModels());
 }
 
 main().catch(console.error);

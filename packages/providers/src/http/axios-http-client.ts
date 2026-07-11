@@ -15,9 +15,7 @@ export class AxiosHttpClient implements HttpClient {
     this.client = axios.create(config);
   }
 
-  public async request<T>(
-    request: HttpRequest,
-  ): Promise<HttpResponse<T>> {
+  public async request<T>(request: HttpRequest): Promise<HttpResponse<T>> {
     const config: AxiosRequestConfig = {
       method: request.method,
       url: request.url,
@@ -39,8 +37,7 @@ export class AxiosHttpClient implements HttpClient {
       config.timeout = request.timeout;
     }
 
-    const response: AxiosResponse<T> =
-      await this.client.request<T>(config);
+    const response: AxiosResponse<T> = await this.client.request<T>(config);
 
     return {
       status: response.status,

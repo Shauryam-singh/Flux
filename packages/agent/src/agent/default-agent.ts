@@ -17,20 +17,14 @@ export class DefaultAgent implements Agent {
     request: AgentRequest,
   ): Promise<AgentResponse> {
     // Save user message
-    await session.memory.add(
-      "user",
-      JSON.stringify(request.input),
-    );
+    await session.memory.add("user", JSON.stringify(request.input));
 
     const toolCall = await this.planner.plan(session, request);
 
     const result = await this.toolExecutor.execute(toolCall);
 
     // Save assistant response
-    await session.memory.add(
-      "assistant",
-      JSON.stringify(result),
-    );
+    await session.memory.add("assistant", JSON.stringify(result));
 
     return {
       success: true,

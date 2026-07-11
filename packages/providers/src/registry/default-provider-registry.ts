@@ -3,13 +3,8 @@ import type { ProviderRegistry } from "../interfaces/provider-registry.js";
 
 import type { ProviderName } from "../types/provider-name.js";
 
-export class DefaultProviderRegistry
-  implements ProviderRegistry
-{
-  private readonly providers = new Map<
-    ProviderName,
-    Provider
-  >();
+export class DefaultProviderRegistry implements ProviderRegistry {
+  private readonly providers = new Map<ProviderName, Provider>();
 
   public register(provider: Provider): void {
     this.providers.set(provider.name, provider);
@@ -19,9 +14,7 @@ export class DefaultProviderRegistry
     this.providers.delete(name);
   }
 
-  public get(
-    name: ProviderName,
-  ): Provider | undefined {
+  public get(name: ProviderName): Provider | undefined {
     return this.providers.get(name);
   }
 

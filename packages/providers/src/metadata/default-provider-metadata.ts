@@ -1,9 +1,6 @@
 import type { ProviderMetadata } from "./provider-metadata.js";
 
-export const DEFAULT_PROVIDER_METADATA: Record<
-  string,
-  ProviderMetadata
-> = {
+export const DEFAULT_PROVIDER_METADATA: Record<string, ProviderMetadata> = {
   ollama: {
     id: "ollama",
 

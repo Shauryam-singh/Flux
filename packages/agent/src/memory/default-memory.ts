@@ -8,10 +8,7 @@ type Message = {
 export class DefaultMemory implements Memory {
   private readonly messages: Message[] = [];
 
-  public async add(
-    role: string,
-    content: string,
-  ): Promise<void> {
+  public async add(role: string, content: string): Promise<void> {
     this.messages.push({
       role,
       content,

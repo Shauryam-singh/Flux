@@ -1,13 +1,10 @@
 import { BaseProvider } from "../../base/base-provider.js";
+import type { ProviderCapabilities } from "../../capabilities/provider-capabilities.js";
 import type { HttpClient } from "../../http/http-client.js";
+import { DEFAULT_PROVIDER_METADATA } from "../../metadata/default-provider-metadata.js";
+import type { ProviderModel } from "../../models/provider-model.js";
 import type { CompletionRequest } from "../../types/completion-request.js";
 import type { CompletionResponse } from "../../types/completion-response.js";
-import { DEFAULT_PROVIDER_METADATA } from "../../metadata/default-provider-metadata.js";
-import type { ProviderCapabilities }
-from "../../capabilities/provider-capabilities.js";
-
-import type { ProviderModel }
-from "../../models/provider-model.js";
 
 import type {
   OllamaChatRequest,
@@ -18,24 +15,15 @@ import type {
 export class OllamaProvider extends BaseProvider {
   private readonly baseUrl: string;
 
-  public constructor(
-    http: HttpClient,
-    baseUrl = "http://localhost:11434",
-  ) {
-    super(
-      "ollama",
-      DEFAULT_PROVIDER_METADATA.ollama!,
-      http,
-    );
+  public constructor(http: HttpClient, baseUrl = "http://localhost:11434") {
+    super("ollama", DEFAULT_PROVIDER_METADATA.ollama!, http);
 
     this.baseUrl = baseUrl.replace(/\/$/, "");
   }
 
   public async isAvailable(): Promise<boolean> {
     try {
-      await this.http.get<OllamaTagsResponse>(
-        `${this.baseUrl}/api/tags`,
-      );
+      await this.http.get<OllamaTagsResponse>(`${this.baseUrl}/api/tags`);
 
       return true;
     } catch {
@@ -104,49 +92,47 @@ export class OllamaProvider extends BaseProvider {
 
   public async complete(
     request: CompletionRequest,
-    ): Promise<CompletionResponse> {
+  ): Promise<CompletionResponse> {
     const options =
-        request.temperature !== undefined ||
-        request.maxTokens !== undefined
+      request.temperature !== undefined || request.maxTokens !== undefined
         ? {
             ...(request.temperature !== undefined && {
-                temperature: request.temperature,
+              temperature: request.temperature,
             }),
             ...(request.maxTokens !== undefined && {
-                num_predict: request.maxTokens,
+              num_predict: request.maxTokens,
             }),
-            }
+          }
         : undefined;
 
     const body: OllamaChatRequest = {
-        model: request.model,
-        stream: false,
-        messages: [
+      model: request.model,
+      stream: false,
+      messages: [
         {
-            role: "user",
-            content: request.prompt,
+          role: "user",
+          content: request.prompt,
         },
-        ],
-        ...(options !== undefined && { options }),
+      ],
+      ...(options !== undefined && { options }),
     };
 
-    const response =
-        await this.http.post<OllamaChatResponse>(
-        `${this.baseUrl}/api/chat`,
-        body,
-        );
+    const response = await this.http.post<OllamaChatResponse>(
+      `${this.baseUrl}/api/chat`,
+      body,
+    );
 
     return {
-        text: response.data.message.content,
-        ...(response.data.prompt_eval_count !== undefined && {
+      text: response.data.message.content,
+      ...(response.data.prompt_eval_count !== undefined && {
         inputTokens: response.data.prompt_eval_count,
-        }),
-        ...(response.data.eval_count !== undefined && {
+      }),
+      ...(response.data.eval_count !== undefined && {
         outputTokens: response.data.eval_count,
-        }),
-        ...(response.data.done_reason !== undefined && {
+      }),
+      ...(response.data.done_reason !== undefined && {
         finishReason: response.data.done_reason,
-        }),
+      }),
     };
-    }
+  }
 }

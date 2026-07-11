@@ -5,6 +5,11 @@ import {
   DefaultToolExecutor,
   DefaultToolRegistry,
   echoTool,
+  createReadFileTool,
+  createWriteFileTool,
+  createEditFileTool,
+  createListDirectoryTool,
+  createRunCommandTool,
 } from "@ai-agent/tools";
 import { execSync } from "child_process";
 import * as fs from "fs";
@@ -31,7 +36,12 @@ const COMMAND_NAMES = [
    Setup core components
    ------------------------------------------------- */
 const registry = new DefaultToolRegistry();
-registry.register(echoTool); // add more tools here later
+registry.register(echoTool);
+registry.register(createReadFileTool());
+registry.register(createWriteFileTool());
+registry.register(createEditFileTool());
+registry.register(createListDirectoryTool());
+registry.register(createRunCommandTool());
 
 const executor = new DefaultToolExecutor(registry);
 const planner = new DefaultPlanner();
@@ -561,6 +571,13 @@ async function showHelp(): Promise<void> {
     `  ${paint("/save", theme.primary)}      Save current session`,
     `  ${paint("/load", theme.primary)}      Load saved session`,
     `  ${paint("/exit", theme.primary)}      Quit ${APP_NAME}`,
+    "",
+    paint("Tools:", theme.accent),
+    `  ${paint("read_file", theme.primary)}     Read file contents`,
+    `  ${paint("write_file", theme.primary)}    Create or overwrite a file`,
+    `  ${paint("edit_file", theme.primary)}     Edit a file (search & replace)`,
+    `  ${paint("list_directory", theme.primary)} List files in a directory`,
+    `  ${paint("run_command", theme.primary)}   Execute a shell command`,
     "",
     paint("Anything else is sent to the agent as a chat message.", theme.muted),
     "",

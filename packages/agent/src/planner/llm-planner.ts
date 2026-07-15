@@ -1,4 +1,4 @@
-import type { Provider } from "@ai-agent/providers";
+import type { Provider, StreamingCallbacks } from "@ai-agent/providers";
 import type { Tool, ToolCall, ToolRegistry } from "@ai-agent/tools";
 
 import type { Session } from "../session/session.js";
@@ -53,27 +53,83 @@ export class LlmPlanner implements Planner {
     };
   }
 
+  public async planStream(
+    session: Session,
+    request: AgentRequest,
+    callbacks: StreamingCallbacks,
+  ): Promise<void> {
+    const tools = this.toolRegistry.getAll();
+    const history = await session.memory.history();
+
+    const systemPrompt = this.buildSystemPrompt(tools);
+    const userMessage = this.buildUserMessage(request, history);
+
+    const fullPrompt = `${systemPrompt}\n\n${userMessage}`;
+
+    if (this.provider.completeStream) {
+      let fullText = "";
+
+      await this.provider.completeStream(
+        {
+          model: this.model,
+          prompt: fullPrompt,
+          temperature: 0.1,
+        },
+        {
+          onToken: (token) => {
+            fullText += token;
+            callbacks.onToken?.(token);
+          },
+          onDone: (response) => {
+            const parsed = this.parseResponse(fullText);
+            callbacks.onDone?.({
+              ...response,
+              text: fullText,
+            });
+          },
+          ...(callbacks.onError !== undefined && { onError: callbacks.onError }),
+        },
+      );
+    } else {
+      // Fallback to non-streaming
+      const response = await this.provider.complete({
+        model: this.model,
+        prompt: fullPrompt,
+        temperature: 0.1,
+      });
+
+      callbacks.onToken?.(response.text);
+      callbacks.onDone?.(response);
+    }
+  }
+
   private buildSystemPrompt(tools: readonly Tool[]): string {
     const toolDescriptions = tools
       .map((tool) => `- ${tool.name}: ${tool.description}`)
       .join("\n");
 
-    return `You are Flux, an AI coding assistant. Your job is to help users with coding tasks.
+    return `You are Flux, an AI coding assistant. You help users with coding tasks by using tools.
 
-Available tools:
+## Available Tools
 ${toolDescriptions}
 
-To use a tool, respond with a JSON object:
+## How to Use Tools
+When the user asks you to perform an action (read, write, edit files, run commands, etc.), respond with ONLY a JSON object:
+
 {"tool": "tool_name", "input": {"param": "value"}}
 
-To respond directly to the user (for conversation, explanations, questions), use the echo tool:
+## When to Respond with Text
+For questions, explanations, conversations, and when no tool is needed, use the echo tool:
+
 {"tool": "echo", "input": {"message": "your response here"}}
 
-Rules:
-- Use tools when the user asks you to read, write, edit files, list directories, or run commands
-- Use echo for conversation, explanations, questions, and general chat
-- Respond ONLY with a JSON object, no other text
-- Do not wrap in markdown code blocks`;
+## Important Rules
+1. ALWAYS use tools for file operations, directory listings, and command execution
+2. Use echo ONLY for conversational responses, explanations, and questions
+3. Respond with ONLY a JSON object - no markdown, no extra text
+4. If the user asks to "create", "write", "edit", "read", "show", "list", or "run" - use the appropriate tool
+5. If the user asks a question or wants to chat - use echo
+6. Do not wrap JSON in code blocks`;
   }
 
   private buildUserMessage(
@@ -87,10 +143,10 @@ Rules:
       const historyText = recentHistory
         .map((msg) => `${msg.role}: ${msg.content}`)
         .join("\n");
-      contextParts.push(`Conversation history:\n${historyText}`);
+      contextParts.push(`Previous conversation:\n${historyText}`);
     }
 
-    contextParts.push(`User request: ${JSON.stringify(request.input)}`);
+    contextParts.push(`User: ${JSON.stringify(request.input)}`);
 
     return contextParts.join("\n\n");
   }

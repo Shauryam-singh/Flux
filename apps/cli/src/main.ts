@@ -9,9 +9,15 @@ import { extractText, renderMessage } from "./chat/format.js";
 import {
   loadSession,
   saveSession,
+  saveSessionAs,
   createSession,
   addMessage,
   countTokens,
+  formatDuration,
+  formatTokens,
+  formatDate,
+  listSessions,
+  loadSessionByName,
   type SessionData,
   type SessionMessage,
 } from "./session/store.js";
@@ -40,6 +46,7 @@ const COMMAND_NAMES = [
   "models",
   "clear",
   "save",
+  "saveas",
   "load",
   "resume",
   "exit",
@@ -67,6 +74,90 @@ function getCommandSuggestion(input: string): string | null {
   const matches = COMMAND_NAMES.filter((c) => c.startsWith(partial));
   if (matches.length === 1) return matches[0] ?? null;
   return null;
+}
+
+function parseToolCall(text: string): { tool: string; input: Record<string, unknown> } | null {
+  const cleaned = text
+    .replace(/^```json\s*/i, "")
+    .replace(/^```\s*/i, "")
+    .replace(/```\s*$/i, "")
+    .trim();
+
+  try {
+    const parsed = JSON.parse(cleaned) as { tool?: string; input?: Record<string, unknown> };
+    if (typeof parsed.tool === "string") {
+      return {
+        tool: parsed.tool,
+        input: typeof parsed.input === "object" && parsed.input !== null ? parsed.input : {},
+      };
+    }
+  } catch {
+    // Not JSON
+  }
+  return null;
+}
+
+function getToolStatusMessage(toolName: string, input: Record<string, unknown>): string {
+  switch (toolName) {
+    case "echo":
+      return "";
+    case "read_file":
+      return paint(`Read ${(input as { path?: string }).path ?? "file"}`, theme.accent);
+    case "write_file":
+      return paint(`Created ${(input as { path?: string }).path ?? "file"}`, theme.accent);
+    case "edit_file":
+      return paint(`Edited ${(input as { path?: string }).path ?? "file"}`, theme.accent);
+    case "list_directory":
+      return paint(`Listed ${(input as { path?: string }).path ?? "directory"}`, theme.accent);
+    case "run_command":
+      return paint(`Ran command`, theme.accent);
+    default:
+      return paint(`Used ${toolName}`, theme.accent);
+  }
+}
+
+function formatToolResult(toolName: string, input: Record<string, unknown>, result: unknown): string {
+  if (toolName === "echo") {
+    const msg = (input as { message?: string }).message ?? String(result);
+    return msg;
+  }
+
+  const lines: string[] = [];
+
+  if (toolName === "read_file") {
+    lines.push(String(result));
+  } else if (toolName === "write_file") {
+    const r = result as { path?: string; bytesWritten?: number } | string;
+    if (typeof r === "object" && r !== null) {
+      if (r.bytesWritten !== undefined) {
+        lines.push(paint(`${r.bytesWritten} bytes written`, theme.muted));
+      }
+    } else {
+      lines.push(String(result));
+    }
+  } else if (toolName === "edit_file") {
+    const r = result as { path?: string; bytesWritten?: number } | string;
+    if (typeof r === "object" && r !== null) {
+      lines.push(paint(`Updated`, theme.muted));
+    } else {
+      lines.push(String(result));
+    }
+  } else if (toolName === "list_directory") {
+    const r = result as { path?: string; entries?: string[] } | string;
+    if (typeof r === "object" && r !== null && r.entries) {
+      for (const entry of r.entries) {
+        lines.push(`  ${entry}`);
+      }
+    } else {
+      lines.push(String(result));
+    }
+  } else if (toolName === "run_command") {
+    lines.push(String(result));
+  } else {
+    lines.push(String(result));
+  }
+
+  return lines.join("\n");
 }
 
 async function main(): Promise<void> {
@@ -178,22 +269,110 @@ async function main(): Promise<void> {
           printToChat("");
           printPrompt();
           return;
-        case "load": {
-          if (!savedSession || savedSession.messages.length === 0) {
-            printToChat(paint("No saved session found", theme.warning));
+        case "saveas": {
+          const sessionName = args.trim();
+          if (!sessionName) {
+            printToChat(paint("Usage: /saveas <session-name>", theme.warning));
             printToChat("");
             printPrompt();
             return;
           }
-          sessionData = savedSession;
-          currentProvider = savedSession.provider;
-          currentModel = savedSession.model;
+          saveSessionAs(sessionData, sessionName);
+          printToChat(paint(`Session saved as "${sessionName}"`, theme.success));
+          printToChat("");
+          printPrompt();
+          return;
+        }
+        case "load": {
+          const sessions = listSessions();
+
+          // Also add current session if it has messages
+          if (savedSession && savedSession.messages.length > 0) {
+            const currentExists = sessions.some(s => s.name === "current");
+            if (!currentExists) {
+              sessions.unshift({ name: "current", path: "", data: savedSession });
+            }
+          }
+
+          if (sessions.length === 0) {
+            printToChat(paint("No saved sessions found", theme.warning));
+            printToChat("");
+            printPrompt();
+            return;
+          }
+
+          // Show session list
+          printToChat("");
+          printToChat(paint("Available sessions:", theme.accent));
+          printToChat("");
+
+          for (let i = 0; i < sessions.length; i++) {
+            const session = sessions[i]!;
+            const msgCount = session.data.messages.length;
+            const date = formatDate(session.data.updatedAt || session.data.createdAt);
+            const provider = session.data.provider;
+            const model = session.data.model;
+            printToChat(
+              `  ${paint(`${i + 1}.`, theme.primary)} ${paint(session.name, theme.text)} — ${msgCount} messages, ${date} (${provider}/${model})`
+            );
+          }
+
+          printToChat("");
+          printToChat(paint("Enter session number to load:", theme.muted));
+          printToChat("");
+
+          // Read user input for selection using keypress handler
+          process.stdout.write(`${PROMPT}`);
+
+          const answer = await new Promise<string>((resolve) => {
+            let inputBuffer = "";
+
+            const handler = (_str: string, key: readline.Key) => {
+              if (!key) return;
+
+              if (key.name === "return" || key.name === "enter") {
+                process.stdin.removeListener("keypress", handler);
+                process.stdout.write("\n");
+                resolve(inputBuffer);
+                return;
+              }
+
+              if (key.name === "backspace") {
+                if (inputBuffer.length > 0) {
+                  inputBuffer = inputBuffer.slice(0, -1);
+                  process.stdout.write("\r\x1b[2K" + PROMPT + paint(inputBuffer, theme.text));
+                }
+                return;
+              }
+
+              if (_str && !key.ctrl && !key.meta) {
+                inputBuffer += _str;
+                process.stdout.write(paint(_str, theme.text));
+              }
+            };
+
+            process.stdin.on("keypress", handler);
+          });
+
+          const idx = parseInt(answer, 10) - 1;
+          if (isNaN(idx) || idx < 0 || idx >= sessions.length) {
+            printToChat(paint("Invalid selection", theme.error));
+            printToChat("");
+            printPrompt();
+            return;
+          }
+
+          const selected = sessions[idx]!;
+          sessionData = selected.data;
+          currentProvider = selected.data.provider;
+          currentModel = selected.data.model;
           hasResumableSession = false;
+
           clearScreen();
           printHeader(currentProvider, currentModel, cwd, branch);
           process.stdout.write(
             paint(
-              `\nLoaded ${sessionData.messages.length} messages\n\n`,
+              `\nLoaded session "${selected.name}" with ${sessionData.messages.length} messages\n\n`,
               theme.success,
             ),
           );
@@ -266,35 +445,82 @@ async function main(): Promise<void> {
         providerConfigs,
       });
       const agentSession = new DefaultSession("chat-" + Date.now());
-      const result = await agent.run(agentSession, {
+
+      let fullText = "";
+      let firstToken = true;
+      let lastToolResult: unknown = null;
+      let lastToolName = "";
+      let lastToolInput: Record<string, unknown> = {};
+
+      await agent.runStream(agentSession, {
         input: { message: input, type: "chat" },
+      }, {
+        onToken: (token) => {
+          fullText += token;
+          if (firstToken) {
+            spinner.stop();
+            firstToken = false;
+          }
+        },
+        onToolResult: (toolName, toolInput, result) => {
+          lastToolResult = result;
+          lastToolName = toolName;
+          lastToolInput = toolInput;
+        },
+        onDone: (response) => {
+          const durationMs = Date.now() - start;
+
+          if (firstToken) {
+            spinner.stop();
+            firstToken = false;
+          }
+
+          // Show "Thought for Xms" message
+          process.stdout.write("\n");
+          process.stdout.write(paint(`  Thought for ${formatDuration(durationMs)}`, theme.dim) + "\n");
+
+          // Format display text
+          let displayText: string;
+
+          if (lastToolName) {
+            // Show tool status message
+            const statusMsg = getToolStatusMessage(lastToolName, lastToolInput);
+            if (statusMsg) {
+              process.stdout.write(statusMsg + "\n");
+            }
+            displayText = formatToolResult(lastToolName, lastToolInput, lastToolResult);
+          } else {
+            displayText = fullText;
+          }
+
+          const inputTokens = countTokens(input);
+          const outputTokens = countTokens(fullText);
+
+          const assistantMsg: SessionMessage = {
+            role: "assistant",
+            content: displayText,
+            timestamp: new Date().toISOString(),
+            provider: currentProvider,
+            model: currentModel,
+            durationMs,
+            inputTokens,
+            outputTokens,
+            ...(lastToolName ? { toolUsed: lastToolName } : {}),
+          };
+          addMessage(sessionData, assistantMsg);
+
+          process.stdout.write(displayText + "\n");
+          process.stdout.write(paint(`  ${formatTokens(inputTokens)} in · ${formatTokens(outputTokens)} out · ${currentProvider}/${currentModel}`, theme.muted) + "\n\n");
+
+          saveSession(sessionData);
+        },
+        onError: (error) => {
+          spinner.stop();
+          process.stdout.write("\n");
+          printToChat(paint(`Error: ${error.message}`, theme.error));
+          printToChat("");
+        },
       });
-
-      const durationMs = Date.now() - start;
-      spinner.stop();
-
-      const text =
-        extractText(result.result?.output) ||
-        JSON.stringify(result.result?.output, null, 2);
-
-      const inputTokens = countTokens(input);
-      const outputTokens = countTokens(text);
-
-      const assistantMsg: SessionMessage = {
-        role: "assistant",
-        content: text,
-        timestamp: new Date().toISOString(),
-        provider: currentProvider,
-        model: currentModel,
-        durationMs,
-        inputTokens,
-        outputTokens,
-      };
-      addMessage(sessionData, assistantMsg);
-
-      process.stdout.write("\n" + renderMessage(assistantMsg) + "\n\n");
-
-      saveSession(sessionData);
     } catch (err) {
       spinner.stop();
       const msg = err instanceof Error ? err.message : String(err);
@@ -390,7 +616,6 @@ async function main(): Promise<void> {
         buffer = "";
         cursorPos = 0;
         historyIdx = -1;
-        // Clear input line and show submitted command
         process.stdout.write(`\r\x1b[2K`);
         void handleInput(input);
         return;

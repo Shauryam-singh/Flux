@@ -14,6 +14,37 @@ export function extractText(output: unknown): string {
   return "";
 }
 
+function parseJsonToolCall(text: string): { tool: string; message?: string } | null {
+  try {
+    const parsed = JSON.parse(text) as { tool?: string; input?: { message?: string } };
+    if (typeof parsed.tool === "string") {
+      const msg = parsed.input?.message;
+      return {
+        tool: parsed.tool,
+        ...(msg !== undefined && { message: msg }),
+      };
+    }
+  } catch {
+    // Not JSON
+  }
+  return null;
+}
+
+function formatContent(content: string, toolUsed?: string): string {
+  // Check if content is a JSON tool call
+  const toolCall = parseJsonToolCall(content);
+
+  if (toolCall) {
+    if (toolCall.tool === "echo" && toolCall.message) {
+      return toolCall.message;
+    }
+    // For other tools, show a brief summary
+    return `${paint(toolCall.tool, theme.accent)}`;
+  }
+
+  return content;
+}
+
 export function renderUserMessage(msg: SessionMessage): string {
   return `${paint(">", theme.accent)} ${msg.content}`;
 }
@@ -21,7 +52,7 @@ export function renderUserMessage(msg: SessionMessage): string {
 export function renderAssistantMessage(msg: SessionMessage): string {
   const lines: string[] = [];
 
-  const content = msg.content || "(empty response)";
+  const content = formatContent(msg.content || "(empty response)", msg.toolUsed);
   lines.push(content);
 
   // Metadata footer

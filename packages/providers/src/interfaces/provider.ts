@@ -1,6 +1,6 @@
 import type { ProviderMetadata } from "../metadata/provider-metadata.js";
 import type { CompletionRequest } from "../types/completion-request.js";
-import type { CompletionResponse } from "../types/completion-response.js";
+import type { CompletionResponse, StreamingCallbacks } from "../types/completion-response.js";
 import type { ProviderName } from "../types/provider-name.js";
 
 export interface Provider {
@@ -15,4 +15,6 @@ export interface Provider {
   refreshMetadata(): Promise<void>;
 
   complete(request: CompletionRequest): Promise<CompletionResponse>;
+
+  completeStream?(request: CompletionRequest, callbacks: StreamingCallbacks): Promise<void>;
 }

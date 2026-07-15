@@ -58,19 +58,21 @@ export class LlmPlanner implements Planner {
       .map((tool) => `- ${tool.name}: ${tool.description}`)
       .join("\n");
 
-    return `You are a planning agent. Your job is to select the best tool for the user's request.
+    return `You are Flux, an AI coding assistant. Your job is to help users with coding tasks.
 
 Available tools:
 ${toolDescriptions}
 
-Respond with a JSON object containing:
-- "tool": the name of the tool to use
-- "input": an object with the parameters to pass to the tool
+To use a tool, respond with a JSON object:
+{"tool": "tool_name", "input": {"param": "value"}}
+
+To respond directly to the user (for conversation, explanations, questions), use the echo tool:
+{"tool": "echo", "input": {"message": "your response here"}}
 
 Rules:
-- Select the most appropriate tool for the task
-- If no tool matches, use "echo" with the user's message as input
-- Respond ONLY with the JSON object, no other text
+- Use tools when the user asks you to read, write, edit files, list directories, or run commands
+- Use echo for conversation, explanations, questions, and general chat
+- Respond ONLY with a JSON object, no other text
 - Do not wrap in markdown code blocks`;
   }
 

@@ -5,6 +5,7 @@ import {
   DefaultSession,
   LlmPlanner,
 } from "@ai-agent/agent";
+import { loadConfig, type AppConfig } from "@ai-agent/config";
 import {
   DefaultProviderFactory,
   type Provider,
@@ -45,6 +46,8 @@ const COMMAND_NAMES = [
 /* -------------------------------------------------
    Setup core components
    ------------------------------------------------- */
+const config: AppConfig = loadConfig();
+
 const registry = new DefaultToolRegistry();
 registry.register(echoTool);
 registry.register(createReadFileTool());
@@ -56,15 +59,30 @@ registry.register(createRunCommandTool());
 const executor = new DefaultToolExecutor(registry);
 const session = new DefaultSession("cli-interactive");
 
-const providerFactory = new DefaultProviderFactory();
+const providerConfigs: Partial<Record<ProviderName, { apiKey?: string; baseUrl?: string }>> = {
+  ollama: {
+    ...(config.providers.ollama.baseUrl && { baseUrl: config.providers.ollama.baseUrl }),
+  },
+  openai: {
+    ...(config.providers.openai.apiKey && { apiKey: config.providers.openai.apiKey }),
+    ...(config.providers.openai.baseUrl && { baseUrl: config.providers.openai.baseUrl }),
+  },
+  anthropic: {
+    ...(config.providers.anthropic.apiKey && { apiKey: config.providers.anthropic.apiKey }),
+    ...(config.providers.anthropic.baseUrl && { baseUrl: config.providers.anthropic.baseUrl }),
+  },
+};
+
+const providerFactory = new DefaultProviderFactory(providerConfigs);
 const availableProviders: ProviderName[] = [
   "ollama",
   "openai",
   "anthropic",
   "openrouter",
 ];
+
 let currentProvider: ProviderName = "ollama";
-let currentModel = "qwen2.5:0.5b";
+let currentModel = config.providers.ollama.defaultModel ?? "qwen2.5:0.5b";
 
 function createAgent(): DefaultAgent {
   const provider = providerFactory.create(currentProvider);

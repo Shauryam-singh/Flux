@@ -29,6 +29,12 @@ importers:
       '@ai-agent/agent':
         specifier: workspace:*
         version: link:../../packages/agent
+      '@ai-agent/config':
+        specifier: workspace:*
+        version: link:../../packages/config
+      '@ai-agent/providers':
+        specifier: workspace:*
+        version: link:../../packages/providers
       '@ai-agent/tools':
         specifier: workspace:*
         version: link:../../packages/tools

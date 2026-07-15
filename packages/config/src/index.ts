@@ -4,3 +4,6 @@ export * from "./interfaces/provider-config.js";
 export * from "./interfaces/router-config.js";
 export * from "./loader.js";
 export * from "./validator.js";
+
+export type { AppConfig } from "./interfaces/app-config.js";
+export type { ProviderConfig } from "./interfaces/provider-config.js";

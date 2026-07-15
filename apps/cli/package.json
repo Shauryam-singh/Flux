@@ -9,10 +9,14 @@
   "scripts": {
     "dev": "tsx src/index.ts",
     "build": "tsc -b",
-    "start": "node dist/index.js"
+    "postbuild": "tsx ../../scripts/init-settings.ts",
+    "start": "node dist/index.js",
+    "init-settings": "tsx ../../scripts/init-settings.ts"
   },
   "dependencies": {
     "@ai-agent/agent": "workspace:*",
+    "@ai-agent/config": "workspace:*",
+    "@ai-agent/providers": "workspace:*",
     "@ai-agent/tools": "workspace:*"
   },
   "devDependencies": {

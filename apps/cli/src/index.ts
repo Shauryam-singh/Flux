@@ -22,7 +22,8 @@ import {
   createRunCommandTool,
 } from "@ai-agent/tools";
 import { execSync } from "child_process";
-import * as fs from "fs";
+import * as fs from "node:fs";
+import * as path from "node:path";
 import * as readline from "readline";
 
 /* -------------------------------------------------
@@ -30,7 +31,8 @@ import * as readline from "readline";
    ------------------------------------------------- */
 const APP_NAME = "Flux";
 const APP_VERSION = "v0.0.18";
-const SESSION_FILE = ".flux-session.json";
+const SESSION_DIR = path.join(process.env.HOME || "~", ".flux");
+const SESSION_FILE = path.join(SESSION_DIR, "session.json");
 const COMMAND_NAMES = [
   "help",
   "history",
@@ -198,6 +200,8 @@ let HEADER_HEIGHT = 7;
 let headerRows: string[] = [];
 let scrollTop = HEADER_HEIGHT + 2;
 let scrollBottom = termRows - FOOTER_HEIGHT;
+let scrollBuffer: string[] = [];
+const MAX_SCROLL_BUFFER = 500;
 
 let cachedBranch = "";
 let cachedCwd = "";
@@ -299,9 +303,11 @@ function gotoContentBottom(): void {
 
 /** Appends a finished line to the scrolling output region. */
 function printLine(text = ""): void {
-  gotoContentBottom();
-  clearLine();
-  process.stdout.write(text + "\n");
+  scrollBuffer.push(text);
+  if (scrollBuffer.length > MAX_SCROLL_BUFFER) {
+    scrollBuffer.shift();
+  }
+  renderScrollBuffer();
 }
 
 /** Overwrites the current bottom output row in-place (for spinners, bars). */
@@ -311,8 +317,28 @@ function printRaw(text: string): void {
   process.stdout.write(text);
 }
 
+/** Renders the scroll buffer to the terminal. */
+function renderScrollBuffer(): void {
+  const visibleRows = scrollBottom - scrollTop + 1;
+  const startIdx = Math.max(0, scrollBuffer.length - visibleRows);
+
+  setScrollRegion();
+
+  for (let i = 0; i < visibleRows; i++) {
+    moveTo(scrollTop + i, 1);
+    clearLine();
+    const lineIdx = startIdx + i;
+    if (lineIdx < scrollBuffer.length) {
+      process.stdout.write(scrollBuffer[lineIdx] ?? "");
+    }
+  }
+
+  moveTo(scrollBottom, 1);
+}
+
 /** Clears only the scrolling chat area, leaving the pinned header/footer untouched. */
 function clearChatArea(): void {
+  scrollBuffer = [];
   setScrollRegion();
   for (let row = scrollTop; row <= scrollBottom; row++) {
     moveTo(row, 1);
@@ -429,14 +455,27 @@ class Spinner {
 
 /** Types text out character-by-character without splitting ANSI escapes. */
 async function typeOut(text: string, delayMs = 12): Promise<void> {
-  gotoContentBottom();
-  clearLine();
   const tokens = text.match(/\x1b\[[0-9;]*m|[\s\S]/g) ?? [];
+  let currentLine = "";
+
   for (const t of tokens) {
-    process.stdout.write(t);
-    if (!t.startsWith("\x1b")) await sleep(delayMs);
+    if (t === "\n") {
+      printLine(currentLine);
+      currentLine = "";
+    } else {
+      currentLine += t;
+      if (!t.startsWith("\x1b") && delayMs > 0) {
+        gotoContentBottom();
+        clearLine();
+        process.stdout.write(currentLine);
+        await sleep(delayMs);
+      }
+    }
   }
-  process.stdout.write("\n");
+
+  if (currentLine) {
+    printLine(currentLine);
+  }
 }
 
 /* -------------------------------------------------
@@ -524,16 +563,59 @@ async function renderToolCard(card: ToolCard): Promise<void> {
 }
 
 /* -------------------------------------------------
-   Session persistence (/save, /load)
+   Session persistence (auto-save, /save, /load)
    ------------------------------------------------- */
+function ensureSessionDir(): void {
+  if (!fs.existsSync(SESSION_DIR)) {
+    fs.mkdirSync(SESSION_DIR, { recursive: true });
+  }
+}
+
+async function autoSaveSession(history: string[]): Promise<void> {
+  try {
+    ensureSessionDir();
+    fs.writeFileSync(
+      SESSION_FILE,
+      JSON.stringify({
+        history,
+        provider: currentProvider,
+        model: currentModel,
+        savedAt: new Date().toISOString(),
+      }, null, 2),
+    );
+  } catch {
+    // Silent fail for auto-save
+  }
+}
+
+function autoLoadSession(): string[] {
+  try {
+    if (fs.existsSync(SESSION_FILE)) {
+      const raw = fs.readFileSync(SESSION_FILE, "utf-8");
+      const data = JSON.parse(raw);
+      if (data.provider) currentProvider = data.provider;
+      if (data.model) currentModel = data.model;
+      return Array.isArray(data.history) ? data.history : [];
+    }
+  } catch {
+    // Silent fail for auto-load
+  }
+  return [];
+}
+
 async function saveSession(history: string[]): Promise<void> {
   const spinner = new Spinner(["Saving session"]);
   spinner.start();
-  await sleep(300);
   try {
+    ensureSessionDir();
     fs.writeFileSync(
       SESSION_FILE,
-      JSON.stringify({ history, savedAt: new Date().toISOString() }, null, 2),
+      JSON.stringify({
+        history,
+        provider: currentProvider,
+        model: currentModel,
+        savedAt: new Date().toISOString(),
+      }, null, 2),
     );
     spinner.stop();
     printLine();
@@ -565,17 +647,21 @@ async function saveSession(history: string[]): Promise<void> {
 async function loadSession(): Promise<string[]> {
   const spinner = new Spinner(["Loading session"]);
   spinner.start();
-  await sleep(300);
   try {
+    if (!fs.existsSync(SESSION_FILE)) {
+      throw new Error("No session file found");
+    }
     const raw = fs.readFileSync(SESSION_FILE, "utf-8");
     const data = JSON.parse(raw);
+    if (data.provider) currentProvider = data.provider;
+    if (data.model) currentModel = data.model;
     const loaded: string[] = Array.isArray(data.history) ? data.history : [];
     spinner.stop();
     printLine();
     await revealBox(
       [
         paint("📂 Session loaded", `${bold}${theme.success}`),
-        paint(`${loaded.length} history entries restored`, theme.text),
+        paint(`${loaded.length} messages restored`, theme.text),
       ],
       theme.success,
       45,
@@ -589,7 +675,7 @@ async function loadSession(): Promise<string[]> {
     await revealBox(
       [
         paint("No saved session found", theme.warning),
-        paint(SESSION_FILE, theme.muted),
+        paint("Starting fresh session", theme.muted),
       ],
       theme.warning,
       45,
@@ -830,13 +916,6 @@ function drawFooter(buffer: string, cursorPos: number): void {
 /* -------------------------------------------------
    Main interactive loop
    ------------------------------------------------- */
-async function animatedExit(): Promise<never> {
-  printLine();
-  await typeOut(paint("Goodbye 👋", `${bold}${theme.accent}`), 20);
-  cleanupTerminal();
-  process.exit(0);
-}
-
 async function main(): Promise<void> {
   readline.emitKeypressEvents(process.stdin as any);
   if (process.stdin.isTTY) process.stdin.setRawMode(true);
@@ -847,9 +926,8 @@ async function main(): Promise<void> {
   setScrollRegion();
   drawHeader();
 
+  let history: string[] = autoLoadSession();
   await runBootSequence();
-
-  let history: string[] = [];
   let buffer = "";
   let cursorPos = 0;
   let historyPointer = -1;
@@ -861,6 +939,14 @@ async function main(): Promise<void> {
     history.unshift(entry);
     if (history.length > 20) history.pop();
   };
+
+  async function animatedExit(): Promise<never> {
+    await autoSaveSession(history);
+    printLine();
+    await typeOut(paint("Session saved. Goodbye! 👋", `${bold}${theme.accent}`), 20);
+    cleanupTerminal();
+    process.exit(0);
+  }
 
   const commands: Record<string, (args: string) => void | Promise<void>> = {
     help: () => showHelp(),
@@ -932,22 +1018,33 @@ async function main(): Promise<void> {
       spinner.stop();
       printLine();
 
-      const badge = result.success
-        ? paint("✓ Success", `${bold}${theme.success}`)
-        : paint("✗ Failed", `${bold}${theme.error}`);
-      printLine(`${badge} — ${result.success ? "Completed" : "Error"}`);
-      printLine();
-
       const output = result.result?.output;
-      const outStr =
-        typeof output === "string"
-          ? output
-          : output !== undefined
-            ? JSON.stringify(output, null, 2)
-            : "";
+      let outStr = "";
 
-      await typeOut(paint(outStr, theme.text), 6);
+      if (typeof output === "string") {
+        outStr = output;
+      } else if (output && typeof output === "object") {
+        const obj = output as Record<string, unknown>;
+        if (typeof obj.message === "string") {
+          outStr = obj.message;
+        } else if (typeof obj.content === "string") {
+          outStr = obj.content;
+        } else if (typeof obj.text === "string") {
+          outStr = obj.text;
+        } else if (typeof obj.output === "string") {
+          outStr = obj.output;
+        } else {
+          outStr = JSON.stringify(output, null, 2);
+        }
+      }
+
+      const lines = outStr.split("\n");
+      for (const line of lines) {
+        await typeOut(paint(line, theme.text), 3);
+      }
       printLine();
+
+      await autoSaveSession(history);
     } catch (err: unknown) {
       spinner.stop();
       printLine();

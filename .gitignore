@@ -7,4 +7,3 @@ coverage
 .env.*
 !.env.example
 .vscode/settings.json
-settings.json

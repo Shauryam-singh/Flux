@@ -1,6 +1,10 @@
 #!/usr/bin/env node
 
-import { DefaultAgent, DefaultPlanner, DefaultSession } from "@ai-agent/agent";
+import {
+  DefaultAgent,
+  DefaultSession,
+  LlmPlanner,
+} from "@ai-agent/agent";
 import {
   DefaultProviderFactory,
   type Provider,
@@ -50,8 +54,6 @@ registry.register(createListDirectoryTool());
 registry.register(createRunCommandTool());
 
 const executor = new DefaultToolExecutor(registry);
-const planner = new DefaultPlanner();
-const agent = new DefaultAgent(planner, executor);
 const session = new DefaultSession("cli-interactive");
 
 const providerFactory = new DefaultProviderFactory();
@@ -63,6 +65,14 @@ const availableProviders: ProviderName[] = [
 ];
 let currentProvider: ProviderName = "ollama";
 let currentModel = "qwen2.5:0.5b";
+
+function createAgent(): DefaultAgent {
+  const provider = providerFactory.create(currentProvider);
+  const planner = new LlmPlanner(provider, registry, {
+    model: currentModel,
+  });
+  return new DefaultAgent(planner, executor);
+}
 
 /* -------------------------------------------------
    Theme — 256-color palette + truecolor gradients
@@ -896,7 +906,8 @@ async function main(): Promise<void> {
     spinner.start();
 
     try {
-      const result = await agent.run(session, {
+      const currentAgent = createAgent();
+      const result = await currentAgent.run(session, {
         input: { message: input, type: "chat" },
       });
 

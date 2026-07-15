@@ -11,7 +11,6 @@ import {
   saveSession,
   createSession,
   addMessage,
-  formatTimestamp,
   type SessionData,
   type SessionMessage,
 } from "./session/store.js";
@@ -23,7 +22,7 @@ import {
 } from "./commands/index.js";
 import { paint, bold, theme, dim } from "./ui/theme.js";
 import { printHeader } from "./ui/banner.js";
-import { Spinner, sleep, animateBootBar, typeOut } from "./ui/spinners.js";
+import { Spinner, animateBootBar } from "./ui/spinners.js";
 import {
   clearScreen,
   getTerminalSize,
@@ -46,15 +45,6 @@ const COMMAND_NAMES = [
   "quit",
 ];
 
-const TIPS = [
-  "Tip: /models to switch provider or model",
-  "Tip: /suggest for prompt ideas",
-  "Tip: /save to checkpoint your session",
-  "Tip: ↑ / ↓ browse command history",
-  "Tip: Tab autocompletes / commands",
-];
-let tipIdx = 0;
-
 async function main(): Promise<void> {
   const { app, providerConfigs } = loadAppConfig();
   const factory = new DefaultProviderFactory(providerConfigs);
@@ -62,92 +52,91 @@ async function main(): Promise<void> {
   let currentProvider: ProviderName = "ollama";
   let currentModel = app.providers.ollama.defaultModel ?? "qwen2.5:0.5b";
 
-  // Load or create session
-  let sessionData: SessionData = (() => {
-    const existing = loadSession();
-    if (existing) {
-      currentProvider = existing.provider;
-      currentModel = existing.model;
-      return existing;
-    }
-    return createSession(currentProvider, currentModel);
-  })();
+  let sessionData: SessionData = createSession(currentProvider, currentModel);
 
-  // Print header
+  // Check if there's a saved session to offer resuming
+  const savedSession = loadSession();
+  let hasResumableSession = false;
+  if (savedSession && savedSession.messages.length > 0) {
+    hasResumableSession = true;
+  }
+
   let branch = "main";
   let cwd = process.cwd();
   try {
-    branch = execSync("git rev-parse --abbrev-ref HEAD 2>/dev/null || echo main", {
-      stdio: "pipe",
-    }).toString().trim();
+    branch = execSync(
+      "git rev-parse --abbrev-ref HEAD 2>/dev/null || echo main",
+      { stdio: "pipe" },
+    )
+      .toString()
+      .trim();
   } catch {}
 
   clearScreen();
   printHeader(currentProvider, currentModel, cwd, branch);
-  await animateBootBar("Initializing", 300);
+  await animateBootBar("Initializing", 200);
 
-  // Print previous conversation
-  if (sessionData.messages.length > 0) {
+  if (hasResumableSession) {
+    const count = savedSession!.messages.length;
     process.stdout.write(
-      paint(`\nRestored ${sessionData.messages.length} messages\n\n`, theme.muted),
+      paint(
+        `\nFound saved session (${count} messages). Type /load to resume.\n\n`,
+        theme.muted,
+      ),
     );
-    for (const msg of sessionData.messages) {
-      if (msg.role === "user") {
-        process.stdout.write(renderMessage(msg) + "\n\n");
-      } else {
-        process.stdout.write(renderMessage(msg) + "\n\n");
-      }
-    }
   }
 
-  process.stdout.write(
-    paint("Ready — type a message or /help\n\n", theme.muted),
-  );
+  process.stdout.write(paint("Ready — type a message or /help\n\n", theme.muted));
 
-  // Input state
+  // --- Terminal layout ---
+  const { rows, cols } = getTerminalSize();
+  const FOOTER_ROWS = 2; // divider + input line
+  const scrollTop = 6; // below header
+  const scrollBottom = rows - FOOTER_ROWS;
+
   let buffer = "";
   let cursorPos = 0;
-  let historyPointer = -1;
-  let draftBuffer = "";
+  let historyIdx = -1;
+  let draft = "";
   const inputHistory: string[] = [];
 
-  const redraw = () => {
-    const prompt = `${paint("❯", theme.accent)} `;
-    process.stdout.write(`\r\x1b[2K${prompt}${paint(buffer, theme.text)}`);
-    const { cols } = getTerminalSize();
-    const tip = buffer.startsWith("/")
-      ? (() => {
-          const partial = buffer.slice(1).toLowerCase();
-          const matches = COMMAND_NAMES.filter((c) => c.startsWith(partial));
-          return matches.length
-            ? `→ ${matches.map((m) => "/" + m).join("  ")}`
-            : "No match";
-        })()
-      : TIPS[tipIdx % TIPS.length]!;
-    process.stdout.write(
-      `\n${paint(tip, dim + theme.muted)}\x1b[A`,
-    );
-    process.stdout.write(`\x1b[${getTerminalSize().rows};${3 + cursorPos}H`);
-  };
+  const PROMPT = `${paint("❯", theme.accent)} `;
 
-  async function listModelsForProvider(p: ProviderName): Promise<string[]> {
-    const prov = factory.create(p);
-    const models = await prov.listModels();
-    return [...models];
+  function moveTo(row: number, col: number) {
+    process.stdout.write(`\x1b[${row};${col}H`);
   }
 
-  function setModel(p: ProviderName, m: string): void {
-    currentProvider = p;
-    currentModel = m;
-    sessionData.provider = p;
-    sessionData.model = m;
-    saveSession(sessionData);
+  function clearRow(row: number) {
+    moveTo(row, 1);
+    process.stdout.write("\x1b[2K");
+  }
+
+  function drawFooter() {
+    const r = rows;
+    // Divider
+    clearRow(r - 2);
+    moveTo(r - 2, 1);
+    process.stdout.write(paint("─".repeat(cols), theme.muted));
+    // Input
+    clearRow(r - 1);
+    moveTo(r - 1, 1);
+    process.stdout.write(`${PROMPT}${paint(buffer, theme.text)}`);
+    // Cursor
+    moveTo(r - 1, 3 + cursorPos);
+  }
+
+  function scrollUp() {
+    // Move everything in the scroll region up by clearing and redrawing
+    // For simplicity, just let stdout scroll naturally
+  }
+
+  function printToChat(text: string) {
+    process.stdout.write(text + "\n");
   }
 
   async function handleInput(input: string): Promise<void> {
     if (!input.trim()) return;
 
-    // Commands
     if (input.startsWith("/")) {
       const [rawCmd, ...rest] = input.slice(1).trim().split(/\s+/);
       const cmd = (rawCmd || "").toLowerCase();
@@ -156,63 +145,106 @@ async function main(): Promise<void> {
       switch (cmd) {
         case "help":
           cmdHelp();
+          drawFooter();
           return;
         case "history":
           cmdHistory(sessionData.messages);
+          drawFooter();
           return;
         case "suggest":
           cmdSuggest();
+          drawFooter();
           return;
         case "models":
           await cmdModels(
             args,
             currentProvider,
             currentModel,
-            listModelsForProvider,
-            setModel,
+            async (p) => [...(await factory.create(p).listModels())],
+            (p, m) => {
+              currentProvider = p;
+              currentModel = m;
+              sessionData.provider = p;
+              sessionData.model = m;
+              saveSession(sessionData);
+            },
           );
+          drawFooter();
           return;
         case "clear":
           clearScreen();
           printHeader(currentProvider, currentModel, cwd, branch);
+          process.stdout.write(paint("\n", theme.muted));
+          drawFooter();
           return;
         case "save":
           saveSession(sessionData);
-          process.stdout.write(
-            paint("\n✓ Session saved\n\n", theme.success),
-          );
+          printToChat(paint("✓ Session saved", theme.success));
+          printToChat("");
+          drawFooter();
           return;
         case "load": {
-          const loaded = loadSession();
-          if (loaded) {
-            sessionData = loaded;
-            currentProvider = loaded.provider;
-            currentModel = loaded.model;
-            clearScreen();
-            printHeader(currentProvider, currentModel, cwd, branch);
-            for (const msg of sessionData.messages) {
-              process.stdout.write(renderMessage(msg) + "\n\n");
-            }
-            process.stdout.write(
-              paint(`\n✓ Loaded ${loaded.messages.length} messages\n\n`, theme.success),
-            );
-          } else {
-            process.stdout.write(paint("\nNo saved session\n\n", theme.warning));
+          if (!savedSession || savedSession.messages.length === 0) {
+            printToChat(paint("No saved session found", theme.warning));
+            printToChat("");
+            drawFooter();
+            return;
           }
+          sessionData = savedSession;
+          currentProvider = savedSession.provider;
+          currentModel = savedSession.model;
+          hasResumableSession = false;
+          clearScreen();
+          printHeader(currentProvider, currentModel, cwd, branch);
+          process.stdout.write(
+            paint(
+              `\nLoaded ${sessionData.messages.length} messages\n\n`,
+              theme.success,
+            ),
+          );
+          for (const msg of sessionData.messages) {
+            process.stdout.write(renderMessage(msg) + "\n");
+          }
+          process.stdout.write("\n");
+          drawFooter();
+          return;
+        }
+        case "resume": {
+          if (!savedSession || savedSession.messages.length === 0) {
+            printToChat(paint("No saved session found", theme.warning));
+            printToChat("");
+            drawFooter();
+            return;
+          }
+          sessionData = savedSession;
+          currentProvider = savedSession.provider;
+          currentModel = savedSession.model;
+          hasResumableSession = false;
+          clearScreen();
+          printHeader(currentProvider, currentModel, cwd, branch);
+          process.stdout.write(
+            paint(
+              `\nResumed ${sessionData.messages.length} messages\n\n`,
+              theme.success,
+            ),
+          );
+          for (const msg of sessionData.messages) {
+            process.stdout.write(renderMessage(msg) + "\n");
+          }
+          process.stdout.write("\n");
+          drawFooter();
           return;
         }
         case "exit":
         case "quit":
           saveSession(sessionData);
-          process.stdout.write(
-            paint("\nSession saved. Goodbye! 👋\n", `${bold}${theme.accent}`),
-          );
+          printToChat(paint("Session saved. Goodbye! 👋", `${bold}${theme.accent}`));
           cleanupTerminal();
           process.exit(0);
         default:
-          process.stdout.write(
-            paint(`\nUnknown command: /${cmd}\n\n`, theme.error),
-          );
+          printToChat(paint(`Unknown command: /${cmd}`, theme.error));
+          printToChat("");
+          drawFooter();
           return;
       }
     }
@@ -224,7 +256,6 @@ async function main(): Promise<void> {
       timestamp: new Date().toISOString(),
     };
     addMessage(sessionData, userMsg);
-    process.stdout.write(renderMessage(userMsg) + "\n\n");
 
     const spinner = new Spinner(["Thinking", "Reasoning", "Planning"]);
     spinner.start();
@@ -244,7 +275,9 @@ async function main(): Promise<void> {
       const durationMs = Date.now() - start;
       spinner.stop();
 
-      const text = extractText(result.result?.output) || JSON.stringify(result.result?.output, null, 2);
+      const text =
+        extractText(result.result?.output) ||
+        JSON.stringify(result.result?.output, null, 2);
 
       const assistantMsg: SessionMessage = {
         role: "assistant",
@@ -255,14 +288,18 @@ async function main(): Promise<void> {
         durationMs,
       };
       addMessage(sessionData, assistantMsg);
+
       process.stdout.write(renderMessage(assistantMsg) + "\n\n");
 
       saveSession(sessionData);
     } catch (err) {
       spinner.stop();
       const msg = err instanceof Error ? err.message : String(err);
-      process.stdout.write(paint(`\nError: ${msg}\n\n`, theme.error));
+      printToChat(paint(`Error: ${msg}`, theme.error));
+      printToChat("");
     }
+
+    drawFooter();
   }
 
   setupStdinRaw();
@@ -274,12 +311,14 @@ async function main(): Promise<void> {
   process.stdout.on("resize", () => {
     clearScreen();
     printHeader(currentProvider, currentModel, cwd, branch);
-    for (const msg of sessionData.messages.slice(-20)) {
+    for (const msg of sessionData.messages.slice(-30)) {
       process.stdout.write(renderMessage(msg) + "\n");
     }
+    process.stdout.write("\n");
+    drawFooter();
   });
 
-  redraw();
+  drawFooter();
 
   process.stdin.on(
     "keypress",
@@ -293,13 +332,16 @@ async function main(): Promise<void> {
       }
 
       if (key.name === "return" || key.name === "enter") {
-        const input = buffer.trim();
+        const input = buffer;
         buffer = "";
         cursorPos = 0;
-        historyPointer = -1;
-        process.stdout.write("\n");
+        historyIdx = -1;
+        // Clear the input line before processing
+        const r = rows;
+        clearRow(r - 1);
+        moveTo(r - 1, 1);
+        process.stdout.write(`${PROMPT}${paint(input, theme.text)}\n`);
         void handleInput(input);
-        redraw();
         return;
       }
 
@@ -308,78 +350,72 @@ async function main(): Promise<void> {
           buffer = buffer.slice(0, cursorPos - 1) + buffer.slice(cursorPos);
           cursorPos--;
         }
-        redraw();
+        drawFooter();
         return;
       }
 
       if (key.name === "delete") {
         buffer = buffer.slice(0, cursorPos) + buffer.slice(cursorPos + 1);
-        redraw();
+        drawFooter();
         return;
       }
 
       if (key.name === "left") {
         if (cursorPos > 0) cursorPos--;
-        redraw();
+        drawFooter();
         return;
       }
 
       if (key.name === "right") {
         if (cursorPos < buffer.length) cursorPos++;
-        redraw();
+        drawFooter();
         return;
       }
 
       if (key.name === "up") {
         if (inputHistory.length === 0) return;
-        if (historyPointer === -1) draftBuffer = buffer;
-        historyPointer = Math.min(historyPointer + 1, inputHistory.length - 1);
-        buffer = inputHistory[inputHistory.length - 1 - historyPointer] ?? "";
+        if (historyIdx === -1) draft = buffer;
+        historyIdx = Math.min(historyIdx + 1, inputHistory.length - 1);
+        buffer = inputHistory[inputHistory.length - 1 - historyIdx] ?? "";
         cursorPos = buffer.length;
-        redraw();
+        drawFooter();
         return;
       }
 
       if (key.name === "down") {
-        if (historyPointer === -1) return;
-        historyPointer--;
+        if (historyIdx === -1) return;
+        historyIdx--;
         buffer =
-          historyPointer === -1
-            ? draftBuffer
-            : (inputHistory[inputHistory.length - 1 - historyPointer] ?? "");
+          historyIdx === -1
+            ? draft
+            : (inputHistory[inputHistory.length - 1 - historyIdx] ?? "");
         cursorPos = buffer.length;
-        redraw();
+        drawFooter();
         return;
       }
 
       if (key.name === "tab") {
         if (buffer.startsWith("/")) {
-          const partial = buffer.slice(1).toLowerCase();
-          const match = COMMAND_NAMES.find((c) => c.startsWith(partial));
+          const p = buffer.slice(1).toLowerCase();
+          const match = COMMAND_NAMES.find((c) => c.startsWith(p));
           if (match) {
             buffer = "/" + match;
             cursorPos = buffer.length;
           }
         }
-        redraw();
+        drawFooter();
         return;
       }
 
       if (_str && !key.ctrl && !key.meta) {
         buffer = buffer.slice(0, cursorPos) + _str + buffer.slice(cursorPos);
         cursorPos += _str.length;
-        historyPointer = -1;
+        historyIdx = -1;
         inputHistory.push(buffer);
-        redraw();
+        drawFooter();
       }
     },
   );
-
-  const tipTimer = setInterval(() => {
-    tipIdx = (tipIdx + 1) % TIPS.length;
-    redraw();
-  }, 5000);
-  tipTimer.unref();
 }
 
 main().catch((e: Error) => {

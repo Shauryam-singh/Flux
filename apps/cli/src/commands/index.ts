@@ -1,6 +1,6 @@
 import { paint, bold, theme } from "../ui/theme.js";
 import { printBox } from "../ui/banner.js";
-import { formatTimestamp, type SessionMessage } from "../session/store.js";
+import { formatTimestamp, formatDuration, type SessionMessage } from "../session/store.js";
 import type { ProviderName } from "@ai-agent/providers";
 
 const APP_NAME = "Flux";
@@ -30,10 +30,7 @@ export function cmdHelp(): void {
 }
 
 export function cmdHistory(messages: SessionMessage[]): void {
-  const lines = [
-    paint("Message History", `${bold}${theme.success}`),
-    "",
-  ];
+  const lines = [paint("Message History", `${bold}${theme.success}`), ""];
 
   if (messages.length === 0) {
     lines.push(paint("No messages yet.", theme.muted));
@@ -45,15 +42,17 @@ export function cmdHistory(messages: SessionMessage[]): void {
           ? paint("you", theme.primary)
           : paint("ai", theme.accent);
       const preview =
-        msg.content.length > 50
-          ? msg.content.slice(0, 50) + "…"
+        msg.content.length > 60
+          ? msg.content.slice(0, 60) + "…"
           : msg.content;
-      lines.push(`${paint(time, theme.dim)} ${role} ${preview}`);
+      const meta =
+        msg.durationMs !== undefined ? ` (${formatDuration(msg.durationMs)})` : "";
+      lines.push(`${paint(time, theme.dim)} ${role}${meta} ${preview}`);
     }
   }
 
   process.stdout.write("\n");
-  printBox(lines, theme.success, 55);
+  printBox(lines, theme.success, 65);
   process.stdout.write("\n");
 }
 

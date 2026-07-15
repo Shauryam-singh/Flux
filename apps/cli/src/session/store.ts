@@ -33,7 +33,27 @@ export function loadSession(): SessionData | null {
   try {
     if (!fs.existsSync(SESSION_FILE)) return null;
     const raw = fs.readFileSync(SESSION_FILE, "utf-8");
-    return JSON.parse(raw) as SessionData;
+    const data = JSON.parse(raw) as Record<string, unknown>;
+
+    // Migrate old format (history: string[]) to new format (messages: SessionMessage[])
+    if (Array.isArray(data.history) && !Array.isArray(data.messages)) {
+      const messages: SessionMessage[] = (data.history as string[]).map(
+        (h) => ({
+          role: "user" as const,
+          content: h,
+          timestamp: (data.savedAt as string) || new Date().toISOString(),
+        }),
+      );
+      return {
+        messages,
+        provider: (data.provider as ProviderName) || "ollama",
+        model: (data.model as string) || "qwen2.5:0.5b",
+        createdAt: (data.savedAt as string) || new Date().toISOString(),
+        updatedAt: (data.savedAt as string) || new Date().toISOString(),
+      };
+    }
+
+    return data as unknown as SessionData;
   } catch {
     return null;
   }

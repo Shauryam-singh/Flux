@@ -20,7 +20,7 @@ import {
   cmdSuggest,
   cmdModels,
 } from "./commands/index.js";
-import { paint, bold, theme, dim } from "./ui/theme.js";
+import { paint, bold, theme } from "./ui/theme.js";
 import { printHeader } from "./ui/banner.js";
 import { Spinner, animateBootBar } from "./ui/spinners.js";
 import {
@@ -41,20 +41,34 @@ const COMMAND_NAMES = [
   "clear",
   "save",
   "load",
+  "resume",
   "exit",
   "quit",
 ];
+
+function wordBoundaryLeft(buffer: string, pos: number): number {
+  let i = pos - 1;
+  while (i >= 0 && !/\w/.test(buffer[i] ?? "")) i--;
+  while (i >= 0 && /\w/.test(buffer[i] ?? "")) i--;
+  return i + 1;
+}
+
+function wordBoundaryRight(buffer: string, pos: number): number {
+  let i = pos;
+  while (i < buffer.length && /\w/.test(buffer[i] ?? "")) i++;
+  while (i < buffer.length && !/\w/.test(buffer[i] ?? "")) i++;
+  return i;
+}
 
 async function main(): Promise<void> {
   const { app, providerConfigs } = loadAppConfig();
   const factory = new DefaultProviderFactory(providerConfigs);
 
   let currentProvider: ProviderName = "ollama";
-  let currentModel = app.providers.ollama.defaultModel ?? "qwen2.5:0.5b";
+  let currentModel = app.providers.ollama.defaultModel || "qwen2.5:0.5b";
 
   let sessionData: SessionData = createSession(currentProvider, currentModel);
 
-  // Check if there's a saved session to offer resuming
   const savedSession = loadSession();
   let hasResumableSession = false;
   if (savedSession && savedSession.messages.length > 0) {
@@ -90,8 +104,8 @@ async function main(): Promise<void> {
 
   // --- Terminal layout ---
   const { rows, cols } = getTerminalSize();
-  const FOOTER_ROWS = 2; // divider + input line
-  const scrollTop = 6; // below header
+  const FOOTER_ROWS = 2;
+  const scrollTop = 6;
   const scrollBottom = rows - FOOTER_ROWS;
 
   let buffer = "";
@@ -99,8 +113,9 @@ async function main(): Promise<void> {
   let historyIdx = -1;
   let draft = "";
   const inputHistory: string[] = [];
+  let pasting = false;
 
-  const PROMPT = `${paint("❯", theme.accent)} `;
+  const PROMPT = `${paint(">", theme.accent)} `;
 
   function moveTo(row: number, col: number) {
     process.stdout.write(`\x1b[${row};${col}H`);
@@ -113,21 +128,13 @@ async function main(): Promise<void> {
 
   function drawFooter() {
     const r = rows;
-    // Divider
     clearRow(r - 2);
     moveTo(r - 2, 1);
     process.stdout.write(paint("─".repeat(cols), theme.muted));
-    // Input
     clearRow(r - 1);
     moveTo(r - 1, 1);
     process.stdout.write(`${PROMPT}${paint(buffer, theme.text)}`);
-    // Cursor
     moveTo(r - 1, 3 + cursorPos);
-  }
-
-  function scrollUp() {
-    // Move everything in the scroll region up by clearing and redrawing
-    // For simplicity, just let stdout scroll naturally
   }
 
   function printToChat(text: string) {
@@ -238,7 +245,7 @@ async function main(): Promise<void> {
         case "exit":
         case "quit":
           saveSession(sessionData);
-          printToChat(paint("Session saved. Goodbye! 👋", `${bold}${theme.accent}`));
+          printToChat(paint("Session saved. Goodbye!", `${bold}${theme.accent}`));
           cleanupTerminal();
           process.exit(0);
         default:
@@ -320,6 +327,54 @@ async function main(): Promise<void> {
 
   drawFooter();
 
+  // Bracketed paste: \x1b[200~ = start, \x1b[201~ = end
+  const PASTE_START = "\x1b[200~";
+  const PASTE_END = "\x1b[201~";
+  let pasteBuffer = "";
+  let inPaste = false;
+
+  process.stdin.on(
+    "data",
+    (data: Buffer) => {
+      const str = data.toString();
+
+      // Check for bracketed paste start/end
+      if (str.includes(PASTE_START)) {
+        inPaste = true;
+        pasteBuffer = "";
+        // Get content after PASTE_START
+        const afterStart = str.slice(str.indexOf(PASTE_START) + PASTE_START.length);
+        // Check if PASTE_END is also in this chunk
+        if (afterStart.includes(PASTE_END)) {
+          const endIdx = afterStart.indexOf(PASTE_END);
+          pasteBuffer = afterStart.slice(0, endIdx);
+          inPaste = false;
+          // Insert the paste
+          buffer = buffer.slice(0, cursorPos) + pasteBuffer + buffer.slice(cursorPos);
+          cursorPos += pasteBuffer.length;
+          drawFooter();
+        } else {
+          pasteBuffer += afterStart;
+        }
+        return;
+      }
+
+      if (inPaste) {
+        if (str.includes(PASTE_END)) {
+          const endIdx = str.indexOf(PASTE_END);
+          pasteBuffer += str.slice(0, endIdx);
+          inPaste = false;
+          buffer = buffer.slice(0, cursorPos) + pasteBuffer + buffer.slice(cursorPos);
+          cursorPos += pasteBuffer.length;
+          drawFooter();
+        } else {
+          pasteBuffer += str;
+        }
+        return;
+      }
+    },
+  );
+
   process.stdin.on(
     "keypress",
     (_str: string, key: readline.Key & { sequence?: string }) => {
@@ -336,7 +391,6 @@ async function main(): Promise<void> {
         buffer = "";
         cursorPos = 0;
         historyIdx = -1;
-        // Clear the input line before processing
         const r = rows;
         clearRow(r - 1);
         moveTo(r - 1, 1);
@@ -356,6 +410,18 @@ async function main(): Promise<void> {
 
       if (key.name === "delete") {
         buffer = buffer.slice(0, cursorPos) + buffer.slice(cursorPos + 1);
+        drawFooter();
+        return;
+      }
+
+      if (key.name === "left" && key.ctrl) {
+        cursorPos = wordBoundaryLeft(buffer, cursorPos);
+        drawFooter();
+        return;
+      }
+
+      if (key.name === "right" && key.ctrl) {
+        cursorPos = wordBoundaryRight(buffer, cursorPos);
         drawFooter();
         return;
       }
@@ -407,6 +473,57 @@ async function main(): Promise<void> {
         return;
       }
 
+      // Home / End
+      if (key.name === "home") {
+        cursorPos = 0;
+        drawFooter();
+        return;
+      }
+
+      if (key.name === "end") {
+        cursorPos = buffer.length;
+        drawFooter();
+        return;
+      }
+
+      // Ctrl+A / Ctrl+E (like bash)
+      if (key.ctrl && key.name === "a") {
+        cursorPos = 0;
+        drawFooter();
+        return;
+      }
+
+      if (key.ctrl && key.name === "e") {
+        cursorPos = buffer.length;
+        drawFooter();
+        return;
+      }
+
+      // Ctrl+W (delete word backward)
+      if (key.ctrl && key.name === "w") {
+        const newPos = wordBoundaryLeft(buffer, cursorPos);
+        buffer = buffer.slice(0, newPos) + buffer.slice(cursorPos);
+        cursorPos = newPos;
+        drawFooter();
+        return;
+      }
+
+      // Ctrl+U (delete to start)
+      if (key.ctrl && key.name === "u") {
+        buffer = buffer.slice(cursorPos);
+        cursorPos = 0;
+        drawFooter();
+        return;
+      }
+
+      // Ctrl+K (delete to end)
+      if (key.ctrl && key.name === "k") {
+        buffer = buffer.slice(0, cursorPos);
+        drawFooter();
+        return;
+      }
+
+      // Regular characters (not paste, not control)
       if (_str && !key.ctrl && !key.meta) {
         buffer = buffer.slice(0, cursorPos) + _str + buffer.slice(cursorPos);
         cursorPos += _str.length;

@@ -14,25 +14,33 @@ export function extractText(output: unknown): string {
   return "";
 }
 
-export function renderMessage(msg: SessionMessage): string {
+export function renderUserMessage(msg: SessionMessage): string {
+  return `${paint(">", theme.accent)} ${msg.content}`;
+}
+
+export function renderAssistantMessage(msg: SessionMessage): string {
   const lines: string[] = [];
 
-  if (msg.role === "user") {
-    lines.push(`${paint("❯", theme.accent)} ${paint(msg.content, theme.text)}`);
-  } else {
-    const content = msg.content || "(empty response)";
-    lines.push(content);
+  const content = msg.content || "(empty response)";
+  lines.push(content);
 
-    const meta: string[] = [];
-    if (msg.provider) meta.push(msg.provider);
-    if (msg.model) meta.push(msg.model);
-    if (msg.durationMs !== undefined) meta.push(formatDuration(msg.durationMs));
-    if (msg.toolUsed) meta.push(`tool: ${msg.toolUsed}`);
+  // Metadata footer line
+  const meta: string[] = [];
+  if (msg.durationMs !== undefined) meta.push(formatDuration(msg.durationMs));
+  if (msg.provider) meta.push(msg.provider);
+  if (msg.model) meta.push(msg.model);
+  if (msg.toolUsed) meta.push(`tool: ${msg.toolUsed}`);
 
-    if (meta.length > 0) {
-      lines.push(paint(`  ${meta.join(" • ")}`, theme.dim));
-    }
+  if (meta.length > 0) {
+    lines.push(paint(`  ${meta.join(" · ")}`, theme.dim));
   }
 
   return lines.join("\n");
+}
+
+export function renderMessage(msg: SessionMessage): string {
+  if (msg.role === "user") {
+    return renderUserMessage(msg);
+  }
+  return renderAssistantMessage(msg);
 }

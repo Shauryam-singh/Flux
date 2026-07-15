@@ -11,6 +11,7 @@ import {
   saveSession,
   createSession,
   addMessage,
+  countTokens,
   type SessionData,
   type SessionMessage,
 } from "./session/store.js";
@@ -25,7 +26,6 @@ import { printHeader } from "./ui/banner.js";
 import { Spinner, animateBootBar } from "./ui/spinners.js";
 import {
   clearScreen,
-  getTerminalSize,
   cleanupTerminal,
   setupStdinRaw,
   onExit,
@@ -58,6 +58,15 @@ function wordBoundaryRight(buffer: string, pos: number): number {
   while (i < buffer.length && /\w/.test(buffer[i] ?? "")) i++;
   while (i < buffer.length && !/\w/.test(buffer[i] ?? "")) i++;
   return i;
+}
+
+function getCommandSuggestion(input: string): string | null {
+  if (!input.startsWith("/")) return null;
+  const partial = input.slice(1).toLowerCase();
+  if (!partial) return null;
+  const matches = COMMAND_NAMES.filter((c) => c.startsWith(partial));
+  if (matches.length === 1) return matches[0] ?? null;
+  return null;
 }
 
 async function main(): Promise<void> {
@@ -102,39 +111,18 @@ async function main(): Promise<void> {
 
   process.stdout.write(paint("Ready — type a message or /help\n\n", theme.muted));
 
-  // --- Terminal layout ---
-  const { rows, cols } = getTerminalSize();
-  const FOOTER_ROWS = 2;
-  const scrollTop = 6;
-  const scrollBottom = rows - FOOTER_ROWS;
-
   let buffer = "";
   let cursorPos = 0;
   let historyIdx = -1;
   let draft = "";
   const inputHistory: string[] = [];
-  let pasting = false;
 
   const PROMPT = `${paint(">", theme.accent)} `;
 
-  function moveTo(row: number, col: number) {
-    process.stdout.write(`\x1b[${row};${col}H`);
-  }
-
-  function clearRow(row: number) {
-    moveTo(row, 1);
-    process.stdout.write("\x1b[2K");
-  }
-
-  function drawFooter() {
-    const r = rows;
-    clearRow(r - 2);
-    moveTo(r - 2, 1);
-    process.stdout.write(paint("─".repeat(cols), theme.muted));
-    clearRow(r - 1);
-    moveTo(r - 1, 1);
-    process.stdout.write(`${PROMPT}${paint(buffer, theme.text)}`);
-    moveTo(r - 1, 3 + cursorPos);
+  function printPrompt() {
+    const suggestion = getCommandSuggestion(buffer);
+    const dimPart = suggestion ? suggestion.slice(buffer.length - 1) : "";
+    process.stdout.write(`${PROMPT}${paint(buffer, theme.text)}${dimPart ? paint(dimPart, theme.dim) : ""}`);
   }
 
   function printToChat(text: string) {
@@ -152,15 +140,15 @@ async function main(): Promise<void> {
       switch (cmd) {
         case "help":
           cmdHelp();
-          drawFooter();
+          printPrompt();
           return;
         case "history":
           cmdHistory(sessionData.messages);
-          drawFooter();
+          printPrompt();
           return;
         case "suggest":
           cmdSuggest();
-          drawFooter();
+          printPrompt();
           return;
         case "models":
           await cmdModels(
@@ -176,25 +164,25 @@ async function main(): Promise<void> {
               saveSession(sessionData);
             },
           );
-          drawFooter();
+          printPrompt();
           return;
         case "clear":
           clearScreen();
           printHeader(currentProvider, currentModel, cwd, branch);
           process.stdout.write(paint("\n", theme.muted));
-          drawFooter();
+          printPrompt();
           return;
         case "save":
           saveSession(sessionData);
-          printToChat(paint("✓ Session saved", theme.success));
+          printToChat(paint("Session saved", theme.success));
           printToChat("");
-          drawFooter();
+          printPrompt();
           return;
         case "load": {
           if (!savedSession || savedSession.messages.length === 0) {
             printToChat(paint("No saved session found", theme.warning));
             printToChat("");
-            drawFooter();
+            printPrompt();
             return;
           }
           sessionData = savedSession;
@@ -213,14 +201,14 @@ async function main(): Promise<void> {
             process.stdout.write(renderMessage(msg) + "\n");
           }
           process.stdout.write("\n");
-          drawFooter();
+          printPrompt();
           return;
         }
         case "resume": {
           if (!savedSession || savedSession.messages.length === 0) {
             printToChat(paint("No saved session found", theme.warning));
             printToChat("");
-            drawFooter();
+            printPrompt();
             return;
           }
           sessionData = savedSession;
@@ -239,7 +227,7 @@ async function main(): Promise<void> {
             process.stdout.write(renderMessage(msg) + "\n");
           }
           process.stdout.write("\n");
-          drawFooter();
+          printPrompt();
           return;
         }
         case "exit":
@@ -251,10 +239,13 @@ async function main(): Promise<void> {
         default:
           printToChat(paint(`Unknown command: /${cmd}`, theme.error));
           printToChat("");
-          drawFooter();
+          printPrompt();
           return;
       }
     }
+
+    // Print user message
+    process.stdout.write(`${PROMPT}${paint(input, theme.text)}\n`);
 
     // Chat with agent
     const userMsg: SessionMessage = {
@@ -286,6 +277,9 @@ async function main(): Promise<void> {
         extractText(result.result?.output) ||
         JSON.stringify(result.result?.output, null, 2);
 
+      const inputTokens = countTokens(input);
+      const outputTokens = countTokens(text);
+
       const assistantMsg: SessionMessage = {
         role: "assistant",
         content: text,
@@ -293,20 +287,23 @@ async function main(): Promise<void> {
         provider: currentProvider,
         model: currentModel,
         durationMs,
+        inputTokens,
+        outputTokens,
       };
       addMessage(sessionData, assistantMsg);
 
-      process.stdout.write(renderMessage(assistantMsg) + "\n\n");
+      process.stdout.write("\n" + renderMessage(assistantMsg) + "\n\n");
 
       saveSession(sessionData);
     } catch (err) {
       spinner.stop();
       const msg = err instanceof Error ? err.message : String(err);
+      printToChat("");
       printToChat(paint(`Error: ${msg}`, theme.error));
       printToChat("");
     }
 
-    drawFooter();
+    printPrompt();
   }
 
   setupStdinRaw();
@@ -322,42 +319,21 @@ async function main(): Promise<void> {
       process.stdout.write(renderMessage(msg) + "\n");
     }
     process.stdout.write("\n");
-    drawFooter();
+    printPrompt();
   });
 
-  drawFooter();
+  printPrompt();
 
-  // Bracketed paste: \x1b[200~ = start, \x1b[201~ = end
+  // Bracketed paste tracking
   const PASTE_START = "\x1b[200~";
   const PASTE_END = "\x1b[201~";
-  let pasteBuffer = "";
   let inPaste = false;
+  let pasteBuffer = "";
 
   process.stdin.on(
     "data",
     (data: Buffer) => {
       const str = data.toString();
-
-      // Check for bracketed paste start/end
-      if (str.includes(PASTE_START)) {
-        inPaste = true;
-        pasteBuffer = "";
-        // Get content after PASTE_START
-        const afterStart = str.slice(str.indexOf(PASTE_START) + PASTE_START.length);
-        // Check if PASTE_END is also in this chunk
-        if (afterStart.includes(PASTE_END)) {
-          const endIdx = afterStart.indexOf(PASTE_END);
-          pasteBuffer = afterStart.slice(0, endIdx);
-          inPaste = false;
-          // Insert the paste
-          buffer = buffer.slice(0, cursorPos) + pasteBuffer + buffer.slice(cursorPos);
-          cursorPos += pasteBuffer.length;
-          drawFooter();
-        } else {
-          pasteBuffer += afterStart;
-        }
-        return;
-      }
 
       if (inPaste) {
         if (str.includes(PASTE_END)) {
@@ -366,9 +342,30 @@ async function main(): Promise<void> {
           inPaste = false;
           buffer = buffer.slice(0, cursorPos) + pasteBuffer + buffer.slice(cursorPos);
           cursorPos += pasteBuffer.length;
-          drawFooter();
+          process.stdout.write(`\r\x1b[2K${PROMPT}${paint(buffer, theme.text)}`);
+          process.stdout.write(`\x1b[${3 + cursorPos}G`);
+          pasteBuffer = "";
         } else {
           pasteBuffer += str;
+        }
+        return;
+      }
+
+      if (str.includes(PASTE_START)) {
+        inPaste = true;
+        pasteBuffer = "";
+        const afterStart = str.slice(str.indexOf(PASTE_START) + PASTE_START.length);
+        if (afterStart.includes(PASTE_END)) {
+          const endIdx = afterStart.indexOf(PASTE_END);
+          pasteBuffer = afterStart.slice(0, endIdx);
+          inPaste = false;
+          buffer = buffer.slice(0, cursorPos) + pasteBuffer + buffer.slice(cursorPos);
+          cursorPos += pasteBuffer.length;
+          process.stdout.write(`\r\x1b[2K${PROMPT}${paint(buffer, theme.text)}`);
+          process.stdout.write(`\x1b[${3 + cursorPos}G`);
+          pasteBuffer = "";
+        } else {
+          pasteBuffer += afterStart;
         }
         return;
       }
@@ -379,6 +376,8 @@ async function main(): Promise<void> {
     "keypress",
     (_str: string, key: readline.Key & { sequence?: string }) => {
       if (!key) return;
+
+      if (inPaste) return;
 
       if (key.ctrl && key.name === "c") {
         saveSession(sessionData);
@@ -391,10 +390,8 @@ async function main(): Promise<void> {
         buffer = "";
         cursorPos = 0;
         historyIdx = -1;
-        const r = rows;
-        clearRow(r - 1);
-        moveTo(r - 1, 1);
-        process.stdout.write(`${PROMPT}${paint(input, theme.text)}\n`);
+        // Clear input line and show submitted command
+        process.stdout.write(`\r\x1b[2K`);
         void handleInput(input);
         return;
       }
@@ -404,37 +401,39 @@ async function main(): Promise<void> {
           buffer = buffer.slice(0, cursorPos - 1) + buffer.slice(cursorPos);
           cursorPos--;
         }
-        drawFooter();
+        process.stdout.write(`\r\x1b[2K${PROMPT}${paint(buffer, theme.text)}`);
+        process.stdout.write(`\x1b[${3 + cursorPos}G`);
         return;
       }
 
       if (key.name === "delete") {
         buffer = buffer.slice(0, cursorPos) + buffer.slice(cursorPos + 1);
-        drawFooter();
+        process.stdout.write(`\r\x1b[2K${PROMPT}${paint(buffer, theme.text)}`);
+        process.stdout.write(`\x1b[${3 + cursorPos}G`);
         return;
       }
 
       if (key.name === "left" && key.ctrl) {
         cursorPos = wordBoundaryLeft(buffer, cursorPos);
-        drawFooter();
+        process.stdout.write(`\x1b[${3 + cursorPos}G`);
         return;
       }
 
       if (key.name === "right" && key.ctrl) {
         cursorPos = wordBoundaryRight(buffer, cursorPos);
-        drawFooter();
+        process.stdout.write(`\x1b[${3 + cursorPos}G`);
         return;
       }
 
       if (key.name === "left") {
         if (cursorPos > 0) cursorPos--;
-        drawFooter();
+        process.stdout.write(`\x1b[${3 + cursorPos}G`);
         return;
       }
 
       if (key.name === "right") {
         if (cursorPos < buffer.length) cursorPos++;
-        drawFooter();
+        process.stdout.write(`\x1b[${3 + cursorPos}G`);
         return;
       }
 
@@ -444,7 +443,8 @@ async function main(): Promise<void> {
         historyIdx = Math.min(historyIdx + 1, inputHistory.length - 1);
         buffer = inputHistory[inputHistory.length - 1 - historyIdx] ?? "";
         cursorPos = buffer.length;
-        drawFooter();
+        process.stdout.write(`\r\x1b[2K${PROMPT}${paint(buffer, theme.text)}`);
+        process.stdout.write(`\x1b[${3 + cursorPos}G`);
         return;
       }
 
@@ -456,7 +456,8 @@ async function main(): Promise<void> {
             ? draft
             : (inputHistory[inputHistory.length - 1 - historyIdx] ?? "");
         cursorPos = buffer.length;
-        drawFooter();
+        process.stdout.write(`\r\x1b[2K${PROMPT}${paint(buffer, theme.text)}`);
+        process.stdout.write(`\x1b[${3 + cursorPos}G`);
         return;
       }
 
@@ -469,67 +470,67 @@ async function main(): Promise<void> {
             cursorPos = buffer.length;
           }
         }
-        drawFooter();
+        process.stdout.write(`\r\x1b[2K${PROMPT}${paint(buffer, theme.text)}`);
+        process.stdout.write(`\x1b[${3 + cursorPos}G`);
         return;
       }
 
-      // Home / End
       if (key.name === "home") {
         cursorPos = 0;
-        drawFooter();
+        process.stdout.write(`\x1b[${3 + cursorPos}G`);
         return;
       }
 
       if (key.name === "end") {
         cursorPos = buffer.length;
-        drawFooter();
+        process.stdout.write(`\x1b[${3 + cursorPos}G`);
         return;
       }
 
-      // Ctrl+A / Ctrl+E (like bash)
       if (key.ctrl && key.name === "a") {
         cursorPos = 0;
-        drawFooter();
+        process.stdout.write(`\x1b[${3 + cursorPos}G`);
         return;
       }
 
       if (key.ctrl && key.name === "e") {
         cursorPos = buffer.length;
-        drawFooter();
+        process.stdout.write(`\x1b[${3 + cursorPos}G`);
         return;
       }
 
-      // Ctrl+W (delete word backward)
       if (key.ctrl && key.name === "w") {
         const newPos = wordBoundaryLeft(buffer, cursorPos);
         buffer = buffer.slice(0, newPos) + buffer.slice(cursorPos);
         cursorPos = newPos;
-        drawFooter();
+        process.stdout.write(`\r\x1b[2K${PROMPT}${paint(buffer, theme.text)}`);
+        process.stdout.write(`\x1b[${3 + cursorPos}G`);
         return;
       }
 
-      // Ctrl+U (delete to start)
       if (key.ctrl && key.name === "u") {
         buffer = buffer.slice(cursorPos);
         cursorPos = 0;
-        drawFooter();
+        process.stdout.write(`\r\x1b[2K${PROMPT}${paint(buffer, theme.text)}`);
+        process.stdout.write(`\x1b[${3 + cursorPos}G`);
         return;
       }
 
-      // Ctrl+K (delete to end)
       if (key.ctrl && key.name === "k") {
         buffer = buffer.slice(0, cursorPos);
-        drawFooter();
+        process.stdout.write(`\r\x1b[2K${PROMPT}${paint(buffer, theme.text)}`);
+        process.stdout.write(`\x1b[${3 + cursorPos}G`);
         return;
       }
 
-      // Regular characters (not paste, not control)
-      if (_str && !key.ctrl && !key.meta) {
+      // Regular characters
+      if (_str && !key.ctrl && !key.meta && !key.sequence?.includes("\x1b")) {
         buffer = buffer.slice(0, cursorPos) + _str + buffer.slice(cursorPos);
         cursorPos += _str.length;
         historyIdx = -1;
         inputHistory.push(buffer);
-        drawFooter();
+        process.stdout.write(`\r\x1b[2K${PROMPT}${paint(buffer, theme.text)}`);
+        process.stdout.write(`\x1b[${3 + cursorPos}G`);
       }
     },
   );

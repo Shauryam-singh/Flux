@@ -10,6 +10,9 @@ export interface SessionMessage {
   model?: string;
   durationMs?: number;
   toolUsed?: string;
+  inputTokens?: number;
+  outputTokens?: number;
+  totalTokens?: number;
 }
 
 export interface SessionData {
@@ -35,7 +38,6 @@ export function loadSession(): SessionData | null {
     const raw = fs.readFileSync(SESSION_FILE, "utf-8");
     const data = JSON.parse(raw) as Record<string, unknown>;
 
-    // Migrate old format (history: string[]) to new format (messages: SessionMessage[])
     if (Array.isArray(data.history) && !Array.isArray(data.messages)) {
       const messages: SessionMessage[] = (data.history as string[]).map(
         (h) => ({
@@ -97,5 +99,20 @@ export function formatTimestamp(iso: string): string {
 
 export function formatDuration(ms: number): string {
   if (ms < 1000) return `${ms}ms`;
-  return `${(ms / 1000).toFixed(1)}s`;
+  if (ms < 60000) return `${(ms / 1000).toFixed(1)}s`;
+  const min = Math.floor(ms / 60000);
+  const sec = ((ms % 60000) / 1000).toFixed(0);
+  return `${min}m ${sec}s`;
+}
+
+export function formatTokens(n: number | undefined): string {
+  if (n === undefined || n === null) return "—";
+  if (n < 1000) return `${n}`;
+  if (n < 1000000) return `${(n / 1000).toFixed(1)}k`;
+  return `${(n / 1000000).toFixed(2)}M`;
+}
+
+export function countTokens(text: string): number {
+  // Rough estimate: ~4 chars per token for English text
+  return Math.ceil(text.length / 4);
 }

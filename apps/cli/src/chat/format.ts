@@ -1,5 +1,5 @@
 import type { SessionMessage } from "../session/store.js";
-import { formatDuration } from "../session/store.js";
+import { formatDuration, formatTokens } from "../session/store.js";
 import { paint, theme } from "../ui/theme.js";
 
 export function extractText(output: unknown): string {
@@ -24,15 +24,28 @@ export function renderAssistantMessage(msg: SessionMessage): string {
   const content = msg.content || "(empty response)";
   lines.push(content);
 
-  // Metadata footer line
+  // Metadata footer
   const meta: string[] = [];
-  if (msg.durationMs !== undefined) meta.push(formatDuration(msg.durationMs));
-  if (msg.provider) meta.push(msg.provider);
-  if (msg.model) meta.push(msg.model);
-  if (msg.toolUsed) meta.push(`tool: ${msg.toolUsed}`);
+  if (msg.durationMs !== undefined) {
+    meta.push(`${formatDuration(msg.durationMs)}`);
+  }
+  if (msg.inputTokens !== undefined || msg.outputTokens !== undefined) {
+    const parts: string[] = [];
+    if (msg.inputTokens !== undefined) parts.push(`${formatTokens(msg.inputTokens)} in`);
+    if (msg.outputTokens !== undefined) parts.push(`${formatTokens(msg.outputTokens)} out`);
+    meta.push(parts.join(" · "));
+  } else if (msg.totalTokens !== undefined) {
+    meta.push(`${formatTokens(msg.totalTokens)} tokens`);
+  }
+  if (msg.provider && msg.model) {
+    meta.push(`${msg.provider}/${msg.model}`);
+  }
+  if (msg.toolUsed) {
+    meta.push(`used ${msg.toolUsed}`);
+  }
 
   if (meta.length > 0) {
-    lines.push(paint(`  ${meta.join(" · ")}`, theme.dim));
+    lines.push(paint(`  ${meta.join(" · ")}`, theme.muted));
   }
 
   return lines.join("\n");

@@ -43,10 +43,10 @@ export function printHeader(
   const boxWidth = Math.max(30, Math.min(45, cols - FLUX_WIDTH - gap - 4));
 
   const infoLines = [
-    `${paint(`⚡Flux v0.1.0`, `${bold}${theme.primary}`)}`,
-    `${paint(provider, theme.muted)} • ${paint(model, theme.text)}`,
+    `${paint(`Flux v0.1.0`, `${bold}${theme.primary}`)}`,
+    `${paint(provider, theme.muted)} ${paint("·", theme.dim)} ${paint(model, theme.text)}`,
     paint(cwd, theme.text),
-    `${paint("Branch:", theme.muted)} ${paint(branch, theme.success)}`,
+    `${paint(branch, theme.success)}`,
   ];
 
   const flux = fluxBlock();

@@ -28,7 +28,7 @@ import {
   getModeSymbol,
   getNextMode,
 } from "./modes/index.js";
-import { highlightMarkdown } from "./ui/highlight.js";
+import { highlightMarkdown, highlightCode } from "./ui/highlight.js";
 import { formatDiffPreview } from "./ui/diff.js";
 
 function getToolStatusMessage(toolName: string, input: Record<string, unknown>): string | null {
@@ -95,6 +95,114 @@ function extractResponseText(text: string): string {
   // Return as-is if no echo messages found
   return text;
 }
+
+function formatToolResponse(text: string): string {
+  // Try to parse as JSON tool call
+  try {
+    // Remove markdown code blocks if present
+    const cleaned = text
+      .replace(/^```json\s*/i, "")
+      .replace(/^```\s*/i, "")
+      .replace(/```\s*$/i, "")
+      .trim();
+    
+    const parsed = JSON.parse(cleaned);
+    
+    if (parsed.tool && parsed.input) {
+      const output: string[] = [];
+      
+      if (parsed.tool === "write_file") {
+        output.push(paint("  📝 ", theme.primary) + paint("Creating file: ", theme.dim) + paint(parsed.input.path || "file", theme.text));
+        if (parsed.input.content) {
+          const content = parsed.input.content as string;
+          const lines = content.split("\n").slice(0, 10);
+          output.push(paint("  ────────────────────────────────────────", theme.dim));
+          for (const line of lines) {
+            output.push(paint("  │ ", theme.dim) + highlightCode(line, "tsx"));
+          }
+          if (content.split("\n").length > 10) {
+            output.push(paint("  │ ...", theme.dim));
+          }
+          output.push(paint("  ────────────────────────────────────────", theme.dim));
+        }
+      } else if (parsed.tool === "edit_file") {
+        output.push(paint("  ✏️ ", theme.primary) + paint("Editing file: ", theme.dim) + paint(parsed.input.path || "file", theme.text));
+        if (parsed.input.old_text && parsed.input.new_text) {
+          output.push(paint("  Remove:", theme.error));
+          output.push(paint(`    "${(parsed.input.old_text as string).slice(0, 80)}..."`, theme.text));
+          output.push(paint("  Add:", theme.success));
+          output.push(paint(`    "${(parsed.input.new_text as string).slice(0, 80)}..."`, theme.text));
+        }
+      } else if (parsed.tool === "read_file") {
+        output.push(paint("  📖 ", theme.primary) + paint("Reading file: ", theme.dim) + paint(parsed.input.path || "file", theme.text));
+      } else if (parsed.tool === "run_command") {
+        output.push(paint("  ⚡ ", theme.primary) + paint("Running: ", theme.dim) + paint(parsed.input.command || "command", theme.text));
+      } else if (parsed.tool === "echo") {
+        // For echo, just return the message
+        return parsed.input.message || "";
+      } else {
+        output.push(paint("  🔧 ", theme.primary) + paint(`Using ${parsed.tool}`, theme.dim));
+      }
+      
+      return output.join("\n");
+    }
+  } catch {
+    // Not valid JSON
+  }
+  
+  return text;
+}
+
+function interactivePrompt(options: string[], prompt: string): Promise<string> {
+  return new Promise((resolve) => {
+    let selected = 0;
+    const optionChars = options.map((_, i) => String.fromCharCode(65 + i)); // A, B, C...
+    
+    function render() {
+      // Clear previous lines
+      process.stdout.write("\r\x1b[2K");
+      process.stdout.write(paint(`  ${prompt}`, theme.warning) + "\n");
+      
+      for (let i = 0; i < options.length; i++) {
+        const option = options[i];
+        if (option === undefined) continue;
+        const prefix = i === selected ? paint("  ❯ ", theme.accent) : "    ";
+        const text = i === selected ? paint(option, theme.text) : paint(option, theme.dim);
+        process.stdout.write(prefix + text + "\n");
+      }
+    }
+    
+    render();
+    
+    process.stdin.on("keypress", function handler(_str: string, key: { name?: string }) {
+      if (!key) return;
+      
+      if (key.name === "up") {
+        selected = Math.max(0, selected - 1);
+        // Move up and re-render
+        process.stdout.write(`\x1b[${options.length + 1}A`);
+        render();
+      } else if (key.name === "down") {
+        selected = Math.min(options.length - 1, selected + 1);
+        // Move up and re-render
+        process.stdout.write(`\x1b[${options.length + 1}A`);
+        render();
+      } else if (key.name === "return" || key.name === "enter") {
+        process.stdin.removeListener("keypress", handler);
+        process.stdout.write("\n");
+        resolve(optionChars[selected] || "A");
+      } else if (_str && /^[a-zA-Z]$/.test(_str)) {
+        const idx = _str.toUpperCase().charCodeAt(0) - 65;
+        if (idx >= 0 && idx < options.length) {
+          process.stdin.removeListener("keypress", handler);
+          process.stdout.write("\n");
+          resolve(optionChars[idx] || "A");
+        }
+      }
+    });
+  });
+}
+
 import { paint, bold, theme, dim, visibleLength } from "./ui/theme.js";
 import { printHeader } from "./ui/banner.js";
 import { Spinner } from "./ui/spinners.js";
@@ -401,14 +509,16 @@ async function main(): Promise<void> {
           }
         },
         onApprovalRequired: async (name, inp) => {
-          // Ask for approval
-          const statusMsg = getToolStatusMessage(name, inp);
-          if (statusMsg) {
-            printToChatArea(statusMsg);
-          }
-          printToChatArea(paint("  Approve? (y/n): ", theme.warning));
-          // For now, auto-approve in non-interactive mode
-          return true;
+          // Show formatted tool response
+          const toolJson = JSON.stringify({ tool: name, input: inp }, null, 2);
+          printToChatArea(formatToolResponse(toolJson));
+          
+          // Ask for approval with interactive prompt
+          const answer = await interactivePrompt(
+            ["Yes, proceed", "No, cancel"],
+            "Approve this action?"
+          );
+          return answer === "A";
         },
         onOptionsPresented: async (options) => {
           // Present options to user and get selection
@@ -435,16 +545,25 @@ async function main(): Promise<void> {
         if (toolInput && typeof toolInput.message === "string") {
           text = toolInput.message;
         } else {
-          const resultObj = toolResult as { output?: string };
-          text = resultObj.output || JSON.stringify(toolResult, null, 2);
+          // For other tools, show a formatted result
+          const resultObj = toolResult as { output?: string; success?: boolean };
+          if (resultObj.output) {
+            text = resultObj.output;
+          } else if (resultObj.success !== undefined) {
+            text = resultObj.success ? "✓ Operation completed successfully" : "✗ Operation failed";
+          } else {
+            text = "✓ Done";
+          }
         }
       } else {
         // Parse response - handle multiple JSON objects and mixed content
         text = extractResponseText(fullText);
       }
 
-      // Apply syntax highlighting to code blocks
-      const highlightedText = highlightMarkdown(text);
+      // Apply syntax highlighting to code blocks (not to JSON tool calls)
+      const highlightedText = text.includes('"tool":') 
+        ? formatToolResponse(text) 
+        : highlightMarkdown(text);
 
       const inputTokens = countTokens(input);
       const outputTokens = countTokens(text);

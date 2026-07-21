@@ -2,7 +2,7 @@
 
 import type { ProviderName } from "@ai-agent/providers";
 import { DefaultProviderFactory } from "@ai-agent/providers";
-import { DefaultSession } from "@ai-agent/agent";
+import { DefaultSession, type AgentMode } from "@ai-agent/agent";
 import { loadAppConfig } from "./config.js";
 import { createAgent } from "./chat/agent.js";
 import { extractText, renderMessage } from "./chat/format.js";
@@ -27,6 +27,12 @@ import {
   cmdSuggest,
   cmdModels,
 } from "./commands/index.js";
+import {
+  MODES,
+  getNextMode,
+  getModeColor,
+  getModeSymbol,
+} from "./modes/index.js";
 import { paint, bold, theme } from "./ui/theme.js";
 import { printHeader } from "./ui/banner.js";
 import { Spinner, animateBootBar } from "./ui/spinners.js";
@@ -44,6 +50,7 @@ const COMMAND_NAMES = [
   "history",
   "suggest",
   "models",
+  "mode",
   "clear",
   "save",
   "saveas",
@@ -304,13 +311,22 @@ async function main(): Promise<void> {
   let historyIdx = -1;
   let draft = "";
   const inputHistory: string[] = [];
+  let currentMode: AgentMode = "normal";
 
   const PROMPT = `${paint(">", theme.accent)} `;
+
+  function getModeIndicator(): string {
+    const modeConfig = MODES[currentMode];
+    const color = getModeColor(currentMode);
+    const symbol = getModeSymbol(currentMode);
+    return paint(`${symbol} ${modeConfig.name}`, color);
+  }
 
   function printPrompt() {
     const suggestion = getCommandSuggestion(buffer);
     const dimPart = suggestion ? suggestion.slice(buffer.length - 1) : "";
-    process.stdout.write(`${PROMPT}${paint(buffer, theme.text)}${dimPart ? paint(dimPart, theme.dim) : ""}`);
+    const modeIndicator = getModeIndicator();
+    process.stdout.write(`${modeIndicator} ${PROMPT}${paint(buffer, theme.text)}${dimPart ? paint(dimPart, theme.dim) : ""}`);
   }
 
   function printToChat(text: string) {
@@ -512,6 +528,28 @@ async function main(): Promise<void> {
           printToChat(paint("Session saved. Goodbye!", `${bold}${theme.accent}`));
           cleanupTerminal();
           process.exit(0);
+        case "mode": {
+          const modeArg = args.trim().toLowerCase();
+          if (!modeArg || !["plan", "auto", "normal"].includes(modeArg)) {
+            printToChat(paint("Available modes:", theme.accent));
+            printToChat(`  ${paint("plan", theme.primary)} — Show plan only, no execution`);
+            printToChat(`  ${paint("auto", theme.primary)} — Execute without approval`);
+            printToChat(`  ${paint("normal", theme.primary)} — Ask before file edits (default)`);
+            printToChat("");
+            printToChat(paint(`Current mode: ${getModeSymbol(currentMode)} ${currentMode}`, theme.success));
+            printToChat("");
+            printToChat(paint(`Usage: /mode <plan|auto|normal>`, theme.muted));
+            printToChat(paint(`Key binding: Ctrl+M to cycle modes`, theme.muted));
+            printToChat("");
+            printPrompt();
+            return;
+          }
+          currentMode = modeArg as AgentMode;
+          printToChat(paint(`Switched to ${getModeSymbol(currentMode)} ${currentMode} mode`, theme.success));
+          printToChat("");
+          printPrompt();
+          return;
+        }
         default:
           printToChat(paint(`Unknown command: /${cmd}`, theme.error));
           printToChat("");
@@ -551,6 +589,7 @@ async function main(): Promise<void> {
 
       await agent.runStream(agentSession, {
         input: { message: input, type: "chat" },
+        mode: currentMode,
       }, {
         onToken: (token) => {
           fullText += token;
@@ -565,6 +604,39 @@ async function main(): Promise<void> {
           lastToolResult = toolResult.output ?? result;
           lastToolName = toolName;
           lastToolInput = toolInput;
+        },
+        onPlanOnly: (toolName, toolInput) => {
+          // Show what would be done in plan mode
+          const statusMsg = getToolStatusMessage(toolName, toolInput);
+          if (statusMsg) {
+            process.stdout.write(statusMsg + "\n");
+          }
+        },
+        onApprovalRequired: async (toolName, toolInput) => {
+          // Ask for approval in normal mode
+          const statusMsg = getToolStatusMessage(toolName, toolInput);
+          if (statusMsg) {
+            process.stdout.write(statusMsg + "\n");
+          }
+          process.stdout.write(paint("  Approve? (y/n): ", theme.warning));
+          const answer = await new Promise<string>((resolve) => {
+            let inputBuffer = "";
+            const handler = (_str: string, key: readline.Key) => {
+              if (!key) return;
+              if (key.name === "return" || key.name === "enter") {
+                process.stdin.removeListener("keypress", handler);
+                process.stdout.write("\n");
+                resolve(inputBuffer);
+                return;
+              }
+              if (_str && !key.ctrl && !key.meta) {
+                inputBuffer += _str;
+                process.stdout.write(paint(_str, theme.text));
+              }
+            };
+            process.stdin.on("keypress", handler);
+          });
+          return answer.toLowerCase() === "y" || answer.toLowerCase() === "yes";
         },
         onDone: (response) => {
           const durationMs = Date.now() - start;
@@ -708,6 +780,13 @@ async function main(): Promise<void> {
         saveSession(sessionData);
         cleanupTerminal();
         process.exit(0);
+      }
+
+      // Mode switching - cycles through: normal -> plan -> auto -> normal
+      if (key.ctrl && key.name === "m") {
+        currentMode = getNextMode(currentMode);
+        printPrompt();
+        return;
       }
 
       if (key.name === "return" || key.name === "enter") {

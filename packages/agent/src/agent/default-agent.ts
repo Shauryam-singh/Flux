@@ -4,11 +4,13 @@ import type { StreamingCallbacks, CompletionResponse } from "@ai-agent/providers
 import type { Agent } from "../interfaces/agent.js";
 import type { Planner } from "../planner/planner.js";
 import type { Session } from "../session/session.js";
-import type { AgentRequest } from "../types/agent-request.js";
+import type { AgentRequest, AgentMode } from "../types/agent-request.js";
 import type { AgentResponse } from "../types/agent-response.js";
 
 interface StreamCallbacks extends StreamingCallbacks {
   onToolResult?: (toolName: string, input: Record<string, unknown>, result: unknown) => void;
+  onPlanOnly?: (toolName: string, input: Record<string, unknown>) => void;
+  onApprovalRequired?: (toolName: string, input: Record<string, unknown>) => Promise<boolean>;
 }
 
 export class DefaultAgent implements Agent {
@@ -45,6 +47,8 @@ export class DefaultAgent implements Agent {
     // Save user message
     await session.memory.add("user", JSON.stringify(request.input));
 
+    const mode = request.mode || "normal";
+
     if (this.planner.planStream) {
       const streamCallbacks: StreamingCallbacks = {
         ...(callbacks.onToken !== undefined && { onToken: callbacks.onToken }),
@@ -66,7 +70,26 @@ export class DefaultAgent implements Agent {
             parsed = { tool: "echo", input: { message: text } };
           }
 
-          // Execute the tool
+          // Handle based on mode
+          if (mode === "plan") {
+            // Plan mode: show what would be done, don't execute
+            callbacks.onPlanOnly?.(parsed.tool, parsed.input);
+            callbacks.onDone?.(response);
+            return;
+          }
+
+          // Check if approval is required (normal mode + destructive tool)
+          if (mode === "normal" && this.requiresApproval(parsed.tool)) {
+            const approved = await callbacks.onApprovalRequired?.(parsed.tool, parsed.input);
+            if (!approved) {
+              callbacks.onDone?.({
+                text: "Operation cancelled by user",
+              });
+              return;
+            }
+          }
+
+          // Execute the tool (auto mode or approved normal mode)
           const result = await this.toolExecutor.execute({
             name: parsed.tool,
             input: parsed.input,
@@ -90,5 +113,18 @@ export class DefaultAgent implements Agent {
         text: response.result?.output as string || "",
       });
     }
+  }
+
+  private requiresApproval(toolName: string): boolean {
+    // Tools that require approval in normal mode
+    const destructiveTools = [
+      "write_file",
+      "edit_file",
+      "run_command",
+      "git_commit",
+      "git_push",
+      "git_checkout",
+    ];
+    return destructiveTools.includes(toolName);
   }
 }

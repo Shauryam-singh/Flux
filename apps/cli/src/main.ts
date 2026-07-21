@@ -28,6 +28,8 @@ import {
   getModeSymbol,
   getNextMode,
 } from "./modes/index.js";
+import { highlightMarkdown } from "./ui/highlight.js";
+import { formatDiffPreview } from "./ui/diff.js";
 
 function getToolStatusMessage(toolName: string, input: Record<string, unknown>): string | null {
   switch (toolName) {
@@ -384,10 +386,18 @@ async function main(): Promise<void> {
           toolResult = res;
         },
         onPlanOnly: (name, inp) => {
-          // In plan mode, show what would be done
+          // In plan mode, show what would be done with diff preview
           const statusMsg = getToolStatusMessage(name, inp);
           if (statusMsg) {
             printToChatArea(statusMsg);
+          }
+          
+          // Show diff preview for file operations
+          if (name === "write_file" || name === "edit_file") {
+            const diffPreview = formatDiffPreview(name, inp);
+            if (diffPreview) {
+              printToChatArea(diffPreview);
+            }
           }
         },
         onApprovalRequired: async (name, inp) => {
@@ -433,6 +443,9 @@ async function main(): Promise<void> {
         text = extractResponseText(fullText);
       }
 
+      // Apply syntax highlighting to code blocks
+      const highlightedText = highlightMarkdown(text);
+
       const inputTokens = countTokens(input);
       const outputTokens = countTokens(text);
 
@@ -449,7 +462,7 @@ async function main(): Promise<void> {
       addMessage(sessionData, assistantMsg);
 
       const metaText = `${formatTokens(inputTokens)} in · ${formatTokens(outputTokens)} out · ${formatDuration(durationMs)} · ${currentProvider}/${currentModel}`;
-      printFormattedMessage("assistant", text, metaText);
+      printFormattedMessage("assistant", highlightedText, metaText);
 
       saveSession(sessionData);
     } catch (err) {

@@ -25,7 +25,7 @@ export function cmdHelp(printFn?: PrintFn): void {
     `  ${paint("/exit", theme.primary)}      Quit ${APP_NAME}`,
     "",
     paint("Key bindings:", theme.accent),
-    `  ${paint("Ctrl+M", theme.primary)}     Cycle mode (normal → plan → auto)`,
+    `  ${paint("Shift+Tab", theme.primary)}     Cycle mode (normal → plan → auto)`,
     "",
     paint("Tools available to the agent:", theme.accent),
     `  read_file, write_file, edit_file, list_directory`,

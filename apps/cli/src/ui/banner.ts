@@ -1,10 +1,17 @@
 import { paint, padLine, theme, bold, reset } from "./theme.js";
 
-const FLUX_ART = ["╭──╮ ", "╰╮╭╯", " ╰╯ ", "╭╯╰╮", "╰──╯"];
-const FLUX_WIDTH = 11;
+// Fixed width FLUX ASCII icon
+const FLUX_ART = [
+  " ╭──╮ ",
+  " ╰╮╭╯ ",
+  "  ╰╯  ",
+  " ╭╯╰╮ ",
+  " ╰──╯ "
+];
+const FLUX_WIDTH = 6;
 
 export function fluxBlock(): string[] {
-  return FLUX_ART.map((line) => paint(padLine(line, FLUX_WIDTH), theme.accent));
+  return FLUX_ART.map((line) => paint(line, theme.accent));
 }
 
 export function boxLines(
@@ -25,10 +32,14 @@ export function printBox(
   lines: string[],
   borderColor: string,
   width = 45,
+  outputFn?: (text: string) => void,
 ): void {
   const rows = boxLines(lines, borderColor, width);
-  for (const row of rows) {
-    process.stdout.write(row + "\n");
+  const result = rows.join("\n");
+  if (outputFn) {
+    outputFn(result);
+  } else {
+    process.stdout.write(result + "\n");
   }
 }
 
@@ -45,23 +56,19 @@ export function printHeader(
   const infoLines = [
     `${paint(`Flux v0.1.0`, `${bold}${theme.primary}`)}`,
     `${paint(provider, theme.muted)} ${paint("·", theme.dim)} ${paint(model, theme.text)}`,
-    paint(cwd, theme.text),
-    `${paint(branch, theme.success)}`,
+    paint(cwd.length > boxWidth - 4 ? "…" + cwd.slice(-(boxWidth - 5)) : cwd, theme.text),
+    `${paint("git:(" + branch + ")", theme.success)}`,
   ];
 
   const flux = fluxBlock();
   const box = boxLines(infoLines, theme.primary, boxWidth);
 
   const height = Math.max(flux.length, box.length);
-  const lPad = Math.floor((height - flux.length) / 2);
-  const rPad = Math.floor((height - box.length) / 2);
 
-  const lFlux = [...Array(lPad).fill(" ".repeat(FLUX_WIDTH)), ...flux, ...Array(Math.max(0, height - flux.length - lPad)).fill(" ".repeat(FLUX_WIDTH))];
-  const rBox = [...Array(rPad).fill(""), ...box, ...Array(Math.max(0, height - box.length - rPad)).fill("")];
-
-  const gapStr = " ".repeat(gap);
   for (let i = 0; i < height; i++) {
-    process.stdout.write((lFlux[i] ?? "") + gapStr + (rBox[i] ?? "") + "\n");
+    const artLine = flux[i] ?? " ".repeat(FLUX_WIDTH);
+    const boxLine = box[i] ?? "";
+    process.stdout.write(`  ${artLine}${" ".repeat(gap)}${boxLine}\n`);
   }
   process.stdout.write(paint("─".repeat(cols), theme.muted) + "\n");
 }

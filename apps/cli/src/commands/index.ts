@@ -5,7 +5,9 @@ import type { ProviderName } from "@ai-agent/providers";
 
 const APP_NAME = "Flux";
 
-export function cmdHelp(): void {
+type PrintFn = (text: string) => void;
+
+export function cmdHelp(printFn?: PrintFn): void {
   const lines = [
     `${paint(`Help — ${APP_NAME} v0.1.0`, `${bold}${theme.primary}`)}`,
     "",
@@ -26,17 +28,15 @@ export function cmdHelp(): void {
     `  ${paint("Ctrl+M", theme.primary)}     Cycle mode (normal → plan → auto)`,
     "",
     paint("Tools available to the agent:", theme.accent),
-    `  read_file, write_file, edit_file, list_directory, run_command`,
-    `  git_status, git_diff, git_log, git_add, git_commit`,
+    `  read_file, write_file, edit_file, list_directory`,
+    `  run_command, git_status, git_diff, git_log`,
     "",
     paint("Type anything to chat with the AI.", theme.muted),
   ];
-  process.stdout.write("\n");
-  printBox(lines, theme.primary, 45);
-  process.stdout.write("\n");
+  printBox(lines, theme.primary, 48, printFn);
 }
 
-export function cmdHistory(messages: SessionMessage[]): void {
+export function cmdHistory(messages: SessionMessage[], printFn?: PrintFn): void {
   const lines = [paint("Message History", `${bold}${theme.success}`), ""];
 
   if (messages.length === 0) {
@@ -58,12 +58,10 @@ export function cmdHistory(messages: SessionMessage[]): void {
     }
   }
 
-  process.stdout.write("\n");
-  printBox(lines, theme.success, 65);
-  process.stdout.write("\n");
+  printBox(lines, theme.success, 65, printFn);
 }
 
-export function cmdSuggest(): void {
+export function cmdSuggest(printFn?: PrintFn): void {
   const suggestions = [
     "Explain this repository",
     "Fix the failing tests in src/",
@@ -80,9 +78,7 @@ export function cmdSuggest(): void {
     ...suggestions.map((s) => `${paint("•", theme.accent)} ${s}`),
   ];
 
-  process.stdout.write("\n");
-  printBox(lines, theme.accent, 50);
-  process.stdout.write("\n");
+  printBox(lines, theme.accent, 50, printFn);
 }
 
 export async function cmdModels(
@@ -91,6 +87,7 @@ export async function cmdModels(
   currentModel: string,
   listModels: (p: ProviderName) => Promise<string[]>,
   setModel: (p: ProviderName, m: string) => void,
+  printFn?: PrintFn,
 ): Promise<void> {
   const available: ProviderName[] = [
     "ollama",
@@ -110,7 +107,6 @@ export async function cmdModels(
       if (p && available.includes(p)) {
         const model = m ?? (await listModels(p))[0] ?? "unknown";
         setModel(p, model);
-        process.stdout.write("\n");
         printBox(
           [
             paint("Model updated", `${bold}${theme.success}`),
@@ -119,12 +115,11 @@ export async function cmdModels(
           ],
           theme.success,
           40,
+          printFn
         );
-        process.stdout.write("\n");
         return;
       }
 
-      process.stdout.write("\n");
       printBox(
         [
           paint("Invalid provider", theme.error),
@@ -132,8 +127,8 @@ export async function cmdModels(
         ],
         theme.error,
         40,
+        printFn
       );
-      process.stdout.write("\n");
       return;
     }
   }
@@ -153,7 +148,5 @@ export async function cmdModels(
     `${paint("/models set ollama mistral", theme.primary)}  Switch`,
   ];
 
-  process.stdout.write("\n");
-  printBox(lines, theme.primary, 50);
-  process.stdout.write("\n");
+  printBox(lines, theme.primary, 50, printFn);
 }

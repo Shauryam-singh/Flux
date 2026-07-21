@@ -157,12 +157,28 @@ function interactivePrompt(options: string[], prompt: string): Promise<string> {
   return new Promise((resolve) => {
     let selected = 0;
     const optionChars = options.map((_, i) => String.fromCharCode(65 + i)); // A, B, C...
+    const totalLines = options.length + 1; // prompt + options
+    let rendered = false;
     
     function render() {
-      // Clear previous lines
-      process.stdout.write("\r\x1b[2K");
+      if (rendered) {
+        // Move up to clear previous render
+        process.stdout.write(`\x1b[${totalLines}A`);
+      }
+      
+      // Clear lines and re-render
+      for (let i = 0; i < totalLines; i++) {
+        process.stdout.write("\x1b[2K");
+        if (i < totalLines - 1) process.stdout.write("\n");
+      }
+      
+      // Move back to top
+      process.stdout.write(`\x1b[${totalLines}A`);
+      
+      // Print prompt
       process.stdout.write(paint(`  ${prompt}`, theme.warning) + "\n");
       
+      // Print options
       for (let i = 0; i < options.length; i++) {
         const option = options[i];
         if (option === undefined) continue;
@@ -170,6 +186,8 @@ function interactivePrompt(options: string[], prompt: string): Promise<string> {
         const text = i === selected ? paint(option, theme.text) : paint(option, theme.dim);
         process.stdout.write(prefix + text + "\n");
       }
+      
+      rendered = true;
     }
     
     render();
@@ -179,13 +197,9 @@ function interactivePrompt(options: string[], prompt: string): Promise<string> {
       
       if (key.name === "up") {
         selected = Math.max(0, selected - 1);
-        // Move up and re-render
-        process.stdout.write(`\x1b[${options.length + 1}A`);
         render();
       } else if (key.name === "down") {
         selected = Math.min(options.length - 1, selected + 1);
-        // Move up and re-render
-        process.stdout.write(`\x1b[${options.length + 1}A`);
         render();
       } else if (key.name === "return" || key.name === "enter") {
         process.stdin.removeListener("keypress", handler);
@@ -509,11 +523,7 @@ async function main(): Promise<void> {
           }
         },
         onApprovalRequired: async (name, inp) => {
-          // Show formatted tool response
-          const toolJson = JSON.stringify({ tool: name, input: inp }, null, 2);
-          printToChatArea(formatToolResponse(toolJson));
-          
-          // Ask for approval with interactive prompt
+          // Ask for approval with interactive prompt (don't print tool response here, it's handled by agent)
           const answer = await interactivePrompt(
             ["Yes, proceed", "No, cancel"],
             "Approve this action?"

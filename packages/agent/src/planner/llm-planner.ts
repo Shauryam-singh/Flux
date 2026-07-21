@@ -146,7 +146,12 @@ For questions, explanations, conversations, and when no tool is needed, use the 
       contextParts.push(`Previous conversation:\n${historyText}`);
     }
 
-    contextParts.push(`User: ${JSON.stringify(request.input)}`);
+    // Extract just the message text from input
+    const input = request.input as { message?: string } | string;
+    const userMessage = typeof input === "string" 
+      ? input 
+      : input.message || "";
+    contextParts.push(`User: ${userMessage}`);
 
     return contextParts.join("\n\n");
   }

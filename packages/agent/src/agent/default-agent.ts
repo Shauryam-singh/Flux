@@ -23,15 +23,21 @@ export class DefaultAgent implements Agent {
     session: Session,
     request: AgentRequest,
   ): Promise<AgentResponse> {
-    // Save user message
-    await session.memory.add("user", JSON.stringify(request.input));
+    // Save user message - extract just the message text
+    const input = request.input as { message?: string } | string;
+    const userMessage = typeof input === "string" 
+      ? input 
+      : input.message || "";
+    await session.memory.add("user", userMessage);
 
     const toolCall = await this.planner.plan(session, request);
 
     const result = await this.toolExecutor.execute(toolCall);
 
     // Save assistant response
-    await session.memory.add("assistant", JSON.stringify(result));
+    const resultObj = result as { output?: string };
+    const assistantMessage = resultObj.output || "";
+    await session.memory.add("assistant", assistantMessage);
 
     return {
       success: true,
@@ -44,8 +50,12 @@ export class DefaultAgent implements Agent {
     request: AgentRequest,
     callbacks: StreamCallbacks,
   ): Promise<void> {
-    // Save user message
-    await session.memory.add("user", JSON.stringify(request.input));
+    // Save user message - extract just the message text
+    const input = request.input as { message?: string } | string;
+    const userMessage = typeof input === "string" 
+      ? input 
+      : input.message || "";
+    await session.memory.add("user", userMessage);
 
     const mode = request.mode || "normal";
 
@@ -95,8 +105,10 @@ export class DefaultAgent implements Agent {
             input: parsed.input,
           });
 
-          // Save assistant response
-          await session.memory.add("assistant", JSON.stringify(result));
+          // Save assistant response - extract meaningful content
+          const resultObj = result as { output?: string };
+          const assistantMessage = resultObj.output || "";
+          await session.memory.add("assistant", assistantMessage);
 
           // Notify with tool result
           callbacks.onToolResult?.(parsed.tool, parsed.input, result);

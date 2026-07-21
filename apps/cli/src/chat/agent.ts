@@ -16,6 +16,15 @@ import {
   createEditFileTool,
   createListDirectoryTool,
   createRunCommandTool,
+  createGitStatusTool,
+  createGitDiffTool,
+  createGitLogTool,
+  createGitAddTool,
+  createGitCommitTool,
+  createGitBranchTool,
+  createGitCheckoutTool,
+  createGitPushTool,
+  createGitPullTool,
 } from "@ai-agent/tools";
 
 export interface AgentConfig {
@@ -33,6 +42,15 @@ registry.register(createWriteFileTool());
 registry.register(createEditFileTool());
 registry.register(createListDirectoryTool());
 registry.register(createRunCommandTool());
+registry.register(createGitStatusTool());
+registry.register(createGitDiffTool());
+registry.register(createGitLogTool());
+registry.register(createGitAddTool());
+registry.register(createGitCommitTool());
+registry.register(createGitBranchTool());
+registry.register(createGitCheckoutTool());
+registry.register(createGitPushTool());
+registry.register(createGitPullTool());
 
 const executor = new DefaultToolExecutor(registry);
 const session = new DefaultSession("cli-interactive");

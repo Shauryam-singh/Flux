@@ -111,6 +111,24 @@ function getToolStatusMessage(toolName: string, input: Record<string, unknown>):
       return paint(`Listed ${(input as { path?: string }).path ?? "directory"}`, theme.accent);
     case "run_command":
       return paint(`Ran command`, theme.accent);
+    case "git_status":
+      return paint(`Checked git status`, theme.accent);
+    case "git_diff":
+      return paint(`Showed git diff`, theme.accent);
+    case "git_log":
+      return paint(`Showed git log`, theme.accent);
+    case "git_add":
+      return paint(`Staged ${(input as { files?: string }).files ?? "files"}`, theme.accent);
+    case "git_commit":
+      return paint(`Committed changes`, theme.accent);
+    case "git_branch":
+      return paint(`Listed branches`, theme.accent);
+    case "git_checkout":
+      return paint(`Switched to ${(input as { branch?: string }).branch ?? "branch"}`, theme.accent);
+    case "git_push":
+      return paint(`Pushed to remote`, theme.accent);
+    case "git_pull":
+      return paint(`Pulled from remote`, theme.accent);
     default:
       return paint(`Used ${toolName}`, theme.accent);
   }
@@ -153,6 +171,85 @@ function formatToolResult(toolName: string, input: Record<string, unknown>, resu
     }
   } else if (toolName === "run_command") {
     lines.push(String(result));
+  } else if (toolName === "git_status") {
+    const r = result as { branch?: string; files?: Array<{ status: string; file: string }>; summary?: string };
+    if (typeof r === "object" && r !== null) {
+      if (r.branch) lines.push(paint(`Branch: ${r.branch}`, theme.accent));
+      if (r.files && r.files.length > 0) {
+        for (const f of r.files) {
+          const statusColor = f.status === "modified" ? theme.warning : f.status === "staged" ? theme.success : f.status === "untracked" ? theme.muted : theme.text;
+          lines.push(`  ${paint(f.status, statusColor)} ${f.file}`);
+        }
+      }
+      if (r.summary) lines.push(paint(r.summary, theme.muted));
+    } else {
+      lines.push(String(result));
+    }
+  } else if (toolName === "git_diff") {
+    const r = result as { diff?: string; file?: string; staged?: boolean };
+    if (typeof r === "object" && r !== null && r.diff) {
+      lines.push(r.diff);
+    } else {
+      lines.push(String(result));
+    }
+  } else if (toolName === "git_log") {
+    const r = result as { commits?: Array<{ hash: string; message: string }>; count?: number };
+    if (typeof r === "object" && r !== null && r.commits) {
+      for (const c of r.commits) {
+        lines.push(`  ${paint(c.hash.slice(0, 7), theme.accent)} ${c.message}`);
+      }
+    } else {
+      lines.push(String(result));
+    }
+  } else if (toolName === "git_add") {
+    const r = result as { files?: string; message?: string };
+    if (typeof r === "object" && r !== null) {
+      lines.push(paint(r.message || `Staged ${r.files}`, theme.success));
+    } else {
+      lines.push(String(result));
+    }
+  } else if (toolName === "git_commit") {
+    const r = result as { message?: string; output?: string };
+    if (typeof r === "object" && r !== null) {
+      lines.push(paint(`Committed: ${r.message}`, theme.success));
+      if (r.output) lines.push(r.output);
+    } else {
+      lines.push(String(result));
+    }
+  } else if (toolName === "git_branch") {
+    const r = result as { branches?: Array<{ name: string; current: boolean }>; current?: string };
+    if (typeof r === "object" && r !== null && r.branches) {
+      for (const b of r.branches) {
+        const marker = b.current ? paint("* ", theme.success) : "  ";
+        const name = b.current ? paint(b.name, theme.success) : b.name;
+        lines.push(`${marker}${name}`);
+      }
+    } else {
+      lines.push(String(result));
+    }
+  } else if (toolName === "git_checkout") {
+    const r = result as { branch?: string; message?: string };
+    if (typeof r === "object" && r !== null) {
+      lines.push(paint(r.message || `Switched to ${r.branch}`, theme.success));
+    } else {
+      lines.push(String(result));
+    }
+  } else if (toolName === "git_push") {
+    const r = result as { remote?: string; branch?: string; output?: string };
+    if (typeof r === "object" && r !== null) {
+      lines.push(paint(`Pushed to ${r.remote}/${r.branch}`, theme.success));
+      if (r.output) lines.push(r.output);
+    } else {
+      lines.push(String(result));
+    }
+  } else if (toolName === "git_pull") {
+    const r = result as { remote?: string; output?: string };
+    if (typeof r === "object" && r !== null) {
+      lines.push(paint(`Pulled from ${r.remote}`, theme.success));
+      if (r.output) lines.push(r.output);
+    } else {
+      lines.push(String(result));
+    }
   } else {
     lines.push(String(result));
   }
@@ -463,7 +560,9 @@ async function main(): Promise<void> {
           }
         },
         onToolResult: (toolName, toolInput, result) => {
-          lastToolResult = result;
+          // Extract output from ToolResult
+          const toolResult = result as { success?: boolean; output?: unknown };
+          lastToolResult = toolResult.output ?? result;
           lastToolName = toolName;
           lastToolInput = toolInput;
         },

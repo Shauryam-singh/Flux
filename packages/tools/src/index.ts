@@ -4,5 +4,6 @@ export * from "./interfaces/index.js";
 export * from "./registry/index.js";
 export * from "./tool/default-tool.js";
 export * from "./tools/file/index.js";
+export * from "./tools/git/index.js";
 export * from "./tools/shell/index.js";
 export * from "./types/index.js";

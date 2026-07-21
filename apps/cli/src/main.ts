@@ -57,6 +57,42 @@ function getToolStatusMessage(toolName: string, input: Record<string, unknown>):
       return paint(`  Using ${toolName}...`, theme.dim);
   }
 }
+
+function extractResponseText(text: string): string {
+  // Try to extract all echo messages from response
+  const messages: string[] = [];
+  
+  // Match JSON objects with tool: "echo"
+  const jsonRegex = /\{"tool":\s*"echo",\s*"input":\s*\{"message":\s*"([^"]*(?:\\.[^"]*)*)"\s*\}\}/g;
+  let match;
+  
+  while ((match = jsonRegex.exec(text)) !== null) {
+    if (match[1]) {
+      const msg = match[1]
+        .replace(/\\n/g, "\n")
+        .replace(/\\"/g, '"')
+        .replace(/\\\\/g, "\\");
+      messages.push(msg);
+    }
+  }
+  
+  if (messages.length > 0) {
+    return messages.join("\n\n");
+  }
+  
+  // Try to parse as single JSON
+  try {
+    const parsed = JSON.parse(text);
+    if (parsed.tool === "echo" && parsed.input?.message) {
+      return parsed.input.message;
+    }
+  } catch {
+    // Not valid JSON
+  }
+  
+  // Return as-is if no echo messages found
+  return text;
+}
 import { paint, bold, theme, dim, visibleLength } from "./ui/theme.js";
 import { printHeader } from "./ui/banner.js";
 import { Spinner } from "./ui/spinners.js";
@@ -364,6 +400,17 @@ async function main(): Promise<void> {
           // For now, auto-approve in non-interactive mode
           return true;
         },
+        onOptionsPresented: async (options) => {
+          // Present options to user and get selection
+          printToChatArea(paint("\n  Select an option:", theme.primary));
+          options.forEach((opt, i) => {
+            printToChatArea(paint(`    ${i + 1}. ${opt}`, theme.text));
+          });
+          printToChatArea(paint("  Or type your own choice:", theme.dim));
+          
+          // Wait for user input (simplified - in real impl would need proper input handling)
+          return options[0] || "";
+        },
         onDone: (response) => {
           // Done
         },
@@ -382,17 +429,8 @@ async function main(): Promise<void> {
           text = resultObj.output || JSON.stringify(toolResult, null, 2);
         }
       } else {
-        // Try to parse the response as JSON to extract echo message
-        try {
-          const parsed = JSON.parse(fullText);
-          if (parsed.tool === "echo" && parsed.input?.message) {
-            text = parsed.input.message;
-          } else {
-            text = fullText;
-          }
-        } catch {
-          text = fullText;
-        }
+        // Parse response - handle multiple JSON objects and mixed content
+        text = extractResponseText(fullText);
       }
 
       const inputTokens = countTokens(input);

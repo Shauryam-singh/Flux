@@ -11,6 +11,7 @@ interface StreamCallbacks extends StreamingCallbacks {
   onToolResult?: (toolName: string, input: Record<string, unknown>, result: unknown) => void;
   onPlanOnly?: (toolName: string, input: Record<string, unknown>) => void;
   onApprovalRequired?: (toolName: string, input: Record<string, unknown>) => Promise<boolean>;
+  onOptionsPresented?: (options: string[]) => Promise<string>;
 }
 
 export class DefaultAgent implements Agent {
@@ -83,6 +84,21 @@ export class DefaultAgent implements Agent {
           // Handle based on mode
           if (mode === "plan") {
             // Plan mode: show what would be done, don't execute
+            // Check if response contains numbered options for user selection
+            const optionsMatch = text.match(/(?:^|\n)\s*(\d+)\.\s*\*\*?([^*\n]+)\*\*?/gm);
+            if (optionsMatch && optionsMatch.length >= 2) {
+              // Extract options
+              const options = optionsMatch.map(m => {
+                const match = m.match(/\d+\.\s*\*\*?([^*\n]+)\*\*?/);
+                return match && match[1] ? match[1].trim() : m.trim();
+              });
+              // Present options and get user selection
+              const selected = await callbacks.onOptionsPresented?.(options);
+              if (selected) {
+                // User selected an option, continue conversation
+                await session.memory.add("user", `I selected: ${selected}`);
+              }
+            }
             callbacks.onPlanOnly?.(parsed.tool, parsed.input);
             callbacks.onDone?.(response);
             return;

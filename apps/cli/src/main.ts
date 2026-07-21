@@ -108,49 +108,65 @@ function formatToolResponse(text: string): string {
     
     const parsed = JSON.parse(cleaned);
     
-    if (parsed.tool && parsed.input) {
+    // Handle array of tool calls
+    if (Array.isArray(parsed)) {
       const output: string[] = [];
-      
-      if (parsed.tool === "write_file") {
-        output.push(paint("  📝 ", theme.primary) + paint("Creating file: ", theme.dim) + paint(parsed.input.path || "file", theme.text));
-        if (parsed.input.content) {
-          const content = parsed.input.content as string;
-          const lines = content.split("\n").slice(0, 10);
-          output.push(paint("  ────────────────────────────────────────", theme.dim));
-          for (const line of lines) {
-            output.push(paint("  │ ", theme.dim) + highlightCode(line, "tsx"));
-          }
-          if (content.split("\n").length > 10) {
-            output.push(paint("  │ ...", theme.dim));
-          }
-          output.push(paint("  ────────────────────────────────────────", theme.dim));
+      for (const item of parsed) {
+        if (item && typeof item === "object" && item.tool && item.input) {
+          output.push(formatSingleToolCall(item));
         }
-      } else if (parsed.tool === "edit_file") {
-        output.push(paint("  ✏️ ", theme.primary) + paint("Editing file: ", theme.dim) + paint(parsed.input.path || "file", theme.text));
-        if (parsed.input.old_text && parsed.input.new_text) {
-          output.push(paint("  Remove:", theme.error));
-          output.push(paint(`    "${(parsed.input.old_text as string).slice(0, 80)}..."`, theme.text));
-          output.push(paint("  Add:", theme.success));
-          output.push(paint(`    "${(parsed.input.new_text as string).slice(0, 80)}..."`, theme.text));
-        }
-      } else if (parsed.tool === "read_file") {
-        output.push(paint("  📖 ", theme.primary) + paint("Reading file: ", theme.dim) + paint(parsed.input.path || "file", theme.text));
-      } else if (parsed.tool === "run_command") {
-        output.push(paint("  ⚡ ", theme.primary) + paint("Running: ", theme.dim) + paint(parsed.input.command || "command", theme.text));
-      } else if (parsed.tool === "echo") {
-        // For echo, just return the message
-        return parsed.input.message || "";
-      } else {
-        output.push(paint("  🔧 ", theme.primary) + paint(`Using ${parsed.tool}`, theme.dim));
       }
-      
-      return output.join("\n");
+      return output.join("\n\n");
+    }
+    
+    // Handle single tool call
+    if (parsed && typeof parsed === "object" && parsed.tool && parsed.input) {
+      return formatSingleToolCall(parsed);
     }
   } catch {
     // Not valid JSON
   }
   
   return text;
+}
+
+function formatSingleToolCall(toolCall: { tool: string; input: Record<string, unknown> }): string {
+  const output: string[] = [];
+  const { tool, input } = toolCall;
+  
+  if (tool === "write_file") {
+    output.push(paint("  📝 ", theme.primary) + paint("Creating file: ", theme.dim) + paint((input.path as string) || "file", theme.text));
+    if (input.content) {
+      const content = input.content as string;
+      const lines = content.split("\n").slice(0, 10);
+      output.push(paint("  ────────────────────────────────────────", theme.dim));
+      for (const line of lines) {
+        output.push(paint("  │ ", theme.dim) + highlightCode(line, "tsx"));
+      }
+      if (content.split("\n").length > 10) {
+        output.push(paint("  │ ...", theme.dim));
+      }
+      output.push(paint("  ────────────────────────────────────────", theme.dim));
+    }
+  } else if (tool === "edit_file") {
+    output.push(paint("  ✏️ ", theme.primary) + paint("Editing file: ", theme.dim) + paint((input.path as string) || "file", theme.text));
+    if (input.old_text && input.new_text) {
+      output.push(paint("  Remove:", theme.error));
+      output.push(paint(`    "${(input.old_text as string).slice(0, 80)}..."`, theme.text));
+      output.push(paint("  Add:", theme.success));
+      output.push(paint(`    "${(input.new_text as string).slice(0, 80)}..."`, theme.text));
+    }
+  } else if (tool === "read_file") {
+    output.push(paint("  📖 ", theme.primary) + paint("Reading file: ", theme.dim) + paint((input.path as string) || "file", theme.text));
+  } else if (tool === "run_command") {
+    output.push(paint("  ⚡ ", theme.primary) + paint("Running: ", theme.dim) + paint((input.command as string) || "command", theme.text));
+  } else if (tool === "echo") {
+    return (input.message as string) || "";
+  } else {
+    output.push(paint("  🔧 ", theme.primary) + paint(`Using ${tool}`, theme.dim));
+  }
+  
+  return output.join("\n");
 }
 
 function interactivePrompt(options: string[], prompt: string): Promise<string> {

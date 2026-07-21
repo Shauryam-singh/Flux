@@ -323,6 +323,7 @@ async function main(): Promise<void> {
   let draft = "";
   const inputHistory: string[] = [];
   let currentMode: AgentMode = "normal";
+  let promptLine = 0; // Track which line the prompt is on
 
   const PROMPT = `${paint(">", theme.accent)} `;
 
@@ -339,17 +340,19 @@ async function main(): Promise<void> {
     if (suggestion) {
       status += `  ${paint(suggestion, theme.dim)}`;
     }
-    process.stdout.write(status + "\n");
+    process.stdout.write(status);
   }
 
   function reprintPrompt() {
-    // Move up one line to clear status, clear both lines, reprint
-    process.stdout.write("\x1b[1A"); // Move up 1 line
-    process.stdout.write("\x1b[2K"); // Clear that line (status)
-    process.stdout.write(`\r\x1b[2K${PROMPT}${paint(buffer, theme.text)}`);
-    process.stdout.write(`\x1b[${3 + cursorPos}G`);
-    process.stdout.write("\n"); // Move down for status
+    // Go back to prompt line, clear both lines, reprint
+    process.stdout.write("\x1b[2A"); // Up 2 lines
+    process.stdout.write("\x1b[2K"); // Clear prompt line
+    process.stdout.write(`${PROMPT}${paint(buffer, theme.text)}`);
+    process.stdout.write(`\x1b[${3 + cursorPos}G`); // Position cursor
+    process.stdout.write("\n"); // Down to status line
+    process.stdout.write("\x1b[2K"); // Clear status line
     printStatusLine();
+    process.stdout.write("\n"); // Down to next line (consistent with initial state)
   }
 
   function printPrompt() {
@@ -729,6 +732,7 @@ async function main(): Promise<void> {
 
     printPrompt();
     printStatusLine();
+    process.stdout.write("\n");
   }
 
   setupStdinRaw();
@@ -746,10 +750,12 @@ async function main(): Promise<void> {
     process.stdout.write("\n");
     printPrompt();
     printStatusLine();
+    process.stdout.write("\n");
   });
 
   printPrompt();
   printStatusLine();
+  process.stdout.write("\n");
 
   // Bracketed paste tracking
   const PASTE_START = "\x1b[200~";

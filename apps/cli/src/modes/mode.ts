@@ -49,8 +49,8 @@ export function getModeColor(mode: AgentMode): string {
 
 export function getModeSymbol(mode: AgentMode): string {
   switch (mode) {
-    case "plan": return "📋";
+    case "plan": return "⊙";
     case "auto": return "⚡";
-    case "normal": return "✏️ ";
+    case "normal": return "○";
   }
 }

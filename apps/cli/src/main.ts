@@ -75,11 +75,22 @@ function wordBoundaryRight(buffer: string, pos: number): number {
 }
 
 function getCommandSuggestion(input: string): string | null {
-  if (!input.startsWith("/")) return null;
-  const partial = input.slice(1).toLowerCase();
-  if (!partial) return null;
-  const matches = COMMAND_NAMES.filter((c) => c.startsWith(partial));
-  if (matches.length === 1) return matches[0] ?? null;
+  const trimmed = input.trimStart();
+  if (!trimmed) return null;
+  if (trimmed.startsWith("/")) {
+    const partial = trimmed.slice(1).toLowerCase();
+    if (!partial) return null;
+    const matches = COMMAND_NAMES.filter((c) => c.startsWith(partial));
+    if (matches.length === 1) return matches[0] ?? null;
+    return null;
+  }
+  // Also suggest commands when typing
+  const lower = trimmed.toLowerCase();
+  for (const name of COMMAND_NAMES) {
+    if (name.startsWith(lower) && name !== lower) {
+      return `/${name}`;
+    }
+  }
   return null;
 }
 
@@ -316,17 +327,33 @@ async function main(): Promise<void> {
   const PROMPT = `${paint(">", theme.accent)} `;
 
   function getModeIndicator(): string {
-    const modeConfig = MODES[currentMode];
     const color = getModeColor(currentMode);
     const symbol = getModeSymbol(currentMode);
-    return paint(`${symbol} ${modeConfig.name}`, color);
+    return paint(`${symbol} ${currentMode}`, color);
+  }
+
+  function printStatusLine() {
+    const suggestion = getCommandSuggestion(buffer);
+    const mode = getModeIndicator();
+    let status = `  ${mode}`;
+    if (suggestion) {
+      status += `  ${paint(suggestion, theme.dim)}`;
+    }
+    process.stdout.write(status + "\n");
+  }
+
+  function reprintPrompt() {
+    // Move up one line to clear status, clear both lines, reprint
+    process.stdout.write("\x1b[1A"); // Move up 1 line
+    process.stdout.write("\x1b[2K"); // Clear that line (status)
+    process.stdout.write(`\r\x1b[2K${PROMPT}${paint(buffer, theme.text)}`);
+    process.stdout.write(`\x1b[${3 + cursorPos}G`);
+    process.stdout.write("\n"); // Move down for status
+    printStatusLine();
   }
 
   function printPrompt() {
-    const suggestion = getCommandSuggestion(buffer);
-    const dimPart = suggestion ? suggestion.slice(buffer.length - 1) : "";
-    const modeIndicator = getModeIndicator();
-    process.stdout.write(`${modeIndicator} ${PROMPT}${paint(buffer, theme.text)}${dimPart ? paint(dimPart, theme.dim) : ""}`);
+    process.stdout.write(`${PROMPT}${paint(buffer, theme.text)}`);
   }
 
   function printToChat(text: string) {
@@ -695,12 +722,13 @@ async function main(): Promise<void> {
     } catch (err) {
       spinner.stop();
       const msg = err instanceof Error ? err.message : String(err);
-      printToChat("");
-      printToChat(paint(`Error: ${msg}`, theme.error));
-      printToChat("");
+    printToChat("");
+    printToChat(paint(`Error: ${msg}`, theme.error));
+    printToChat("");
     }
 
     printPrompt();
+    printStatusLine();
   }
 
   setupStdinRaw();
@@ -717,9 +745,11 @@ async function main(): Promise<void> {
     }
     process.stdout.write("\n");
     printPrompt();
+    printStatusLine();
   });
 
   printPrompt();
+  printStatusLine();
 
   // Bracketed paste tracking
   const PASTE_START = "\x1b[200~";
@@ -739,8 +769,7 @@ async function main(): Promise<void> {
           inPaste = false;
           buffer = buffer.slice(0, cursorPos) + pasteBuffer + buffer.slice(cursorPos);
           cursorPos += pasteBuffer.length;
-          process.stdout.write(`\r\x1b[2K${PROMPT}${paint(buffer, theme.text)}`);
-          process.stdout.write(`\x1b[${3 + cursorPos}G`);
+          reprintPrompt();
           pasteBuffer = "";
         } else {
           pasteBuffer += str;
@@ -758,8 +787,7 @@ async function main(): Promise<void> {
           inPaste = false;
           buffer = buffer.slice(0, cursorPos) + pasteBuffer + buffer.slice(cursorPos);
           cursorPos += pasteBuffer.length;
-          process.stdout.write(`\r\x1b[2K${PROMPT}${paint(buffer, theme.text)}`);
-          process.stdout.write(`\x1b[${3 + cursorPos}G`);
+          reprintPrompt();
           pasteBuffer = "";
         } else {
           pasteBuffer += afterStart;
@@ -785,7 +813,7 @@ async function main(): Promise<void> {
       // Mode switching - cycles through: normal -> plan -> auto -> normal
       if (key.ctrl && key.name === "m") {
         currentMode = getNextMode(currentMode);
-        printPrompt();
+        reprintPrompt();
         return;
       }
 
@@ -804,15 +832,13 @@ async function main(): Promise<void> {
           buffer = buffer.slice(0, cursorPos - 1) + buffer.slice(cursorPos);
           cursorPos--;
         }
-        process.stdout.write(`\r\x1b[2K${PROMPT}${paint(buffer, theme.text)}`);
-        process.stdout.write(`\x1b[${3 + cursorPos}G`);
+        reprintPrompt();
         return;
       }
 
       if (key.name === "delete") {
         buffer = buffer.slice(0, cursorPos) + buffer.slice(cursorPos + 1);
-        process.stdout.write(`\r\x1b[2K${PROMPT}${paint(buffer, theme.text)}`);
-        process.stdout.write(`\x1b[${3 + cursorPos}G`);
+        reprintPrompt();
         return;
       }
 
@@ -846,8 +872,7 @@ async function main(): Promise<void> {
         historyIdx = Math.min(historyIdx + 1, inputHistory.length - 1);
         buffer = inputHistory[inputHistory.length - 1 - historyIdx] ?? "";
         cursorPos = buffer.length;
-        process.stdout.write(`\r\x1b[2K${PROMPT}${paint(buffer, theme.text)}`);
-        process.stdout.write(`\x1b[${3 + cursorPos}G`);
+        reprintPrompt();
         return;
       }
 
@@ -859,8 +884,7 @@ async function main(): Promise<void> {
             ? draft
             : (inputHistory[inputHistory.length - 1 - historyIdx] ?? "");
         cursorPos = buffer.length;
-        process.stdout.write(`\r\x1b[2K${PROMPT}${paint(buffer, theme.text)}`);
-        process.stdout.write(`\x1b[${3 + cursorPos}G`);
+        reprintPrompt();
         return;
       }
 
@@ -873,8 +897,7 @@ async function main(): Promise<void> {
             cursorPos = buffer.length;
           }
         }
-        process.stdout.write(`\r\x1b[2K${PROMPT}${paint(buffer, theme.text)}`);
-        process.stdout.write(`\x1b[${3 + cursorPos}G`);
+        reprintPrompt();
         return;
       }
 

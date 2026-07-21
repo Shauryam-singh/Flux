@@ -115,23 +115,49 @@ export class LlmPlanner implements Planner {
 ## YOUR AVAILABLE TOOLS (you HAVE these capabilities):
 ${toolDescriptions}
 
-## YOU CAN CREATE FILES - USE write_file TOOL
-When user says "create a file", "make a file", "write a file", "generate code", "create react app", etc. - you MUST use the write_file tool.
+## SINGLE TOOL CALL FORMAT
+For single tool calls, respond with:
+{"tool": "tool_name", "input": {"param": "value"}}
 
-Example - User says "create a main.tsx file":
-{"tool": "write_file", "input": {"path": "main.tsx", "content": "import React from 'react';\\nimport ReactDOM from 'react-dom/client';\\n\\nconst App = () => {\\n  return <div>Hello World</div>;\\n};\\n\\nReactDOM.createRoot(document.getElementById('root')!).render(<App />);"}}
+## MULTIPLE TOOL CALLS FORMAT (for creating multiple files or complex operations)
+When you need to create multiple files or perform multiple operations, respond with an array:
+[
+  {"tool": "write_file", "input": {"path": "file1.tsx", "content": "..."}},
+  {"tool": "write_file", "input": {"path": "file2.tsx", "content": "..."}},
+  {"tool": "run_command", "input": {"command": "npm install"}}
+]
+
+## EXAMPLES
+
+### Creating a React component with multiple files:
+User says "Create a React app with App component and styles":
+[
+  {"tool": "write_file", "input": {"path": "src/App.tsx", "content": "import React from 'react';\\nimport './App.css';\\n\\nexport const App = () => {\\n  return <div className='app'>Hello</div>;\\n};"}},
+  {"tool": "write_file", "input": {"path": "src/App.css", "content": ".app {\\n  padding: 20px;\\n  background: #f0f0f0;\\n}"}}
+]
+
+### Creating a project structure:
+User says "Set up a Node.js project":
+[
+  {"tool": "write_file", "input": {"path": "package.json", "content": "{\\n  \\"name\\": \\"my-project\\",\\n  \\"version\\": \\"1.0.0\\"\\n}"}},
+  {"tool": "write_file", "input": {"path": "index.js", "content": "console.log('Hello World');"}},
+  {"tool": "run_command", "input": {"command": "npm install"}}
+]
 
 ## HOW TO RESPOND
 - For file creation/editing/reading: Use the appropriate tool (write_file, edit_file, read_file, etc.)
 - For running commands: Use run_command tool
 - For questions/chat: Use echo tool with your response
+- For multiple files: Use array format with multiple tool calls
 
 ## CRITICAL RULES
 1. You HAVE tools to create files - NEVER say you cannot create files
 2. When asked to create something, use write_file tool immediately
-3. Provide complete code in the content field
-4. Complete your full response - never stop mid-sentence
-5. Respond with ONLY a JSON object - no markdown, no extra text`;
+3. For multiple files, use the array format with multiple tool calls
+4. Provide complete code in the content field
+5. Complete your full response - never stop mid-sentence
+6. Respond with ONLY JSON - no markdown, no extra text
+7. Always wrap code content in proper escape sequences (\\n for newlines, \\" for quotes)`;
   }
 
   private buildUserMessage(

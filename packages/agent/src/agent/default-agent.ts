@@ -12,6 +12,7 @@ interface StreamCallbacks extends StreamingCallbacks {
   onPlanOnly?: (toolName: string, input: Record<string, unknown>) => void;
   onApprovalRequired?: (toolName: string, input: Record<string, unknown>) => Promise<boolean>;
   onOptionsPresented?: (options: string[]) => Promise<string>;
+  onMultipleToolCalls?: (toolCalls: Array<{ tool: string; input: Record<string, unknown> }>) => Promise<boolean>;
 }
 
 export class DefaultAgent implements Agent {
@@ -65,7 +66,8 @@ export class DefaultAgent implements Agent {
         ...(callbacks.onToken !== undefined && { onToken: callbacks.onToken }),
         onDone: async (response) => {
           const text = response.text;
-          let parsed: { tool: string; input: Record<string, unknown> };
+          let toolCalls: Array<{ tool: string; input: Record<string, unknown> }> = [];
+          let isMultiple = false;
 
           try {
             const cleaned = text
@@ -73,61 +75,87 @@ export class DefaultAgent implements Agent {
               .replace(/^```\s*/i, "")
               .replace(/```\s*$/i, "")
               .trim();
-            parsed = JSON.parse(cleaned) as { tool: string; input: Record<string, unknown> };
-            if (typeof parsed.tool !== "string") {
-              parsed = { tool: "echo", input: { message: text } };
+            
+            // Try to parse as array first (multiple tool calls)
+            const parsed = JSON.parse(cleaned);
+            
+            if (Array.isArray(parsed)) {
+              // Multiple tool calls
+              toolCalls = parsed.filter((item): item is { tool: string; input: Record<string, unknown> } => 
+                typeof item === "object" && item !== null && typeof item.tool === "string"
+              );
+              isMultiple = toolCalls.length > 1;
+            } else if (typeof parsed === "object" && parsed !== null && typeof parsed.tool === "string") {
+              // Single tool call
+              toolCalls = [{ tool: parsed.tool, input: parsed.input || {} }];
+            } else {
+              toolCalls = [{ tool: "echo", input: { message: text } }];
             }
           } catch {
-            parsed = { tool: "echo", input: { message: text } };
+            toolCalls = [{ tool: "echo", input: { message: text } }];
           }
 
-          // Handle based on mode
+          if (toolCalls.length === 0) {
+            toolCalls = [{ tool: "echo", input: { message: text } }];
+          }
+
+          // Handle plan mode
           if (mode === "plan") {
-            // Plan mode: show what would be done, don't execute
-            // Check if response contains numbered options for user selection
+            // Check if response contains numbered options
             const optionsMatch = text.match(/(?:^|\n)\s*(\d+)\.\s*\*\*?([^*\n]+)\*\*?/gm);
             if (optionsMatch && optionsMatch.length >= 2) {
-              // Extract options
               const options = optionsMatch.map(m => {
                 const match = m.match(/\d+\.\s*\*\*?([^*\n]+)\*\*?/);
                 return match && match[1] ? match[1].trim() : m.trim();
               });
-              // Present options and get user selection
               const selected = await callbacks.onOptionsPresented?.(options);
               if (selected) {
-                // User selected an option, continue conversation
                 await session.memory.add("user", `I selected: ${selected}`);
               }
             }
-            callbacks.onPlanOnly?.(parsed.tool, parsed.input);
+            // Show all tool calls in plan mode
+            for (const tc of toolCalls) {
+              callbacks.onPlanOnly?.(tc.tool, tc.input);
+            }
             callbacks.onDone?.(response);
             return;
           }
 
-          // Check if approval is required (normal mode + destructive tool)
-          if (mode === "normal" && this.requiresApproval(parsed.tool)) {
-            const approved = await callbacks.onApprovalRequired?.(parsed.tool, parsed.input);
+          // Handle multiple tool calls
+          if (isMultiple) {
+            const approved = await callbacks.onMultipleToolCalls?.(toolCalls);
             if (!approved) {
-              callbacks.onDone?.({
-                text: "Operation cancelled by user",
-              });
+              callbacks.onDone?.({ text: "Operation cancelled by user" });
               return;
             }
           }
 
-          // Execute the tool (auto mode or approved normal mode)
-          const result = await this.toolExecutor.execute({
-            name: parsed.tool,
-            input: parsed.input,
-          });
+          // Execute all tool calls
+          for (const tc of toolCalls) {
+            // Check if approval is required (normal mode + destructive tool)
+            if (mode === "normal" && this.requiresApproval(tc.tool)) {
+              const approved = await callbacks.onApprovalRequired?.(tc.tool, tc.input);
+              if (!approved) {
+                callbacks.onDone?.({ text: "Operation cancelled by user" });
+                return;
+              }
+            }
 
-          // Save assistant response - extract meaningful content
-          const resultObj = result as { output?: string };
-          const assistantMessage = resultObj.output || "";
-          await session.memory.add("assistant", assistantMessage);
+            // Execute the tool
+            const result = await this.toolExecutor.execute({
+              name: tc.tool,
+              input: tc.input,
+            });
 
-          // Notify with tool result
-          callbacks.onToolResult?.(parsed.tool, parsed.input, result);
+            // Save assistant response
+            const resultObj = result as { output?: string };
+            const assistantMessage = resultObj.output || "";
+            await session.memory.add("assistant", assistantMessage);
+
+            // Notify with tool result
+            callbacks.onToolResult?.(tc.tool, tc.input, result);
+          }
+
           callbacks.onDone?.(response);
         },
         ...(callbacks.onError !== undefined && { onError: callbacks.onError }),

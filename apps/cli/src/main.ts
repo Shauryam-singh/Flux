@@ -501,6 +501,7 @@ async function main(): Promise<void> {
       let toolCalled = false;
       let toolInput: Record<string, unknown> = {};
       let toolResult: unknown = null;
+      let multipleToolResults: Array<{ name: string; input: Record<string, unknown>; result: unknown }> = [];
 
       await agent.runStream(agentSession, {
         input: { message: input, type: "chat" },
@@ -513,6 +514,7 @@ async function main(): Promise<void> {
           toolCalled = true;
           toolInput = inp;
           toolResult = res;
+          multipleToolResults.push({ name, input: inp, result: res });
         },
         onPlanOnly: (name, inp) => {
           // In plan mode, show what would be done with diff preview
@@ -531,6 +533,10 @@ async function main(): Promise<void> {
         },
         onApprovalRequired: async (name, inp) => {
           // Auto-approve in normal mode (user can use plan mode to preview)
+          return true;
+        },
+        onMultipleToolCalls: async (toolCalls) => {
+          // Auto-approve multiple tool calls
           return true;
         },
         onOptionsPresented: async (options) => {
@@ -554,19 +560,31 @@ async function main(): Promise<void> {
 
       let text: string;
       if (toolCalled) {
-        // For echo tool, extract the message
-        if (toolInput && typeof toolInput.message === "string") {
-          text = toolInput.message;
-        } else {
-          // For other tools, show a formatted result
-          const resultObj = toolResult as { output?: string; success?: boolean };
-          if (resultObj.output) {
-            text = resultObj.output;
-          } else if (resultObj.success !== undefined) {
-            text = resultObj.success ? "✓ Operation completed successfully" : "✗ Operation failed";
-          } else {
-            text = "✓ Done";
+        // Handle multiple tool results
+        if (multipleToolResults.length > 1) {
+          const outputLines: string[] = [];
+          for (const tr of multipleToolResults) {
+            const toolJson = JSON.stringify({ tool: tr.name, input: tr.input }, null, 2);
+            outputLines.push(formatToolResponse(toolJson));
           }
+          text = outputLines.join("\n\n");
+        } else if (toolCalled) {
+          // Single tool result
+          if (toolInput && typeof toolInput.message === "string") {
+            text = toolInput.message;
+          } else {
+            // For other tools, show a formatted result
+            const resultObj = toolResult as { output?: string; success?: boolean };
+            if (resultObj.output) {
+              text = resultObj.output;
+            } else if (resultObj.success !== undefined) {
+              text = resultObj.success ? "✓ Operation completed successfully" : "✗ Operation failed";
+            } else {
+              text = "✓ Done";
+            }
+          }
+        } else {
+          text = "✓ Done";
         }
       } else {
         // Parse response - handle multiple JSON objects and mixed content

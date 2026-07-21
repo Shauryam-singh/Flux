@@ -128,6 +128,8 @@ scripts/
 - ✅ Shell command execution
 - ✅ Git operations (status, diff, log, add, commit, branch, checkout, push, pull)
 - ✅ Echo tool for conversational responses
+- ✅ Multi-file editing in single response
+- ✅ Multi-tool execution support
 
 ## CLI Features
 - ✅ Interactive terminal interface
@@ -139,6 +141,7 @@ scripts/
 - ✅ Command suggestions and autocomplete
 - ✅ Provider/model selection with `/models`
 - ✅ Multi-turn conversation context
+- ✅ Multiple tool result display
 
 ## Agent Capabilities
 - ✅ LLM-based planning with tool selection
@@ -147,6 +150,8 @@ scripts/
   - **Normal mode** (○): Execute operations directly
   - **Auto mode** (⚡): Execute without restrictions
 - ✅ Memory system for conversation history
+- ✅ Multi-tool orchestration
+- ✅ Batch file creation
 - ✅ Session management
 
 ---

@@ -9,13 +9,17 @@ The project is designed around composable packages that separate concerns such a
 # Features
 
 - Modular monorepo architecture
-- Provider abstraction layer
+- Provider abstraction layer (OpenAI, Anthropic, Ollama, OpenRouter)
 - Intelligent request routing
 - Tool registry and execution system
-- Configurable middleware pipeline
-- Extensible agent framework
-- CLI interface
-- Web/API ready architecture
+- Streaming responses with real-time token display
+- Multi-turn conversation with chat history
+- Interactive CLI with syntax highlighting
+- Mode system (Plan, Auto, Normal)
+- Git integration tools
+- File system tools (read, write, edit, list)
+- Shell command execution
+- Session persistence
 - Type-safe throughout the entire project
 
 ---
@@ -83,86 +87,135 @@ pnpm install
 
 ```
 apps/
-├── api/
-├── cli/
-├── vscode/
-└── web/
+├── cli/                    # Interactive CLI interface
+├── api/                    # REST API (planned)
+├── vscode/                 # VS Code extension (planned)
+└── web/                    # Web UI (planned)
 
 packages/
-├── agent/
-├── config/
-├── providers/
-├── router/
-├── shared/
-└── tools/
+├── agent/                  # Agent orchestration
+├── config/                 # Configuration management
+├── providers/              # LLM provider abstraction
+├── router/                 # Request routing
+├── shared/                 # Shared utilities
+└── tools/                  # Tool registry and implementations
 
 docs/
-
 scripts/
 ```
 
-## Packages
+---
 
-### `packages/shared`
+# Completed Features
 
-Shared interfaces, utilities, common types and abstractions.
+## Core Architecture
+- ✅ Monorepo setup with pnpm workspaces
+- ✅ Shared package with common types
+- ✅ Configuration system with auto-generation
+- ✅ Provider abstraction layer
+- ✅ Request router with middleware pipeline
+- ✅ Tool registry and execution framework
+
+## LLM Providers
+- ✅ Ollama provider (local models)
+- ✅ OpenAI provider
+- ✅ Anthropic provider
+- ✅ OpenRouter provider
+- ✅ Streaming response support
+
+## Tools
+- ✅ File operations (read, write, edit, list directory)
+- ✅ Shell command execution
+- ✅ Git operations (status, diff, log, add, commit, branch, checkout, push, pull)
+- ✅ Echo tool for conversational responses
+
+## CLI Features
+- ✅ Interactive terminal interface
+- ✅ Real-time streaming token display
+- ✅ Syntax highlighting for code blocks
+- ✅ Diff preview for file operations
+- ✅ Chat history persistence
+- ✅ Session save/load
+- ✅ Command suggestions and autocomplete
+- ✅ Provider/model selection with `/models`
+- ✅ Multi-turn conversation context
+
+## Agent Capabilities
+- ✅ LLM-based planning with tool selection
+- ✅ Mode system:
+  - **Plan mode** (⊙): Preview what would be done, no execution
+  - **Normal mode** (○): Execute operations directly
+  - **Auto mode** (⚡): Execute without restrictions
+- ✅ Memory system for conversation history
+- ✅ Session management
 
 ---
 
-### `packages/config`
+# Usage
 
-Application configuration loading, validation and defaults.
+## Starting the CLI
 
----
+```bash
+pnpm --filter @ai-agent/cli dev
+```
 
-### `packages/providers`
+## Interactive Commands
 
-LLM provider abstraction.
+| Command | Description |
+|---------|-------------|
+| `/help` | Show available commands |
+| `/history` | View message history |
+| `/models` | Configure providers and models |
+| `/mode` | Switch between plan/normal/auto modes |
+| `/save` | Save current session |
+| `/load` | Load a saved session |
+| `/clear` | Clear the screen |
+| `/exit` | Quit the application |
 
-Examples:
+## Keyboard Shortcuts
 
-- OpenAI
-- Anthropic
-- Gemini
-- Ollama
+| Key | Action |
+|-----|--------|
+| `Shift+Tab` | Cycle through modes |
+| `Tab` | Autocomplete commands |
+| `↑/↓` | Navigate command history |
+| `Ctrl+C` | Exit |
 
----
+## Mode System
 
-### `packages/router`
+### Plan Mode (⊙)
+- Shows what would be done without executing
+- Displays diff preview for file operations
+- Safe for exploring changes
 
-Routes requests to providers using configurable strategies.
+### Normal Mode (○)
+- Executes operations directly
+- Default mode for most tasks
 
-Includes:
+### Auto Mode (⚡)
+- Executes without restrictions
+- For trusted operations
 
-- Middleware pipeline
-- Retry policies
-- Failover policies
-- Routing strategies
+## Example Session
 
----
+```
+> Create a React component file
 
-### `packages/tools`
-
-Tool registry and execution framework.
-
-Current example:
-
-- Echo Tool
-
-Future tools may include:
-
-- File system
-- Terminal
-- Git
-- Search
-- Web
-- Code execution
-
----
-
-### `packages/agent`
-
-Coordinates routing, providers, memory, sessions and tools into a complete AI agent.
+✦ Agent
+  📝 Creating file: src/App.tsx
+  ────────────────────────────────────────
+  │ import React from 'react';
+  │ 
+  │ interface AppProps {
+  │   title: string;
+  │ }
+  │ 
+  │ export const App: React.FC<AppProps> = ({ title }) => {
+  │   return <div>{title}</div>;
+  │ };
+  ────────────────────────────────────────
+  15 in · 120 out · 2.1s · ollama/qwen2.5-coder:7b
+```
 
 ---
 
@@ -200,23 +253,45 @@ pnpm format
 
 ---
 
-# Running the CLI
+# Future Implementations
 
-Development mode:
+## High Priority
+- 🔲 Interactive approval with arrow key navigation
+- 🔲 Multi-file editing in single response
+- 🔲 Undo/redo support for file operations
+- 🔲 Better error recovery and retry logic
+- 🔲 Web search integration
 
-```bash
-pnpm --filter @ai-agent/cli dev echo "Hello World"
-```
+## Medium Priority
+- 🔲 REST API server
+- 🔲 VS Code extension
+- 🔲 Web UI with React
+- 🔲 Plugin system for custom tools
+- 🔲 Code execution sandbox
 
-Example output:
+## Low Priority
+- 🔲 Voice input support
+- 🔲 Image understanding
+- 🔲 Multi-language support
+- 🔲 Team collaboration features
+- 🔲 Cloud session sync
 
-```text
+---
+
+# Configuration
+
+Configuration is stored in `settings.json` at the project root:
+
+```json
 {
-  success: true,
-  result: {
-    success: true,
-    output: {
-      message: "Hello World"
+  "providers": {
+    "ollama": {
+      "baseUrl": "http://localhost:11434",
+      "defaultModel": "qwen2.5-coder:7b"
+    },
+    "openai": {
+      "apiKey": "your-api-key",
+      "defaultModel": "gpt-4"
     }
   }
 }
@@ -224,63 +299,16 @@ Example output:
 
 ---
 
-# Project Status
-
-## Completed
-
-- Monorepo setup
-- Shared package
-- Configuration system
-- Provider abstraction
-- Router
-- Retry middleware
-- Timeout middleware
-- Failover middleware
-- Tool registry
-- Tool executor
-- Default tool implementation
-- Echo tool example
-- Agent integration
-- CLI integration
-
----
-
-## In Progress
-
-- Planner
-- Memory system
-- Sessions
-- Multi-tool orchestration
-
----
-
-## Planned
-
-- OpenAI Provider
-- Anthropic Provider
-- Gemini Provider
-- Ollama Provider
-- File tools
-- Git tools
-- Shell tools
-- Web search
-- Streaming responses
-- VS Code extension
-- REST API
-- Web UI
-
----
-
 # Philosophy
 
 This project follows a modular architecture where every subsystem has a single responsibility.
 
-- Providers generate AI responses.
-- Router selects providers.
-- Tools perform external actions.
-- Agent orchestrates execution.
-- Memory stores context.
-- Sessions manage conversations.
+- **Providers** generate AI responses
+- **Router** selects providers
+- **Tools** perform external actions
+- **Agent** orchestrates execution
+- **Memory** stores context
+- **Sessions** manage conversations
 
 This separation keeps the codebase maintainable, testable and easily extensible.
 

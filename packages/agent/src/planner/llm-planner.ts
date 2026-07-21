@@ -74,6 +74,7 @@ export class LlmPlanner implements Planner {
           model: this.model,
           prompt: fullPrompt,
           temperature: 0.1,
+          maxTokens: 2048, // Allow longer responses
         },
         {
           onToken: (token) => {
@@ -96,6 +97,7 @@ export class LlmPlanner implements Planner {
         model: this.model,
         prompt: fullPrompt,
         temperature: 0.1,
+        maxTokens: 2048,
       });
 
       callbacks.onToken?.(response.text);

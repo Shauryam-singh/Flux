@@ -159,14 +159,17 @@ function interactivePrompt(options: string[], prompt: string): Promise<string> {
     const optionChars = options.map((_, i) => String.fromCharCode(65 + i)); // A, B, C...
     const totalLines = options.length + 1; // prompt + options
     let rendered = false;
+    let resolved = false;
     
     function render() {
+      if (resolved) return;
+      
       if (rendered) {
         // Move up to clear previous render
         process.stdout.write(`\x1b[${totalLines}A`);
       }
       
-      // Clear lines and re-render
+      // Clear lines
       for (let i = 0; i < totalLines; i++) {
         process.stdout.write("\x1b[2K");
         if (i < totalLines - 1) process.stdout.write("\n");
@@ -192,8 +195,8 @@ function interactivePrompt(options: string[], prompt: string): Promise<string> {
     
     render();
     
-    process.stdin.on("keypress", function handler(_str: string, key: { name?: string }) {
-      if (!key) return;
+    const handler = (_str: string, key: { name?: string }) => {
+      if (!key || resolved) return;
       
       if (key.name === "up") {
         selected = Math.max(0, selected - 1);
@@ -202,18 +205,22 @@ function interactivePrompt(options: string[], prompt: string): Promise<string> {
         selected = Math.min(options.length - 1, selected + 1);
         render();
       } else if (key.name === "return" || key.name === "enter") {
+        resolved = true;
         process.stdin.removeListener("keypress", handler);
         process.stdout.write("\n");
         resolve(optionChars[selected] || "A");
       } else if (_str && /^[a-zA-Z]$/.test(_str)) {
         const idx = _str.toUpperCase().charCodeAt(0) - 65;
         if (idx >= 0 && idx < options.length) {
+          resolved = true;
           process.stdin.removeListener("keypress", handler);
           process.stdout.write("\n");
           resolve(optionChars[idx] || "A");
         }
       }
-    });
+    };
+    
+    process.stdin.on("keypress", handler);
   });
 }
 
@@ -523,12 +530,8 @@ async function main(): Promise<void> {
           }
         },
         onApprovalRequired: async (name, inp) => {
-          // Ask for approval with interactive prompt (don't print tool response here, it's handled by agent)
-          const answer = await interactivePrompt(
-            ["Yes, proceed", "No, cancel"],
-            "Approve this action?"
-          );
-          return answer === "A";
+          // Auto-approve in normal mode (user can use plan mode to preview)
+          return true;
         },
         onOptionsPresented: async (options) => {
           // Present options to user and get selection

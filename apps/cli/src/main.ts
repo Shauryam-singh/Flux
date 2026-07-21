@@ -229,6 +229,14 @@ async function main(): Promise<void> {
     process.stdout.write(paint(text, claudeTheme.coral));
   }
 
+  // Create persistent agent session for conversation history
+  const agent = createAgent({
+    provider: currentProvider,
+    model: currentModel,
+    providerConfigs,
+  });
+  const agentSession = new DefaultSession("cli-session");
+
   async function handleInput(input: string): Promise<void> {
     if (!input.trim()) {
       redrawFooter();
@@ -322,13 +330,6 @@ async function main(): Promise<void> {
     const start = Date.now();
 
     try {
-      const agent = createAgent({
-        provider: currentProvider,
-        model: currentModel,
-        providerConfigs,
-      });
-      const agentSession = new DefaultSession("chat-" + Date.now());
-
       let fullText = "";
       let toolCalled = false;
       let toolInput: Record<string, unknown> = {};
@@ -373,10 +374,25 @@ async function main(): Promise<void> {
 
       let text: string;
       if (toolCalled) {
-        const resultObj = toolResult as { output?: string };
-        text = resultObj.output || JSON.stringify(toolResult, null, 2);
+        // For echo tool, extract the message
+        if (toolInput && typeof toolInput.message === "string") {
+          text = toolInput.message;
+        } else {
+          const resultObj = toolResult as { output?: string };
+          text = resultObj.output || JSON.stringify(toolResult, null, 2);
+        }
       } else {
-        text = fullText;
+        // Try to parse the response as JSON to extract echo message
+        try {
+          const parsed = JSON.parse(fullText);
+          if (parsed.tool === "echo" && parsed.input?.message) {
+            text = parsed.input.message;
+          } else {
+            text = fullText;
+          }
+        } catch {
+          text = fullText;
+        }
       }
 
       const inputTokens = countTokens(input);

@@ -28,6 +28,35 @@ import {
   getModeSymbol,
   getNextMode,
 } from "./modes/index.js";
+
+function getToolStatusMessage(toolName: string, input: Record<string, unknown>): string | null {
+  switch (toolName) {
+    case "write_file":
+      return paint(`  Writing to ${input.path || "file"}...`, theme.primary);
+    case "edit_file":
+      return paint(`  Editing ${input.path || "file"}...`, theme.primary);
+    case "read_file":
+      return paint(`  Reading ${input.path || "file"}...`, theme.dim);
+    case "list_directory":
+      return paint(`  Listing ${input.path || "directory"}...`, theme.dim);
+    case "run_command":
+      return paint(`  Running: ${input.command || "command"}`, theme.dim);
+    case "git_status":
+      return paint(`  Checking git status...`, theme.dim);
+    case "git_diff":
+      return paint(`  Getting git diff...`, theme.dim);
+    case "git_log":
+      return paint(`  Getting git log...`, theme.dim);
+    case "git_add":
+      return paint(`  Staging ${input.files || "files"}...`, theme.primary);
+    case "git_commit":
+      return paint(`  Committing: ${input.message || "changes"}...`, theme.primary);
+    case "echo":
+      return null; // Don't show status for echo
+    default:
+      return paint(`  Using ${toolName}...`, theme.dim);
+  }
+}
 import { paint, bold, theme, dim, visibleLength } from "./ui/theme.js";
 import { printHeader } from "./ui/banner.js";
 import { Spinner } from "./ui/spinners.js";
@@ -300,14 +329,56 @@ async function main(): Promise<void> {
       });
       const agentSession = new DefaultSession("chat-" + Date.now());
 
-      const result = await agent.run(agentSession, {
+      let fullText = "";
+      let toolCalled = false;
+      let toolInput: Record<string, unknown> = {};
+      let toolResult: unknown = null;
+
+      await agent.runStream(agentSession, {
         input: { message: input, type: "chat" },
+        mode: currentMode,
+      }, {
+        onToken: (token) => {
+          fullText += token;
+        },
+        onToolResult: (name, inp, res) => {
+          toolCalled = true;
+          toolInput = inp;
+          toolResult = res;
+        },
+        onPlanOnly: (name, inp) => {
+          // In plan mode, show what would be done
+          const statusMsg = getToolStatusMessage(name, inp);
+          if (statusMsg) {
+            printToChatArea(statusMsg);
+          }
+        },
+        onApprovalRequired: async (name, inp) => {
+          // Ask for approval
+          const statusMsg = getToolStatusMessage(name, inp);
+          if (statusMsg) {
+            printToChatArea(statusMsg);
+          }
+          printToChatArea(paint("  Approve? (y/n): ", theme.warning));
+          // For now, auto-approve in non-interactive mode
+          return true;
+        },
+        onDone: (response) => {
+          // Done
+        },
       });
 
       spinner.stop();
       const durationMs = Date.now() - start;
 
-      const text = extractText(result.result?.output) || JSON.stringify(result.result?.output, null, 2);
+      let text: string;
+      if (toolCalled) {
+        const resultObj = toolResult as { output?: string };
+        text = resultObj.output || JSON.stringify(toolResult, null, 2);
+      } else {
+        text = fullText;
+      }
+
       const inputTokens = countTokens(input);
       const outputTokens = countTokens(text);
 

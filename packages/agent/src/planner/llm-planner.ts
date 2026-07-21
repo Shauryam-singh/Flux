@@ -73,8 +73,8 @@ export class LlmPlanner implements Planner {
         {
           model: this.model,
           prompt: fullPrompt,
-          temperature: 0.1,
-          maxTokens: 4096,
+          temperature: 0.3, // Slightly higher for more creative/detailed responses
+          maxTokens: 8192, // Allow very long responses
         },
         {
           onToken: (token) => {
@@ -96,8 +96,8 @@ export class LlmPlanner implements Planner {
       const response = await this.provider.complete({
         model: this.model,
         prompt: fullPrompt,
-        temperature: 0.1,
-        maxTokens: 4096,
+        temperature: 0.3,
+        maxTokens: 8192,
       });
 
       callbacks.onToken?.(response.text);
@@ -125,12 +125,22 @@ For questions, explanations, conversations, suggestions, recommendations, and wh
 
 {"tool": "echo", "input": {"message": "your detailed response here"}}
 
+## CRITICAL RULE: ALWAYS COMPLETE YOUR RESPONSE
+- NEVER say "follow these steps:" and then stop
+- NEVER say "here's how:" and then stop
+- ALWAYS include the complete information in your response
+- If listing steps, include ALL steps in the message
+- If explaining something, provide the FULL explanation
+- Do NOT break your response into multiple parts
+- Your response must be SELF-CONTAINED and COMPLETE
+
 ## Response Guidelines
 1. Be helpful, detailed, and thorough in your responses
 2. When suggesting features, provide multiple options with explanations
 3. When explaining concepts, use examples and clear language
 4. For coding tasks, explain your approach before executing
 5. If the user asks a vague question, provide comprehensive suggestions
+6. ALWAYS finish your response - do not leave it incomplete
 
 ## Important Rules
 1. ALWAYS use tools for file operations, directory listings, and command execution

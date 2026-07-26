@@ -62,6 +62,12 @@ importers:
       '@ai-agent/tools':
         specifier: workspace:*
         version: link:../../packages/tools
+      '@ai-agent/voice-stt':
+        specifier: workspace:*
+        version: link:../../packages/voice/stt
+      '@ai-agent/voice-tts':
+        specifier: workspace:*
+        version: link:../../packages/voice/tts
     devDependencies:
       '@types/node':
         specifier: ^26.1.0

@@ -6,8 +6,10 @@ const chatArea = document.getElementById("chat-area");
 const welcome = document.getElementById("welcome");
 const input = document.getElementById("input");
 const sendBtn = document.getElementById("send-btn");
+const micBtn = document.getElementById("mic-btn");
 
 let isLoading = false;
+let isRecording = false;
 
 function addMessage(role, text) {
   if (welcome) welcome.remove();
@@ -46,8 +48,7 @@ function removeTyping() {
   if (el) el.remove();
 }
 
-async function handleSend() {
-  const text = input.value.trim();
+async function sendMessage(text) {
   if (!text || isLoading) return;
 
   if (!window.__TAURI_INTERNALS__) {
@@ -76,13 +77,95 @@ async function handleSend() {
   }
 }
 
+async function handleSend() {
+  const text = input.value.trim();
+  await sendMessage(text);
+}
+
+async function startRecording() {
+  if (isRecording || isLoading) return;
+
+  try {
+    await invoke("start_recording");
+    isRecording = true;
+    micBtn.classList.add("recording");
+  } catch (err) {
+    addMessage("assistant", `Recording error: ${err}`);
+  }
+}
+
+async function stopRecording() {
+  if (!isRecording) return;
+
+  isRecording = false;
+  micBtn.classList.remove("recording");
+
+  try {
+    showTyping();
+    const transcript = await invoke("stop_recording");
+    removeTyping();
+
+    if (transcript && transcript.trim()) {
+      addMessage("user", `[Voice] ${transcript}`);
+      showTyping();
+
+      const reply = await invoke("send_message", { message: transcript });
+      removeTyping();
+      addMessage("assistant", reply);
+
+      // Speak the reply
+      try {
+        await invoke("speak", { text: reply });
+      } catch {
+        // TTS failed silently — reply was still shown
+      }
+    } else {
+      removeTyping();
+      addMessage("assistant", "No speech detected. Try again.");
+    }
+  } catch (err) {
+    removeTyping();
+    addMessage("assistant", `Voice error: ${err}`);
+  }
+}
+
+// Send button
 sendBtn.addEventListener("click", handleSend);
 
+// Text input
 input.addEventListener("keydown", (e) => {
   if (e.key === "Enter" && !e.shiftKey) {
     e.preventDefault();
     handleSend();
   }
+});
+
+// Mic button — push to talk
+micBtn.addEventListener("mousedown", (e) => {
+  e.preventDefault();
+  startRecording();
+});
+
+micBtn.addEventListener("mouseup", (e) => {
+  e.preventDefault();
+  stopRecording();
+});
+
+micBtn.addEventListener("mouseleave", () => {
+  if (isRecording) {
+    stopRecording();
+  }
+});
+
+// Touch support
+micBtn.addEventListener("touchstart", (e) => {
+  e.preventDefault();
+  startRecording();
+});
+
+micBtn.addEventListener("touchend", (e) => {
+  e.preventDefault();
+  stopRecording();
 });
 
 input.focus();

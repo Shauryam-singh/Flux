@@ -20,7 +20,9 @@
     "@ai-agent/services-system": "workspace:*",
     "@ai-agent/services-reminders": "workspace:*",
     "@ai-agent/services-files": "workspace:*",
-    "@ai-agent/cli": "workspace:*"
+    "@ai-agent/cli": "workspace:*",
+    "@ai-agent/voice-stt": "workspace:*",
+    "@ai-agent/voice-tts": "workspace:*"
   },
   "devDependencies": {
     "tsx": "^4.23.0",

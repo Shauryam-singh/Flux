@@ -60,6 +60,12 @@ header h1 {
   color: #e94560;
 }
 
+.hint {
+  color: #666;
+  font-size: 0.85rem;
+  margin-top: 12px;
+}
+
 .message {
   display: flex;
   gap: 12px;
@@ -190,4 +196,69 @@ textarea::placeholder {
 .send-btn:disabled {
   opacity: 0.4;
   cursor: not-allowed;
+}
+
+.mic-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  border: 2px solid #0f3460;
+  background: #1a1a2e;
+  color: #e0e0e0;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+.mic-btn:hover {
+  border-color: #e94560;
+  color: #e94560;
+}
+
+.mic-btn.recording {
+  background: #e94560;
+  border-color: #e94560;
+  color: white;
+  animation: pulse 1.2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(233, 69, 96, 0.5); }
+  50% { box-shadow: 0 0 0 8px rgba(233, 69, 96, 0); }
+}
+
+.recording-indicator {
+  position: fixed;
+  top: 12px;
+  right: 12px;
+  background: #e94560;
+  color: white;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  font-weight: bold;
+  display: none;
+  align-items: center;
+  gap: 6px;
+  z-index: 100;
+}
+
+.recording-indicator.visible {
+  display: flex;
+}
+
+.recording-indicator .dot {
+  width: 8px;
+  height: 8px;
+  background: white;
+  border-radius: 50%;
+  animation: blink 0.8s infinite;
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
 }

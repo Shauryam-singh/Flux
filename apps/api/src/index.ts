@@ -1,5 +1,7 @@
 import { createServer } from "node:http";
 import { createFlux, type FluxConfig } from "@ai-agent/cli/flux";
+import { WhisperEngine } from "@ai-agent/voice-stt";
+import { PiperEngine } from "@ai-agent/voice-tts";
 
 const PORT = parseInt(process.env.FLUX_API_PORT ?? "3141", 10);
 
@@ -12,6 +14,8 @@ const fluxConfig: FluxConfig = {
 };
 
 const flux = createFlux(fluxConfig);
+const stt = new WhisperEngine();
+const tts = new PiperEngine();
 
 interface ChatRequest {
   message: string;
@@ -22,11 +26,11 @@ interface ChatResponse {
   sessionId: string;
 }
 
-function parseBody(req: import("node:http").IncomingMessage): Promise<string> {
+function parseBody(req: import("node:http").IncomingMessage): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
     req.on("data", (chunk: Buffer) => chunks.push(chunk));
-    req.on("end", () => resolve(Buffer.concat(chunks).toString()));
+    req.on("end", () => resolve(Buffer.concat(chunks)));
     req.on("error", reject);
   });
 }
@@ -39,6 +43,20 @@ function sendJson(res: import("node:http").ServerResponse, status: number, data:
     "Access-Control-Allow-Headers": "Content-Type",
   });
   res.end(JSON.stringify(data));
+}
+
+function wavToFloat32(buffer: Buffer): Float32Array {
+  if (buffer.length < 44) return new Float32Array(0);
+  const dataOffset = 44;
+  const dataLength = buffer.length - dataOffset;
+  const sampleCount = Math.floor(dataLength / 2);
+  const result = new Float32Array(sampleCount);
+  for (let i = 0; i < sampleCount; i++) {
+    const offset = dataOffset + i * 2;
+    const sample = buffer.readInt16LE(offset);
+    result[i] = sample / 32768;
+  }
+  return result;
 }
 
 const server = createServer(async (req, res) => {
@@ -60,7 +78,7 @@ const server = createServer(async (req, res) => {
   if (req.method === "POST" && req.url === "/chat") {
     try {
       const body = await parseBody(req);
-      const { message } = JSON.parse(body) as ChatRequest;
+      const { message } = JSON.parse(body.toString()) as ChatRequest;
 
       if (!message || typeof message !== "string") {
         sendJson(res, 400, { error: "message is required" });
@@ -82,6 +100,59 @@ const server = createServer(async (req, res) => {
     return;
   }
 
+  if (req.method === "POST" && req.url === "/voice/transcribe") {
+    try {
+      const body = await parseBody(req);
+      const json = JSON.parse(body.toString()) as { audio?: string; sampleRate?: number };
+
+      if (!json.audio) {
+        sendJson(res, 400, { error: "audio (base64) is required" });
+        return;
+      }
+
+      await stt.initialize();
+
+      const audioBuffer = Buffer.from(json.audio, "base64");
+      const audioFloat = wavToFloat32(audioBuffer);
+      const sampleRate = json.sampleRate ?? 16000;
+
+      const text = await stt.transcribe(audioFloat, sampleRate);
+
+      sendJson(res, 200, { text });
+    } catch (err) {
+      const error = err instanceof Error ? err.message : String(err);
+      sendJson(res, 500, { error });
+    }
+    return;
+  }
+
+  if (req.method === "POST" && req.url === "/voice/speak") {
+    try {
+      const body = await parseBody(req);
+      const { text } = JSON.parse(body.toString()) as { text?: string };
+
+      if (!text || typeof text !== "string") {
+        sendJson(res, 400, { error: "text is required" });
+        return;
+      }
+
+      await tts.initialize();
+
+      const audio = await tts.synthesize(text);
+
+      res.writeHead(200, {
+        "Content-Type": "audio/wav",
+        "Access-Control-Allow-Origin": "*",
+        "Content-Length": audio.length,
+      });
+      res.end(audio);
+    } catch (err) {
+      const error = err instanceof Error ? err.message : String(err);
+      sendJson(res, 500, { error });
+    }
+    return;
+  }
+
   if (req.method === "GET" && req.url === "/services") {
     sendJson(res, 200, {
       services: [
@@ -91,6 +162,7 @@ const server = createServer(async (req, res) => {
         { name: "system", description: "System control" },
         { name: "reminders", description: "Reminders & notes" },
         { name: "files", description: "File manager" },
+        { name: "voice", description: "Voice transcription and speech" },
       ],
     });
     return;
@@ -102,7 +174,9 @@ const server = createServer(async (req, res) => {
 server.listen(PORT, () => {
   console.log(`Flux API server running on http://localhost:${PORT}`);
   console.log(`Endpoints:`);
-  console.log(`  POST /chat     - Send a message`);
-  console.log(`  GET  /health   - Health check`);
-  console.log(`  GET  /services - List available services`);
+  console.log(`  POST /chat              - Send a message`);
+  console.log(`  POST /voice/transcribe  - Transcribe audio (base64 WAV)`);
+  console.log(`  POST /voice/speak       - Text to speech (returns WAV)`);
+  console.log(`  GET  /health            - Health check`);
+  console.log(`  GET  /services          - List available services`);
 });

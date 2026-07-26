@@ -728,9 +728,11 @@ async function main(): Promise<void> {
             text = toolInput.message;
           } else {
             // For other tools, show a formatted result
-            const resultObj = toolResult as { output?: string; success?: boolean };
-            if (resultObj.output) {
-              text = resultObj.output;
+            const resultObj = toolResult as { output?: unknown; success?: boolean };
+            if (resultObj.output !== undefined) {
+              text = typeof resultObj.output === "string" 
+                ? resultObj.output 
+                : JSON.stringify(resultObj.output, null, 2);
             } else if (resultObj.success !== undefined) {
               text = resultObj.success ? "✓ Operation completed successfully" : "✗ Operation failed";
             } else {
@@ -743,6 +745,11 @@ async function main(): Promise<void> {
       } else {
         // Parse response - handle multiple JSON objects and mixed content
         text = extractResponseText(fullText);
+      }
+
+      // Ensure text is always a string
+      if (typeof text !== "string") {
+        text = String(text || "✓ Done");
       }
 
       // Apply syntax highlighting to code blocks (not to JSON tool calls)

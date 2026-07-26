@@ -6,4 +6,8 @@ export * from "./tool/default-tool.js";
 export * from "./tools/file/index.js";
 export * from "./tools/git/index.js";
 export * from "./tools/shell/index.js";
+export * from "./tools/http/index.js";
+export * from "./tools/process/index.js";
+export * from "./tools/schedule/index.js";
+export * from "./tools/system/index.js";
 export * from "./types/index.js";

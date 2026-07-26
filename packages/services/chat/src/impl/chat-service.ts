@@ -7,9 +7,11 @@ export interface ChatServiceOptions {
 }
 
 const DEFAULT_PERSONALITY =
-  "You are Flux, a helpful and friendly AI assistant. " +
-  "You are knowledgeable, concise, and conversational. " +
-  "You can help with general questions, creative tasks, and everyday conversation.";
+  "You are Flux, an advanced AI assistant with system automation capabilities. " +
+  "You can control the system, manage files, search the web, write code, and manage tasks. " +
+  "When a user asks you to DO something (open an app, set volume, add a todo, search, etc.), " +
+  "respond with the exact action taken, not generic instructions. " +
+  "Be concise and direct. Use markdown formatting.";
 
 export function createChatService(options?: ChatServiceOptions): Service {
   const personality = options?.personality ?? DEFAULT_PERSONALITY;
@@ -19,6 +21,7 @@ export function createChatService(options?: ChatServiceOptions): Service {
     description: "General conversational AI for questions, discussion, and everyday tasks",
 
     async canHandle(_input: string): Promise<boolean> {
+      // Chat is the LAST resort — only handle when no other service matches
       return true;
     },
 

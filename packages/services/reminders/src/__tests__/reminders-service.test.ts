@@ -50,7 +50,7 @@ describe("reminders service", () => {
 
   it("should add a reminder", async () => {
     const result = await service.execute("add buy groceries", ctx);
-    expect(result.text).toMatch(/Added reminder: "buy groceries"/);
+    expect(result.text).toMatch(/buy groceries/);
     expect(ctx.reply).toHaveBeenCalled();
     expect(ctx.memory.add).toHaveBeenCalledWith("user", "add buy groceries");
   });

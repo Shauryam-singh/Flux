@@ -82,15 +82,15 @@ function deleteReminder(idOrText: string): string {
 function formatReminders(reminders: Reminder[]): string {
   if (reminders.length === 0) return "No active reminders.";
   const lines = reminders.map(
-    (r, i) => `${i + 1}. [${r.id}] ${r.text} (${new Date(r.createdAt).toLocaleDateString()})`,
+    (r, i) => `${i + 1}. \`${r.id}\` ${r.text} _(${new Date(r.createdAt).toLocaleDateString()})_`,
   );
-  return `Reminders (${reminders.length}):\n${lines.join("\n")}`;
+  return `**Reminders** (${reminders.length}):\n${lines.join("\n")}`;
 }
 
 export function createRemindersService(): Service {
   return {
     name: "reminders",
-    description: "Manage reminders, notes, and tasks",
+    description: "Manage reminders, notes, tasks, and todos",
 
     async canHandle(input: string): Promise<boolean> {
       const lower = input.toLowerCase();
@@ -98,6 +98,10 @@ export function createRemindersService(): Service {
         "remind", "note", "task", "todo", "schedule", "alarm",
         "remember", "save note", "list tasks", "delete note",
         "add task", "complete task", "show reminders", "my notes",
+        "my tasks", "my todos", "my notes", "open tasks",
+        "pending tasks", "add a todo", "add todo", "new todo",
+        "add a task", "new task", "create a task",
+        "show my", "list my",
       ];
       return keywords.some((k) => lower.includes(k));
     },
@@ -106,26 +110,46 @@ export function createRemindersService(): Service {
       const lower = input.toLowerCase();
       let result: string;
 
-      if (lower.startsWith("add ") || lower.startsWith("create ") || lower.startsWith("new ")) {
-        const text = input.replace(/^(add|create|new)\s+(reminder|note|task|todo)?\s*/i, "").trim();
+      // Add/Create patterns
+      if (/^(add|create|new|save)\s+/i.test(lower)) {
+        const text = input.replace(/^(add|create|new|save)\s+(a\s+)?(reminder|note|task|todo)?\s*/i, "").trim();
         if (!text) {
           result = "What would you like to add?";
         } else {
           const reminder = addReminder(text);
-          result = `Added reminder: "${reminder.text}" (ID: ${reminder.id})`;
+          result = `✅ Added: **${reminder.text}** (ID: \`${reminder.id}\`)`;
         }
-      } else if (lower.includes("list") || lower.includes("show") || lower.includes("my ") || lower.startsWith("what")) {
+      }
+      // List/Show patterns
+      else if (/^(list|show|show\s+me|what('s| are)|my\s+|open\s+)/i.test(lower) ||
+               /reminders?|notes?|tasks?|todos?/i.test(lower)) {
         const reminders = listReminders();
         result = formatReminders(reminders);
-      } else if (lower.includes("complete") || lower.includes("done") || lower.includes("finish")) {
-        const text = input.replace(/^(complete|done|finish)\s+(task|reminder|todo)?\s*/i, "").trim();
+      }
+      // Complete patterns
+      else if (/^(complete|done|finish|mark)\s+/i.test(lower)) {
+        const text = input.replace(/^(complete|done|finish|mark)\s+(task|reminder|todo)?\s*/i, "").trim();
         result = completeReminder(text || input);
-      } else if (lower.includes("delete") || lower.includes("remove")) {
-        const text = input.replace(/^(delete|remove)\s+(task|reminder|note|todo)?\s*/i, "").trim();
+      }
+      // Delete patterns
+      else if (/^(delete|remove|clear)\s+/i.test(lower)) {
+        const text = input.replace(/^(delete|remove|clear)\s+(task|reminder|note|todo)?\s*/i, "").trim();
         result = deleteReminder(text || input);
-      } else {
+      }
+      // Remind me pattern
+      else if (/^(remind\s+me|remember)\s+/i.test(lower)) {
+        const text = input.replace(/^(remind\s+me|remember)\s+(to\s+)?/i, "").trim();
+        if (text) {
+          const reminder = addReminder(text);
+          result = `✅ Added: **${reminder.text}** (ID: \`${reminder.id}\`)`;
+        } else {
+          result = "What would you like me to remind you about?";
+        }
+      }
+      // Fallback: treat as a new note
+      else {
         const reminder = addReminder(input);
-        result = `Saved note: "${reminder.text}"`;
+        result = `📝 Saved note: **${reminder.text}** (ID: \`${reminder.id}\`)`;
       }
 
       await ctx.memory.add("user", input);

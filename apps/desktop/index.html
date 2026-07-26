@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Flux Assistant</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <div class="app">
+      <header>
+        <h1>⚡ Flux</h1>
+        <span class="subtitle">AI Assistant</span>
+      </header>
+
+      <div id="chat-area" class="chat-area">
+        <div id="welcome" class="welcome">
+          <h2>Hello! I'm Flux</h2>
+          <p>Your AI assistant. Ask me anything.</p>
+        </div>
+      </div>
+
+      <div class="input-area">
+        <textarea
+          id="input"
+          placeholder="Type a message..."
+          rows="1"
+        ></textarea>
+        <button id="send-btn" class="send-btn" title="Send">➤</button>
+      </div>
+    </div>
+
+    <script type="module" src="./main.js"></script>
+  </body>
+</html>

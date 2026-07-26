@@ -1,5 +1,7 @@
 packages:
   - apps/*
   - packages/*
+  - packages/services/*
+  - packages/voice/*
 allowBuilds:
   esbuild: true

@@ -8,3 +8,32 @@ coverage
 !.env.example
 .vscode/settings.json
 settings.json
+
+# Rust / Tauri
+target/
+*.pdb
+
+# Build artifacts
+*.deb
+*.rpm
+*.AppImage
+*.dmg
+*.msi
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+npm-debug.log*
+
+# Package locks (using pnpm)
+package-lock.json
+yarn.lock

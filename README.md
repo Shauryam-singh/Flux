@@ -1,302 +1,195 @@
 # Flux
 
-A production-quality, modular AI Coding Agent platform built as a TypeScript monorepo.
-
-The project is designed around composable packages that separate concerns such as providers, routing, tools, memory, configuration, and agent orchestration. The goal is to provide a flexible foundation for building AI-powered coding assistants that can run in the terminal, VS Code, web applications, or APIs.
+A JARVIS-inspired AI assistant platform built as a TypeScript monorepo. Supports text and voice I/O, multiple specialized services, and runs on both desktop (Tauri) and terminal (CLI). Powered by Ollama for fully offline, local AI.
 
 ---
 
-# Features
+## Features
 
-- Modular monorepo architecture
-- Provider abstraction layer (OpenAI, Anthropic, Ollama, OpenRouter)
-- Intelligent request routing
-- Tool registry and execution system
-- Streaming responses with real-time token display
-- Multi-turn conversation with chat history
-- Interactive CLI with syntax highlighting
-- Mode system (Plan, Auto, Normal)
-- Git integration tools
-- File system tools (read, write, edit, list)
-- Shell command execution
-- Session persistence
-- Type-safe throughout the entire project
+- **Multi-service architecture** — Chat, coding, web search, system control, reminders, file manager
+- **Voice I/O** — Push-to-talk with local Whisper STT + Piper/espeak TTS (fully offline)
+- **Desktop app** — Tauri v2 + vanilla JS frontend (Windows & Linux)
+- **Terminal CLI** — Rich interactive TUI with syntax highlighting
+- **REST API** — HTTP server for desktop/external clients
+- **Provider abstraction** — Ollama, OpenAI, Anthropic, OpenRouter
+- **Tool system** — 22+ tools: file ops, git, shell, scaffolding, undo/redo
+- **Mode system** — Plan (preview), Normal (execute), Auto (no approval)
+- **Session persistence** — Conversation history saved to disk
 
 ---
 
-# Project Overview
-
-The architecture is split into independent packages.
+## Architecture
 
 ```
-                +----------------+
-                |      CLI       |
-                +----------------+
-                        │
-                        ▼
-                +----------------+
-                |     Agent      |
-                +----------------+
-                        │
-        ┌───────────────┼───────────────┐
-        ▼               ▼               ▼
-   Router         Tool System      Memory
-        │               │               │
-        ▼               ▼               ▼
-    Providers      Registered Tools   Sessions
+┌──────────────┐  ┌──────────────┐  ┌──────────────┐
+│  Desktop App │  │   CLI (TUI)  │  │   REST API   │
+│   (Tauri)    │  │              │  │              │
+└──────┬───────┘  └──────┬───────┘  └──────┬───────┘
+       │                 │                 │
+       └────────┬────────┘────────┬────────┘
+                ▼                 ▼
+        ┌──────────────┐  ┌──────────────┐
+        │ Orchestrator │  │    Agent     │
+        │ (services)   │  │  (tools)     │
+        └──────┬───────┘  └──────┬───────┘
+               │                 │
+     ┌────┬────┼────┬────┬───┐   │
+     ▼    ▼    ▼    ▼    ▼   ▼   ▼
+   chat coding search  system   tools
+   reminders files       │
+                         │
+                  ┌──────┼──────┐
+                  ▼      ▼      ▼
+              Providers Router Memory
 ```
-
-Each package has a single responsibility and can be developed independently.
 
 ---
 
-# Requirements
+## Workspace Structure
+
+```
+packages/
+├── shared/                 # Core types, Result<T,E>, EventBus
+├── config/                 # Configuration management
+├── providers/              # LLM providers (Ollama, OpenAI, Anthropic)
+├── router/                 # Request routing with middleware
+├── tools/                  # Tool registry + implementations
+├── agent/                  # Agent orchestration (planner + tools)
+├── services/
+│   ├── core/               # Service interface, Orchestrator, IntentClassifier
+│   ├── chat/               # General conversation
+│   ├── coding/             # Code assistant (wraps tools)
+│   ├── search/             # DuckDuckGo web search
+│   ├── system/             # OS control (open apps, volume, info)
+│   ├── reminders/          # Notes & tasks (JSON-backed)
+│   └── files/              # File browser
+└── voice/
+    ├── stt/                # Speech-to-text (Whisper via @xenova/transformers)
+    ├── tts/                # Text-to-speech (Piper / espeak)
+    └── pipeline/           # Record → STT → Text → TTS → Play
+
+apps/
+├── cli/                    # Terminal interface (rich TUI)
+├── api/                    # HTTP API server (port 3141)
+└── desktop/                # Tauri v2 desktop app
+```
+
+---
+
+## Requirements
 
 - Node.js 22+
 - pnpm 10+
-- TypeScript 5+
-
-Verify your environment:
-
-```bash
-node -v
-pnpm -v
-```
+- Rust + Cargo (for Tauri desktop app)
+- Ollama running locally (for LLM responses)
 
 ---
 
-# Installation
-
-Clone the repository.
+## Quick Start
 
 ```bash
 git clone <repository-url>
-
 cd ai-coding-agent
-```
-
-Install dependencies.
-
-```bash
 pnpm install
+pnpm build
 ```
 
----
-
-# Workspace Structure
-
-```
-apps/
-├── cli/                    # Interactive CLI interface
-├── api/                    # REST API (planned)
-├── vscode/                 # VS Code extension (planned)
-└── web/                    # Web UI (planned)
-
-packages/
-├── agent/                  # Agent orchestration
-├── config/                 # Configuration management
-├── providers/              # LLM provider abstraction
-├── router/                 # Request routing
-├── shared/                 # Shared utilities
-└── tools/                  # Tool registry and implementations
-
-docs/
-scripts/
-```
-
----
-
-# Completed Features
-
-## Core Architecture
-- ✅ Monorepo setup with pnpm workspaces
-- ✅ Shared package with common types
-- ✅ Configuration system with auto-generation
-- ✅ Provider abstraction layer
-- ✅ Request router with middleware pipeline
-- ✅ Tool registry and execution framework
-
-## LLM Providers
-- ✅ Ollama provider (local models)
-- ✅ OpenAI provider
-- ✅ Anthropic provider
-- ✅ OpenRouter provider
-- ✅ Streaming response support
-
-## Tools
-- ✅ File operations (read, write, edit, list directory)
-- ✅ Shell command execution
-- ✅ Git operations (status, diff, log, add, commit, branch, checkout, push, pull)
-- ✅ Echo tool for conversational responses
-- ✅ Multi-file editing in single response
-- ✅ Multi-tool execution support
-
-## CLI Features
-- ✅ Interactive terminal interface
-- ✅ Real-time streaming token display
-- ✅ Syntax highlighting for code blocks
-- ✅ Diff preview for file operations
-- ✅ Chat history persistence
-- ✅ Session save/load
-- ✅ Command suggestions and autocomplete
-- ✅ Provider/model selection with `/models`
-- ✅ Multi-turn conversation context
-- ✅ Multiple tool result display
-
-## Agent Capabilities
-- ✅ LLM-based planning with tool selection
-- ✅ Mode system:
-  - **Plan mode** (⊙): Preview what would be done, no execution
-  - **Normal mode** (○): Execute operations directly
-  - **Auto mode** (⚡): Execute without restrictions
-- ✅ Memory system for conversation history
-- ✅ Multi-tool orchestration
-- ✅ Batch file creation
-- ✅ Session management
-
----
-
-# Usage
-
-## Starting the CLI
+### Run the CLI
 
 ```bash
 pnpm --filter @ai-agent/cli dev
 ```
 
-## Interactive Commands
+### Run the API Server
+
+```bash
+pnpm --filter @ai-agent/api dev
+# Server runs on http://localhost:3141
+```
+
+### Run the Desktop App
+
+```bash
+cd apps/desktop
+npx tauri dev
+```
+
+### Build the Desktop App
+
+```bash
+cd apps/desktop
+npx tauri build
+# Binary: src-tauri/target/release/flux-desktop
+# Deb:    src-tauri/target/release/bundle/deb/Flux_0.1.0_amd64.deb
+```
+
+---
+
+## API Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/chat` | Send a message, get a reply |
+| GET | `/health` | Health check |
+| GET | `/services` | List available services |
+
+```bash
+curl -X POST http://localhost:3141/chat \
+  -H "Content-Type: application/json" \
+  -d '{"message": "Hello Flux!"}'
+```
+
+---
+
+## CLI Commands
 
 | Command | Description |
 |---------|-------------|
 | `/help` | Show available commands |
 | `/history` | View message history |
 | `/models` | Configure providers and models |
-| `/mode` | Switch between plan/normal/auto modes |
+| `/mode` | Switch between plan/normal/auto |
 | `/save` | Save current session |
 | `/load` | Load a saved session |
-| `/clear` | Clear the screen |
-| `/exit` | Quit the application |
-
-## Keyboard Shortcuts
+| `/clear` | Clear screen |
+| `/exit` | Quit |
 
 | Key | Action |
 |-----|--------|
-| `Shift+Tab` | Cycle through modes |
-| `Tab` | Autocomplete commands |
-| `↑/↓` | Navigate command history |
+| `Shift+Tab` | Cycle modes |
+| `Tab` | Autocomplete |
+| `↑/↓` | Command history |
 | `Ctrl+C` | Exit |
 
-## Mode System
+---
 
-### Plan Mode (⊙)
-- Shows what would be done without executing
-- Displays diff preview for file operations
-- Safe for exploring changes
+## Voice
 
-### Normal Mode (○)
-- Executes operations directly
-- Default mode for most tasks
+Voice uses fully local engines (no cloud APIs):
 
-### Auto Mode (⚡)
-- Executes without restrictions
-- For trusted operations
+- **STT**: Whisper via `@xenova/transformers` (pure JS, ~150MB model)
+- **TTS**: Piper (neural, fast) or espeak-ng (fallback)
+- **Activation**: Push-to-talk (hold key to record)
 
-## Example Session
+Install voice dependencies when needed:
 
-```
-> Create a React component file
-
-✦ Agent
-  📝 Creating file: src/App.tsx
-  ────────────────────────────────────────
-  │ import React from 'react';
-  │ 
-  │ interface AppProps {
-  │   title: string;
-  │ }
-  │ 
-  │ export const App: React.FC<AppProps> = ({ title }) => {
-  │   return <div>{title}</div>;
-  │ };
-  ────────────────────────────────────────
-  15 in · 120 out · 2.1s · ollama/qwen2.5-coder:7b
+```bash
+npm install @xenova/transformers  # For Whisper STT
 ```
 
 ---
 
-# Development
+## Configuration
 
-Install dependencies.
-
-```bash
-pnpm install
-```
-
-Build every package.
-
-```bash
-pnpm build
-```
-
-Type check.
-
-```bash
-pnpm typecheck
-```
-
-Lint.
-
-```bash
-pnpm lint
-```
-
-Format source.
-
-```bash
-pnpm format
-```
-
----
-
-# Future Implementations
-
-## High Priority
-- 🔲 Interactive approval with arrow key navigation
-- 🔲 Multi-file editing in single response
-- 🔲 Undo/redo support for file operations
-- 🔲 Better error recovery and retry logic
-- 🔲 Web search integration
-
-## Medium Priority
-- 🔲 REST API server
-- 🔲 VS Code extension
-- 🔲 Web UI with React
-- 🔲 Plugin system for custom tools
-- 🔲 Code execution sandbox
-
-## Low Priority
-- 🔲 Voice input support
-- 🔲 Image understanding
-- 🔲 Multi-language support
-- 🔲 Team collaboration features
-- 🔲 Cloud session sync
-
----
-
-# Configuration
-
-Configuration is stored in `settings.json` at the project root:
+`settings.json` at project root:
 
 ```json
 {
   "providers": {
     "ollama": {
+      "enabled": true,
       "baseUrl": "http://localhost:11434",
       "defaultModel": "qwen2.5-coder:7b"
-    },
-    "openai": {
-      "apiKey": "your-api-key",
-      "defaultModel": "gpt-4"
     }
   }
 }
@@ -304,21 +197,35 @@ Configuration is stored in `settings.json` at the project root:
 
 ---
 
-# Philosophy
+## Services
 
-This project follows a modular architecture where every subsystem has a single responsibility.
-
-- **Providers** generate AI responses
-- **Router** selects providers
-- **Tools** perform external actions
-- **Agent** orchestrates execution
-- **Memory** stores context
-- **Sessions** manage conversations
-
-This separation keeps the codebase maintainable, testable and easily extensible.
+| Service | Keywords | Description |
+|---------|----------|-------------|
+| `chat` | (fallback) | General conversation, Q&A |
+| `coding` | code, file, function, bug, git | Code assistant with tools |
+| `search` | search, look up, what is | DuckDuckGo web search |
+| `system` | open, volume, battery | OS control |
+| `reminders` | remind, note, task, todo | Notes & task management |
+| `files` | find file, list, directory | File browsing |
 
 ---
 
-# License
+## Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| Language | TypeScript 6+ / Rust |
+| Runtime | Node.js 22+ |
+| Build | Turborepo + tsc |
+| LLM | Ollama (local) |
+| Desktop | Tauri v2 |
+| Frontend | Vanilla JS (no framework) |
+| Voice STT | Whisper (@xenova/transformers) |
+| Voice TTS | Piper / espeak-ng |
+| Search | DuckDuckGo API |
+
+---
+
+## License
 
 MIT

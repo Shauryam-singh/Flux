@@ -15,5 +15,7 @@
       "dependsOn": ["build"],
       "outputs": []
     }
-  }
+  },
+  "globalDependencies": ["package.json"],
+  "globalEnv": ["NODE_ENV"]
 }

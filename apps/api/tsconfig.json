@@ -1,8 +1,8 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "rootDir": "src",
     "outDir": "dist",
+    "rootDir": "src",
     "composite": true,
     "declaration": true,
     "declarationMap": false,
@@ -12,16 +12,18 @@
   },
   "include": ["src"],
   "references": [
-    { "path": "../../packages/agent" },
+    { "path": "../../packages/shared" },
+    { "path": "../../packages/config" },
     { "path": "../../packages/tools" },
     { "path": "../../packages/providers" },
-    { "path": "../../packages/config" },
+    { "path": "../../packages/agent" },
     { "path": "../../packages/services/core" },
     { "path": "../../packages/services/chat" },
     { "path": "../../packages/services/coding" },
     { "path": "../../packages/services/search" },
     { "path": "../../packages/services/system" },
     { "path": "../../packages/services/reminders" },
-    { "path": "../../packages/services/files" }
+    { "path": "../../packages/services/files" },
+    { "path": "../cli" }
   ]
 }

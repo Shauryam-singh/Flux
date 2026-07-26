@@ -7,6 +7,17 @@
     { "path": "./packages/providers" },
     { "path": "./packages/router" },
     { "path": "./packages/agent" },
-    { "path": "./apps/cli" }
+    { "path": "./packages/services/core" },
+    { "path": "./packages/services/chat" },
+    { "path": "./packages/services/coding" },
+    { "path": "./packages/services/search" },
+    { "path": "./packages/services/system" },
+    { "path": "./packages/services/reminders" },
+    { "path": "./packages/services/files" },
+    { "path": "./packages/voice/stt" },
+    { "path": "./packages/voice/tts" },
+    { "path": "./packages/voice/pipeline" },
+    { "path": "./apps/cli" },
+    { "path": "./apps/api" }
   ]
 }

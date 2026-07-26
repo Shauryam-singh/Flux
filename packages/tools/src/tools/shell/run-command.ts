@@ -4,6 +4,62 @@ import { DefaultTool } from "../../tool/default-tool.js";
 
 const MAX_OUTPUT_LENGTH = 10000;
 
+const DANGEROUS_PATTERNS = [
+  /\brm\s+-rf?\s+\/\b/i,
+  /\brm\s+-rf?\s+\*/i,
+  /\bdd\s+if=/i,
+  /\bmkfs\b/i,
+  /\b:(){ :|:& };:/,
+  /\bchmod\s+-R\s+777\s+\//i,
+  /\bchown\s+-R\s+.*\//i,
+  /\bsudo\s+rm\b/i,
+  /\bcurl\b.*\|\s*sh/i,
+  /\bwget\b.*\|\s*sh/i,
+  /\bmv\s+\/\s+/i,
+  /\b>\s+\/dev\/sd[a-z]/i,
+  /\bkill\s+-9\s+-1\b/i,
+  /\bpkill\s+-9\s+.*\*/i,
+  /\bshutdown\b/i,
+  /\breboot\b/i,
+  /\binit\s+0\b/i,
+  /\brmdir\s+\/\b/i,
+];
+
+interface CommandCheckResult {
+  safe: boolean;
+  reason?: string;
+}
+
+function checkCommandSafety(command: string): CommandCheckResult {
+  const trimmed = command.trim();
+  
+  if (!trimmed) {
+    return { safe: false, reason: "Empty command" };
+  }
+
+  for (const pattern of DANGEROUS_PATTERNS) {
+    if (pattern.test(trimmed)) {
+      return { 
+        safe: false, 
+        reason: `Potentially dangerous command detected: ${pattern.source}` 
+      };
+    }
+  }
+
+  const dangerousCommands = ['rm -rf /', 'rm -fr /', 'dd', 'mkfs', ':(){', '> /dev/sd'];
+  const lower = trimmed.toLowerCase();
+  for (const dangerous of dangerousCommands) {
+    if (lower.includes(dangerous)) {
+      return { 
+        safe: false, 
+        reason: `Blocked dangerous command: ${dangerous}` 
+      };
+    }
+  }
+
+  return { safe: true };
+}
+
 export function createRunCommandTool(): Tool {
   return new DefaultTool(
     "run_command",
@@ -15,6 +71,17 @@ export function createRunCommandTool(): Tool {
 
       if (!command) {
         return { success: false, output: { error: "Command is required" } };
+      }
+
+      const safetyCheck = checkCommandSafety(command);
+      if (!safetyCheck.safe) {
+        return {
+          success: false,
+          output: {
+            error: safetyCheck.reason || "Command blocked for safety",
+            command,
+          },
+        };
       }
 
       return new Promise((resolve) => {

@@ -1,4 +1,6 @@
-export type AgentMode = "plan" | "auto" | "normal";
+import type { AgentMode } from "@ai-agent/agent";
+
+export type { AgentMode };
 
 export interface ModeConfig {
   readonly name: AgentMode;

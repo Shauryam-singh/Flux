@@ -61,7 +61,9 @@ export function loadSession(): SessionData | null {
     }
 
     return data as unknown as SessionData;
-  } catch {
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(`Warning: Failed to load session: ${message}`);
     return null;
   }
 }
@@ -80,13 +82,15 @@ export function listSessions(): Array<{ name: string; path: string; data: Sessio
           const data = JSON.parse(raw) as SessionData;
           const name = file.replace(".json", "");
           sessions.push({ name, path: filePath, data });
-        } catch {
-          // Skip invalid files
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          console.error(`Warning: Failed to load session file ${file}: ${message}`);
         }
       }
     }
-  } catch {
-    // Ignore errors
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(`Warning: Failed to list sessions directory: ${message}`);
   }
 
   // Sort by updatedAt descending
@@ -105,7 +109,9 @@ export function loadSessionByName(name: string): SessionData | null {
     if (!fs.existsSync(filePath)) return null;
     const raw = fs.readFileSync(filePath, "utf-8");
     return JSON.parse(raw) as SessionData;
-  } catch {
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(`Warning: Failed to load session "${name}": ${message}`);
     return null;
   }
 }

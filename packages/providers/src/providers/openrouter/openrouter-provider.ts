@@ -84,7 +84,7 @@ export class OpenRouterProvider extends BaseProvider {
 
     try {
       await this.http.get<OpenRouterModelsResponse>(`${this.baseUrl}/models`, {
-        headers: this.headers,
+        Authorization: `Bearer ${this.apiKey}`,
       });
 
       return true;
@@ -97,7 +97,7 @@ export class OpenRouterProvider extends BaseProvider {
     const response = await this.http.get<OpenRouterModelsResponse>(
       `${this.baseUrl}/models`,
       {
-        headers: this.headers,
+        Authorization: `Bearer ${this.apiKey}`,
       },
     );
 
@@ -148,7 +148,7 @@ export class OpenRouterProvider extends BaseProvider {
         max_tokens: request.maxTokens,
       },
       {
-        headers: this.headers,
+        Authorization: `Bearer ${this.apiKey}`,
       },
     );
 
@@ -175,9 +175,5 @@ export class OpenRouterProvider extends BaseProvider {
     }
 
     return result;
-  }
-
-  private get headers(): string {
-    return `Bearer ${this.apiKey}`;
   }
 }

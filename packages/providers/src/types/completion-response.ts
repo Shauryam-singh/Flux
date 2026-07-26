@@ -6,6 +6,11 @@ export interface CompletionResponse {
   outputTokens?: number;
 
   finishReason?: string;
+
+  toolCall?: {
+    tool: string;
+    input: Record<string, unknown>;
+  };
 }
 
 export interface StreamingCallbacks {

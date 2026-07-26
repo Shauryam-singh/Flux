@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 
+import * as fs from "node:fs";
+import * as path from "node:path";
 import type { ProviderName } from "@ai-agent/providers";
 import { DefaultProviderFactory } from "@ai-agent/providers";
 import { DefaultSession, type AgentMode } from "@ai-agent/agent";
@@ -22,6 +24,13 @@ import {
   cmdHistory,
   cmdSuggest,
   cmdModels,
+  cmdUndo,
+  cmdRedo,
+  cmdScaffold,
+  cmdCommit,
+  cmdSaveAs,
+  cmdLoadByName,
+  cmdResume,
 } from "./commands/index.js";
 import {
   getModeColor,
@@ -30,6 +39,7 @@ import {
 } from "./modes/index.js";
 import { highlightMarkdown, highlightCode } from "./ui/highlight.js";
 import { formatDiffPreview } from "./ui/diff.js";
+import { recordFileOperation } from "./tools/undo.js";
 
 function getToolStatusMessage(toolName: string, input: Record<string, unknown>): string | null {
   switch (toolName) {
@@ -134,14 +144,53 @@ function formatSingleToolCall(toolCall: { tool: string; input: Record<string, un
   const output: string[] = [];
   const { tool, input } = toolCall;
   
+  function detectLanguage(filePath?: string): string {
+    if (!filePath) return "text";
+    const ext = filePath.split(".").pop()?.toLowerCase();
+    switch (ext) {
+      case "ts":
+      case "tsx":
+      case "mts":
+      case "cts":
+        return "typescript";
+      case "js":
+      case "jsx":
+      case "mjs":
+      case "cjs":
+        return "javascript";
+      case "py":
+        return "python";
+      case "json":
+        return "json";
+      case "html":
+      case "htm":
+        return "html";
+      case "css":
+      case "scss":
+      case "less":
+        return "css";
+      case "sh":
+      case "bash":
+      case "zsh":
+        return "shell";
+      case "md":
+      case "markdown":
+        return "markdown";
+      default:
+        return "text";
+    }
+  }
+
   if (tool === "write_file") {
-    output.push(paint("  📝 ", theme.primary) + paint("Creating file: ", theme.dim) + paint((input.path as string) || "file", theme.text));
+    const filePath = input.path as string;
+    const lang = detectLanguage(filePath);
+    output.push(paint("  📝 ", theme.primary) + paint("Creating file: ", theme.dim) + paint(filePath || "file", theme.text));
     if (input.content) {
       const content = input.content as string;
       const lines = content.split("\n").slice(0, 10);
       output.push(paint("  ────────────────────────────────────────", theme.dim));
       for (const line of lines) {
-        output.push(paint("  │ ", theme.dim) + highlightCode(line, "tsx"));
+        output.push(paint("  │ ", theme.dim) + highlightCode(line, lang));
       }
       if (content.split("\n").length > 10) {
         output.push(paint("  │ ...", theme.dim));
@@ -256,6 +305,7 @@ import { execSync } from "node:child_process";
 
 const COMMAND_NAMES = [
   "help", "history", "suggest", "models", "mode", "clear", "save", "saveas", "load", "resume", "exit", "quit",
+  "undo", "redo", "scaffold", "commit",
 ];
 
 const FOOTER_HEIGHT = 7;
@@ -489,6 +539,46 @@ async function main(): Promise<void> {
           redrawFooter();
           return;
         }
+        case "undo":
+          await cmdUndo(printToChatArea);
+          redrawFooter();
+          return;
+        case "redo":
+          await cmdRedo(printToChatArea);
+          redrawFooter();
+          return;
+        case "scaffold":
+          await cmdScaffold(args, printToChatArea);
+          redrawFooter();
+          return;
+        case "commit":
+          await cmdCommit(args, printToChatArea);
+          redrawFooter();
+          return;
+        case "saveas":
+          cmdSaveAs(args, sessionData, printToChatArea);
+          redrawFooter();
+          return;
+        case "load": {
+          const loaded = cmdLoadByName(args, printToChatArea);
+          if (loaded) {
+            sessionData = loaded;
+            currentProvider = loaded.provider;
+            currentModel = loaded.model;
+          }
+          redrawFooter();
+          return;
+        }
+        case "resume": {
+          const resumed = cmdResume(printToChatArea);
+          if (resumed) {
+            sessionData = resumed;
+            currentProvider = resumed.provider;
+            currentModel = resumed.model;
+          }
+          redrawFooter();
+          return;
+        }
         default:
           printToChatArea(paint(`Unknown command: /${cmd}`, theme.error));
           redrawFooter();
@@ -531,6 +621,20 @@ async function main(): Promise<void> {
           toolInput = inp;
           toolResult = res;
           multipleToolResults.push({ name, input: inp, result: res });
+
+          // Record new content for undo after write/edit operations
+          if (name === "write_file" || name === "edit_file") {
+            const filePath = inp.path as string;
+            if (filePath && fs.existsSync(filePath)) {
+              const newContent = fs.readFileSync(filePath, "utf-8");
+              recordFileOperation(
+                "edit",
+                path.resolve(filePath),
+                undefined,
+                newContent
+              );
+            }
+          }
         },
         onPlanOnly: (name, inp) => {
           // In plan mode, show what would be done with diff preview
@@ -548,23 +652,57 @@ async function main(): Promise<void> {
           }
         },
         onApprovalRequired: async (name, inp) => {
-          // Auto-approve in normal mode (user can use plan mode to preview)
-          return true;
+          // In auto mode, always approve
+          if (currentMode === "auto") {
+            return true;
+          }
+
+          // In plan mode, never execute (already shown in planOnly)
+          if (currentMode === "plan") {
+            return false;
+          }
+
+          // In normal mode, prompt for approval
+          const toolDesc = getToolStatusMessage(name, inp);
+          const options = ["Approve", "Reject"];
+          const result = await interactivePrompt(options, `${toolDesc || `Execute ${name}?`}`);
+          return result === "A"; // "A" = Approve
         },
         onMultipleToolCalls: async (toolCalls) => {
-          // Auto-approve multiple tool calls
-          return true;
+          // In auto mode, always approve
+          if (currentMode === "auto") {
+            return true;
+          }
+
+          // In plan mode, never execute
+          if (currentMode === "plan") {
+            return false;
+          }
+
+          // In normal mode, prompt for approval
+          const toolList = toolCalls.map(tc => `  • ${tc.tool}`).join("\n");
+          const options = ["Approve All", "Reject All"];
+          const result = await interactivePrompt(options, `Execute ${toolCalls.length} operations?\n${toolList}`);
+          return result === "A"; // "A" = Approve All
+        },
+        beforeTool: async (name, inp) => {
+          // Capture old content for undo before write/edit operations
+          if (name === "write_file" || name === "edit_file") {
+            const filePath = inp.path as string;
+            if (filePath && fs.existsSync(filePath)) {
+              const oldContent = fs.readFileSync(filePath, "utf-8");
+              recordFileOperation(
+                "edit",
+                path.resolve(filePath),
+                oldContent
+              );
+            }
+          }
         },
         onOptionsPresented: async (options) => {
-          // Present options to user and get selection
-          printToChatArea(paint("\n  Select an option:", theme.primary));
-          options.forEach((opt, i) => {
-            printToChatArea(paint(`    ${i + 1}. ${opt}`, theme.text));
-          });
-          printToChatArea(paint("  Or type your own choice:", theme.dim));
-          
-          // Wait for user input (simplified - in real impl would need proper input handling)
-          return options[0] || "";
+          const result = await interactivePrompt(options, "Select an option:");
+          const idx = result.charCodeAt(0) - 65; // A=0, B=1, etc.
+          return options[idx] || options[0] || "";
         },
         onDone: (response) => {
           // Done

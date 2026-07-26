@@ -1,11 +1,12 @@
-import { exec } from "node:child_process";
+import { execFile } from "node:child_process";
 import type { Tool } from "../../interfaces/tool.js";
 import { DefaultTool } from "../../tool/default-tool.js";
 
-function runGit(command: string, cwd?: string): Promise<{ stdout: string; stderr: string; exitCode: number }> {
+function runGit(args: string[], cwd?: string): Promise<{ stdout: string; stderr: string; exitCode: number }> {
   return new Promise((resolve) => {
-    exec(
-      `git ${command}`,
+    execFile(
+      "git",
+      args,
       { cwd: cwd || process.cwd(), timeout: 30000, maxBuffer: 1024 * 1024 },
       (error, stdout, stderr) => {
         resolve({
@@ -24,7 +25,7 @@ export function createGitStatusTool(): Tool {
     "Show the working tree status. Shows which files are modified, staged, or untracked.",
     async (input) => {
       const cwd = (input.cwd as string) || process.cwd();
-      const result = await runGit("status --porcelain", cwd);
+      const result = await runGit(["status", "--porcelain"], cwd);
 
       if (result.exitCode !== 0) {
         return { success: false, output: { error: result.stderr || "Not a git repository" } };
@@ -50,7 +51,7 @@ export function createGitStatusTool(): Tool {
       return {
         success: true,
         output: {
-          branch: (await runGit("branch --show-current", cwd)).stdout.trim(),
+          branch: (await runGit(["branch", "--show-current"], cwd)).stdout.trim(),
           files,
           summary: lines.length === 0 ? "Working tree clean" : `${lines.length} file(s) changed`,
         },
@@ -68,11 +69,14 @@ export function createGitDiffTool(): Tool {
       const file = input.file as string | undefined;
       const staged = input.staged as boolean | undefined;
 
-      let command = "diff";
-      if (staged) command += " --staged";
-      if (file) command += ` -- ${file}`;
+      const args = ["diff"];
+      if (staged) args.push("--staged");
+      if (file) {
+        args.push("--");
+        args.push(file);
+      }
 
-      const result = await runGit(command, cwd);
+      const result = await runGit(args, cwd);
 
       if (result.exitCode !== 0 && !result.stdout) {
         return { success: false, output: { error: result.stderr || "No changes or not a git repository" } };
@@ -99,10 +103,13 @@ export function createGitLogTool(): Tool {
       const count = (input.count as number) || 10;
       const file = input.file as string | undefined;
 
-      let command = `log --oneline -${count}`;
-      if (file) command += ` -- ${file}`;
+      const args = ["log", "--oneline", `-${count}`];
+      if (file) {
+        args.push("--");
+        args.push(file);
+      }
 
-      const result = await runGit(command, cwd);
+      const result = await runGit(args, cwd);
 
       if (result.exitCode !== 0) {
         return { success: false, output: { error: result.stderr || "Not a git repository" } };
@@ -133,7 +140,7 @@ export function createGitAddTool(): Tool {
       const cwd = (input.cwd as string) || process.cwd();
       const files = (input.files as string) || ".";
 
-      const result = await runGit(`add ${files}`, cwd);
+      const result = await runGit(["add", files], cwd);
 
       if (result.exitCode !== 0) {
         return { success: false, output: { error: result.stderr || "Failed to stage files" } };
@@ -162,7 +169,7 @@ export function createGitCommitTool(): Tool {
         return { success: false, output: { error: "Commit message is required" } };
       }
 
-      const result = await runGit(`commit -m "${message.replace(/"/g, '\\"')}"`, cwd);
+      const result = await runGit(["commit", "-m", message], cwd);
 
       if (result.exitCode !== 0) {
         return { success: false, output: { error: result.stderr || "Failed to commit" } };
@@ -189,7 +196,7 @@ export function createGitBranchTool(): Tool {
 
       if (name) {
         // Create new branch
-        const result = await runGit(`branch ${name}`, cwd);
+        const result = await runGit(["branch", name], cwd);
         if (result.exitCode !== 0) {
           return { success: false, output: { error: result.stderr || "Failed to create branch" } };
         }
@@ -200,7 +207,7 @@ export function createGitBranchTool(): Tool {
       }
 
       // List branches
-      const result = await runGit("branch", cwd);
+      const result = await runGit(["branch"], cwd);
       if (result.exitCode !== 0) {
         return { success: false, output: { error: result.stderr || "Not a git repository" } };
       }
@@ -235,8 +242,11 @@ export function createGitCheckoutTool(): Tool {
         return { success: false, output: { error: "Branch name is required" } };
       }
 
-      const flag = create ? "-b" : "";
-      const result = await runGit(`checkout ${flag} ${branch}`, cwd);
+      const args = ["checkout"];
+      if (create) args.push("-b");
+      args.push(branch);
+
+      const result = await runGit(args, cwd);
 
       if (result.exitCode !== 0) {
         return { success: false, output: { error: result.stderr || "Failed to checkout" } };
@@ -262,8 +272,10 @@ export function createGitPushTool(): Tool {
       const remote = (input.remote as string) || "origin";
       const branch = input.branch as string | undefined;
 
-      const branchArg = branch || "";
-      const result = await runGit(`push ${remote} ${branchArg}`, cwd);
+      const args = ["push", remote];
+      if (branch) args.push(branch);
+
+      const result = await runGit(args, cwd);
 
       if (result.exitCode !== 0) {
         return { success: false, output: { error: result.stderr || "Failed to push" } };
@@ -289,7 +301,7 @@ export function createGitPullTool(): Tool {
       const cwd = (input.cwd as string) || process.cwd();
       const remote = (input.remote as string) || "origin";
 
-      const result = await runGit(`pull ${remote}`, cwd);
+      const result = await runGit(["pull", remote], cwd);
 
       if (result.exitCode !== 0) {
         return { success: false, output: { error: result.stderr || "Failed to pull" } };

@@ -13,6 +13,7 @@ interface StreamCallbacks extends StreamingCallbacks {
   onApprovalRequired?: (toolName: string, input: Record<string, unknown>) => Promise<boolean>;
   onOptionsPresented?: (options: string[]) => Promise<string>;
   onMultipleToolCalls?: (toolCalls: Array<{ tool: string; input: Record<string, unknown> }>) => Promise<boolean>;
+  beforeTool?: (toolName: string, input: Record<string, unknown>) => Promise<void>;
 }
 
 export class DefaultAgent implements Agent {
@@ -69,30 +70,36 @@ export class DefaultAgent implements Agent {
           let toolCalls: Array<{ tool: string; input: Record<string, unknown> }> = [];
           let isMultiple = false;
 
-          try {
-            const cleaned = text
-              .replace(/^```json\s*/i, "")
-              .replace(/^```\s*/i, "")
-              .replace(/```\s*$/i, "")
-              .trim();
-            
-            // Try to parse as array first (multiple tool calls)
-            const parsed = JSON.parse(cleaned);
-            
-            if (Array.isArray(parsed)) {
-              // Multiple tool calls
-              toolCalls = parsed.filter((item): item is { tool: string; input: Record<string, unknown> } => 
-                typeof item === "object" && item !== null && typeof item.tool === "string"
-              );
-              isMultiple = toolCalls.length > 1;
-            } else if (typeof parsed === "object" && parsed !== null && typeof parsed.tool === "string") {
-              // Single tool call
-              toolCalls = [{ tool: parsed.tool, input: parsed.input || {} }];
-            } else {
+          // Use pre-parsed tool call if available from planner
+          if (response.toolCall) {
+            toolCalls = [{ tool: response.toolCall.tool, input: response.toolCall.input }];
+          } else {
+            // Fallback to parsing the text
+            try {
+              const cleaned = text
+                .replace(/^```json\s*/i, "")
+                .replace(/^```\s*/i, "")
+                .replace(/```\s*$/i, "")
+                .trim();
+              
+              // Try to parse as array first (multiple tool calls)
+              const parsed = JSON.parse(cleaned);
+              
+              if (Array.isArray(parsed)) {
+                // Multiple tool calls
+                toolCalls = parsed.filter((item): item is { tool: string; input: Record<string, unknown> } => 
+                  typeof item === "object" && item !== null && typeof item.tool === "string"
+                );
+                isMultiple = toolCalls.length > 1;
+              } else if (typeof parsed === "object" && parsed !== null && typeof parsed.tool === "string") {
+                // Single tool call
+                toolCalls = [{ tool: parsed.tool, input: parsed.input || {} }];
+              } else {
+                toolCalls = [{ tool: "echo", input: { message: text } }];
+              }
+            } catch {
               toolCalls = [{ tool: "echo", input: { message: text } }];
             }
-          } catch {
-            toolCalls = [{ tool: "echo", input: { message: text } }];
           }
 
           if (toolCalls.length === 0) {
@@ -140,6 +147,9 @@ export class DefaultAgent implements Agent {
                 return;
               }
             }
+
+            // Call beforeTool hook
+            await callbacks.beforeTool?.(tc.tool, tc.input);
 
             // Execute the tool
             const result = await this.toolExecutor.execute({

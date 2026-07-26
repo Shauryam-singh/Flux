@@ -1,7 +1,8 @@
 import { paint, bold, theme } from "../ui/theme.js";
 import { printBox } from "../ui/banner.js";
-import { formatTimestamp, formatDuration, type SessionMessage } from "../session/store.js";
+import { formatTimestamp, formatDuration, formatDate, listSessions, loadSessionByName, saveSessionAs, type SessionMessage, type SessionData } from "../session/store.js";
 import type { ProviderName } from "@ai-agent/providers";
+import { handleUndo, handleRedo } from "../tools/undo.js";
 
 const APP_NAME = "Flux";
 
@@ -22,6 +23,10 @@ export function cmdHelp(printFn?: PrintFn): void {
     `  ${paint("/saveas", theme.primary)}    Save session with a name`,
     `  ${paint("/load", theme.primary)}      Load a saved session`,
     `  ${paint("/resume", theme.primary)}    Resume last session`,
+    `  ${paint("/undo", theme.primary)}      Undo last file operation`,
+    `  ${paint("/redo", theme.primary)}      Redo last undone operation`,
+    `  ${paint("/scaffold", theme.primary)}  Create project from template`,
+    `  ${paint("/commit", theme.primary)}    Auto-commit with AI message`,
     `  ${paint("/exit", theme.primary)}      Quit ${APP_NAME}`,
     "",
     paint("Key bindings:", theme.accent),
@@ -30,6 +35,7 @@ export function cmdHelp(printFn?: PrintFn): void {
     paint("Tools available to the agent:", theme.accent),
     `  read_file, write_file, edit_file, list_directory`,
     `  run_command, git_status, git_diff, git_log`,
+    `  undo, redo, edit_function, scaffold, auto_commit`,
     "",
     paint("Type anything to chat with the AI.", theme.muted),
   ];
@@ -149,4 +155,193 @@ export async function cmdModels(
   ];
 
   printBox(lines, theme.primary, 50, printFn);
+}
+
+export async function cmdUndo(printFn?: PrintFn): Promise<void> {
+  await handleUndo(printFn);
+}
+
+export async function cmdRedo(printFn?: PrintFn): Promise<void> {
+  await handleRedo(printFn);
+}
+
+export async function cmdScaffold(args: string, printFn?: PrintFn): Promise<void> {
+  const { getSupportedFrameworks, generateProjectFromDescription, formatScaffoldResult } = await import("../tools/scaffold.js");
+  
+  if (!args) {
+    const frameworks = getSupportedFrameworks();
+    const lines = [
+      paint("Available Frameworks", `${bold}${theme.primary}`),
+      "",
+      ...frameworks.map((f) => `${paint("•", theme.accent)} ${f}`),
+      "",
+      `${paint("/scaffold react my-app", theme.primary)}  Quick scaffold`,
+      `${paint('/scaffold react my-app "A todo app with auth"', theme.primary)}  With description`,
+    ];
+    printBox(lines, theme.primary, 50, printFn);
+    return;
+  }
+
+  const parts = args.split(/\s+/);
+  const framework = parts[0] || "";
+  const name = parts[1] || "my-project";
+  const description = parts.slice(2).join(" ") || `${framework} project`;
+
+  const result = generateProjectFromDescription(framework, name, description, process.cwd());
+  const output = formatScaffoldResult(name, result);
+  printBox(output.split("\n"), result.success ? theme.success : theme.error, 50, printFn);
+}
+
+export async function cmdCommit(args: string, printFn?: PrintFn): Promise<void> {
+  const { autoCommit, formatCommitResult } = await import("../tools/git-commit.js");
+  
+  const message = args.trim() || undefined;
+  const defaultGenerator = async (diff: string): Promise<string> => {
+    const added = diff.split("\n").filter(l => l.startsWith("+") && !l.startsWith("+++")).length;
+    const removed = diff.split("\n").filter(l => l.startsWith("-") && !l.startsWith("---")).length;
+    const files = diff.split("diff --git").length - 1;
+    const type = added > 0 && removed === 0 ? "feat" : added === 0 && removed > 0 ? "chore" : "refactor";
+    return `${type}: update ${files} file${files !== 1 ? 's' : ''}`;
+  };
+  
+  const result = await autoCommit(defaultGenerator, message);
+  const output = formatCommitResult(result);
+  printBox(output.split("\n"), result.success ? theme.success : theme.error, 50, printFn);
+}
+
+export function cmdSaveAs(args: string, currentData: SessionData, printFn?: PrintFn): void {
+  const name = args.trim();
+  if (!name) {
+    printBox(
+      [
+        paint("Usage:", theme.primary),
+        `  ${paint("/saveas my-session", theme.primary)}`,
+      ],
+      theme.warning,
+      40,
+      printFn
+    );
+    return;
+  }
+
+  saveSessionAs(currentData, name);
+  printBox(
+    [
+      paint("Session saved", `${bold}${theme.success}`),
+      `${paint("Name:", theme.muted)} ${paint(name, theme.primary)}`,
+      `${paint("Messages:", theme.muted)} ${currentData.messages.length}`,
+    ],
+    theme.success,
+    40,
+    printFn
+  );
+}
+
+export function cmdLoad(printFn?: PrintFn): void {
+  const sessions = listSessions();
+  
+  if (sessions.length === 0) {
+    printBox(
+      [
+        paint("No saved sessions", `${bold}${theme.warning}`),
+        "",
+        `${paint("/saveas name", theme.primary)}  Save current session`,
+      ],
+      theme.warning,
+      40,
+      printFn
+    );
+    return;
+  }
+
+  const lines = [
+    paint("Saved Sessions", `${bold}${theme.primary}`),
+    "",
+  ];
+
+  for (const session of sessions.slice(0, 10)) {
+    const date = formatDate(session.data.updatedAt || session.data.createdAt);
+    const msgs = session.data.messages.length;
+    const preview = session.data.messages[0]?.content.slice(0, 30) || "empty";
+    lines.push(`${paint(session.name, theme.accent)}  ${date}  ${msgs} msgs`);
+    lines.push(`  ${paint(preview, theme.dim)}`);
+  }
+
+  lines.push("");
+  lines.push(`${paint("/load name", theme.primary)}  Load a session`);
+
+  printBox(lines, theme.primary, 55, printFn);
+}
+
+export function cmdLoadByName(args: string, printFn?: PrintFn): SessionData | null {
+  const name = args.trim();
+  if (!name) {
+    cmdLoad(printFn);
+    return null;
+  }
+
+  const session = loadSessionByName(name);
+  if (!session) {
+    printBox(
+      [
+        paint("Session not found", `${bold}${theme.error}`),
+        `${paint("Name:", theme.muted)} ${name}`,
+        "",
+        `${paint("/load", theme.primary)}  List available sessions`,
+      ],
+      theme.error,
+      40,
+      printFn
+    );
+    return null;
+  }
+
+  printBox(
+    [
+      paint("Session loaded", `${bold}${theme.success}`),
+      `${paint("Name:", theme.muted)} ${paint(name, theme.primary)}`,
+      `${paint("Messages:", theme.muted)} ${session.messages.length}`,
+      `${paint("Provider:", theme.muted)} ${session.provider}/${session.model}`,
+    ],
+    theme.success,
+    40,
+    printFn
+  );
+
+  return session;
+}
+
+export function cmdResume(printFn?: PrintFn): SessionData | null {
+  const sessions = listSessions();
+  
+  if (sessions.length === 0) {
+    printBox(
+      [
+        paint("No sessions to resume", `${bold}${theme.warning}`),
+      ],
+      theme.warning,
+      40,
+      printFn
+    );
+    return null;
+  }
+
+  const latest = sessions[0];
+  if (!latest) {
+    return null;
+  }
+
+  printBox(
+    [
+      paint("Resumed session", `${bold}${theme.success}`),
+      `${paint("Name:", theme.muted)} ${paint(latest.name, theme.primary)}`,
+      `${paint("Messages:", theme.muted)} ${latest.data.messages.length}`,
+      `${paint("Provider:", theme.muted)} ${latest.data.provider}/${latest.data.model}`,
+    ],
+    theme.success,
+    40,
+    printFn
+  );
+
+  return latest.data;
 }

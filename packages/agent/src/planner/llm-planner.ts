@@ -86,6 +86,7 @@ export class LlmPlanner implements Planner {
             callbacks.onDone?.({
               ...response,
               text: fullText,
+              toolCall: parsed,
             });
           },
           ...(callbacks.onError !== undefined && { onError: callbacks.onError }),

@@ -60,7 +60,6 @@ export function highlightCode(code: string, language?: string): string {
     case "xml":
       return highlightHTML(code);
     case "css":
-      case "css":
       return highlightCSS(code);
     case "bash":
     case "sh":

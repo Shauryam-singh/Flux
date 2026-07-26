@@ -1,6 +1,29 @@
 // Priority-ordered rules. First match wins.
 // Each rule: [regex, service name]
 const RULES: [RegExp, string][] = [
+  // ── Notifications (highest priority — alert commands) ──
+  [/^(send|create|new|add)\s+(a\s+)?(notification|alert|notify)/i, "notifications"],
+  [/^(show|list|view|get|what('s| did))\s*(my\s+)?(unread\s+)?(notifications?|alerts?|messages?)/i, "notifications"],
+  [/^(what did i miss|any alerts|unread)/i, "notifications"],
+  [/^(mark|set)\s+(all\s+)?(as\s+)?read/i, "notifications"],
+  [/^(clear|dismiss|delete)\s+(all\s+)?(notifications?|alerts?)/i, "notifications"],
+  [/^(speak|read aloud|tell me)\s+(my\s+)?(unread\s+)?(notifications?|alerts?)/i, "notifications"],
+
+  // ── Monitor (system health commands) ──
+  [/^(show|list|get|what)\s+(my\s+)?(monitor\s+)?(rules?|watches?|alerts?|thresholds?)/i, "monitor"],
+  [/^(add|create|set|new)\s+(a\s+)?monitor/i, "monitor"],
+  [/^(remove|delete|disable)\s+(rule|monitor|watch)\s*(\d+)?/i, "monitor"],
+  [/^(enable|disable)\s+(rule|monitor|watch)\s*(\d+)?/i, "monitor"],
+  [/^(check|scan|status|health)$/i, "monitor"],
+
+  // ── Automations (trigger→action rules) ──
+  [/^(show|list|get|what)\s+(my\s+)?(automations?|chains?|rules?)/i, "automations"],
+  [/^(add|create|new|set)\s+(an?\s+)?automation/i, "automations"],
+  [/^(remove|delete|disable)\s+(automation|chain|rule)\s*(\d+)?/i, "automations"],
+  [/^(enable|disable)\s+(automation|chain|rule)\s*(\d+)?/i, "automations"],
+  [/^(run|trigger|execute)\s+(automation|chain|rule)\s*(\d+)?/i, "automations"],
+  [/^(automate|every\s+|when\s+|at\s+)/i, "automations"],
+
   // ── Reminders: task-specific "open" (before system "open") ──
   [/^(open|show|list)\s+(my\s+)?(open\s+)?(reminders?|notes?|tasks?|todos?)/i, "reminders"],
 

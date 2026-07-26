@@ -90,6 +90,9 @@ importers:
       '@ai-agent/providers':
         specifier: workspace:*
         version: link:../../packages/providers
+      '@ai-agent/services-automations':
+        specifier: workspace:*
+        version: link:../../packages/services/automations
       '@ai-agent/services-chat':
         specifier: workspace:*
         version: link:../../packages/services/chat
@@ -102,6 +105,12 @@ importers:
       '@ai-agent/services-files':
         specifier: workspace:*
         version: link:../../packages/services/files
+      '@ai-agent/services-monitor':
+        specifier: workspace:*
+        version: link:../../packages/services/monitor
+      '@ai-agent/services-notifications':
+        specifier: workspace:*
+        version: link:../../packages/services/notifications
       '@ai-agent/services-reminders':
         specifier: workspace:*
         version: link:../../packages/services/reminders
@@ -180,6 +189,15 @@ importers:
         specifier: workspace:*
         version: link:../shared
 
+  packages/services/automations:
+    dependencies:
+      '@ai-agent/services-core':
+        specifier: workspace:*
+        version: link:../core
+      '@ai-agent/shared':
+        specifier: workspace:*
+        version: link:../../shared
+
   packages/services/chat:
     dependencies:
       '@ai-agent/agent':
@@ -223,6 +241,24 @@ importers:
         version: link:../../shared
 
   packages/services/files:
+    dependencies:
+      '@ai-agent/services-core':
+        specifier: workspace:*
+        version: link:../core
+      '@ai-agent/shared':
+        specifier: workspace:*
+        version: link:../../shared
+
+  packages/services/monitor:
+    dependencies:
+      '@ai-agent/services-core':
+        specifier: workspace:*
+        version: link:../core
+      '@ai-agent/shared':
+        specifier: workspace:*
+        version: link:../../shared
+
+  packages/services/notifications:
     dependencies:
       '@ai-agent/services-core':
         specifier: workspace:*

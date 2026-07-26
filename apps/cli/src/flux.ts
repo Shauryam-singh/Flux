@@ -8,6 +8,9 @@ import { createSearchService } from "@ai-agent/services-search";
 import { createSystemService } from "@ai-agent/services-system";
 import { createRemindersService } from "@ai-agent/services-reminders";
 import { createFilesService } from "@ai-agent/services-files";
+import { createNotificationService } from "@ai-agent/services-notifications";
+import { createMonitorService } from "@ai-agent/services-monitor";
+import { createAutomationService } from "@ai-agent/services-automations";
 
 export interface FluxConfig {
   provider: ProviderName;
@@ -63,6 +66,9 @@ export function createFlux(config: FluxConfig): FluxInstance {
   serviceRegistry.register(createSystemService());
   serviceRegistry.register(createRemindersService());
   serviceRegistry.register(createFilesService());
+  serviceRegistry.register(createNotificationService());
+  serviceRegistry.register(createMonitorService());
+  serviceRegistry.register(createAutomationService());
 
   const orchestrator = new Orchestrator(serviceRegistry);
   const session = new DefaultSession("flux-session");

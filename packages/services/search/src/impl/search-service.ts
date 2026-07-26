@@ -52,10 +52,9 @@ async function liteSearch(query: string): Promise<SearchResult[]> {
 function parseLiteHtml(html: string): SearchResult[] {
   const results: SearchResult[] = [];
 
-  // Lite endpoint uses simple <a> tags with class="result-link" and nearby <td> for snippets
-  // Pattern 1: Look for result links
-  const linkRegex = /<a[^>]+rel="nofollow"[^>]+href="([^"]*)"[^>]*class="result-link"[^>]*>([\s\S]*?)<\/a>/gi;
-  const snippetRegex = /<td[^>]*class="result-snippet"[^>]*>([\s\S]*?)<\/td>/gi;
+  // Lite endpoint uses single-quoted class attributes: class='result-link', class='result-snippet'
+  const linkRegex = /<a[^>]+class=['"]result-link['"][^>]*href=['"]([^'"]*)['"][^>]*>([\s\S]*?)<\/a>/gi;
+  const snippetRegex = /<td[^>]*class=['"]result-snippet['"][^>]*>([\s\S]*?)<\/td>/gi;
 
   const links: string[] = [];
   const titles: string[] = [];
@@ -70,21 +69,20 @@ function parseLiteHtml(html: string): SearchResult[] {
     snippets.push(stripHtml(match[1] ?? ""));
   }
 
-  // Fallback: try alternate class names
+  // Fallback: grab any <a> with result text
   if (titles.length === 0) {
-    const altLinkRegex = /<a[^>]+href="(https?:\/\/[^"]*)"[^>]*>([\s\S]*?)<\/a>/gi;
+    const altLinkRegex = /<a[^>]+href=['"]([^'"]*)['"][^>]*>([\s\S]*?)<\/a>/gi;
     while ((match = altLinkRegex.exec(html)) !== null) {
       const href = match[1] ?? "";
       const text = stripHtml(match[2] ?? "");
-      // Skip navigation/admin links
       if (
-        href.includes("duckduckgo.com") ||
-        text.length < 10 ||
+        href.includes("duckduckgo.com") && !href.includes("uddg=") ||
+        text.length < 5 ||
         text.length > 200
       ) {
         continue;
       }
-      links.push(href);
+      links.push(extractUrl(href));
       titles.push(text);
     }
   }
@@ -176,8 +174,8 @@ export function createSearchService(): Service {
 
     async execute(input: string, ctx: ServiceContext): Promise<ServiceResponse> {
       const query = input
-        .replace(/^(search|look up|find|google|research)\s*/i, "")
-        .replace(/^(what is|who is|where is|when did|how to|tell me about)\s*/i, "")
+        .replace(/^(search|look up|find|google|research)\s+(for\s+)?/i, "")
+        .replace(/^(what is|who is|where is|when did|how to|tell me about)\s+/i, "")
         .trim();
 
       const searchQuery = query || input;

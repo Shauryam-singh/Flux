@@ -75,6 +75,73 @@ const server = createServer(async (req, res) => {
     return;
   }
 
+  if (req.method === "POST" && req.url === "/chat/stream") {
+    try {
+      const body = await parseBody(req);
+      const { message } = JSON.parse(body.toString()) as ChatRequest;
+
+      if (!message || typeof message !== "string") {
+        sendJson(res, 400, { error: "message is required" });
+        return;
+      }
+
+      // SSE headers
+      res.writeHead(200, {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        "Connection": "keep-alive",
+        "Access-Control-Allow-Origin": "*",
+      });
+
+      await flux.session.memory.add("user", message);
+
+      // Build the prompt with conversation history
+      const history = await flux.session.memory.history();
+      const messages = history.map((m) => `${m.role}: ${m.content}`).join("\n");
+      const prompt = `You are Flux, a helpful and friendly AI assistant. You are knowledgeable, concise, and conversational.\n\nConversation:\n${messages}\n\nassistant:`;
+
+      let fullText = "";
+
+      if (flux.llmProvider.completeStream) {
+        await flux.llmProvider.completeStream(
+          { model: flux.model, prompt, temperature: 0.7 },
+          {
+            onToken: (token) => {
+              fullText += token;
+              res.write(`data: ${JSON.stringify({ token, done: false })}\n\n`);
+            },
+            onDone: async (response) => {
+              await flux.session.memory.add("assistant", fullText);
+              res.write(`data: ${JSON.stringify({ token: "", done: true, text: fullText })}\n\n`);
+              res.end();
+            },
+            onError: (error) => {
+              res.write(`data: ${JSON.stringify({ error: error.message })}\n\n`);
+              res.end();
+            },
+          },
+        );
+      } else {
+        // Fallback: non-streaming
+        const response = await flux.llmProvider.complete({
+          model: flux.model,
+          prompt,
+          temperature: 0.7,
+        });
+        fullText = response.text;
+        await flux.session.memory.add("assistant", fullText);
+        res.write(`data: ${JSON.stringify({ token: fullText, done: false })}\n\n`);
+        res.write(`data: ${JSON.stringify({ token: "", done: true, text: fullText })}\n\n`);
+        res.end();
+      }
+    } catch (err) {
+      const error = err instanceof Error ? err.message : String(err);
+      res.write(`data: ${JSON.stringify({ error })}\n\n`);
+      res.end();
+    }
+    return;
+  }
+
   if (req.method === "POST" && req.url === "/chat") {
     try {
       const body = await parseBody(req);
@@ -175,6 +242,7 @@ server.listen(PORT, () => {
   console.log(`Flux API server running on http://localhost:${PORT}`);
   console.log(`Endpoints:`);
   console.log(`  POST /chat              - Send a message`);
+  console.log(`  POST /chat/stream        - Send a message (SSE streaming)`);
   console.log(`  POST /voice/transcribe  - Transcribe audio (base64 WAV)`);
   console.log(`  POST /voice/speak       - Text to speech (returns WAV)`);
   console.log(`  GET  /health            - Health check`);

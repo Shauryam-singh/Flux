@@ -1,5 +1,5 @@
 import { DefaultToolRegistry, echoTool, createReadFileTool, createWriteFileTool, createEditFileTool, createListDirectoryTool, createRunCommandTool, createGitStatusTool, createGitDiffTool, createGitLogTool, createGitAddTool, createGitCommitTool, createGitBranchTool, createGitCheckoutTool, createGitPushTool, createGitPullTool } from "@ai-agent/tools";
-import { DefaultProviderFactory, type ProviderName } from "@ai-agent/providers";
+import { DefaultProviderFactory, type ProviderName, type Provider } from "@ai-agent/providers";
 import { DefaultSession } from "@ai-agent/agent";
 import { DefaultServiceRegistry, Orchestrator, type LlmProvider } from "@ai-agent/services-core";
 import { createChatService } from "@ai-agent/services-chat";
@@ -18,6 +18,8 @@ export interface FluxConfig {
 export interface FluxInstance {
   process(input: string): Promise<string>;
   session: InstanceType<typeof DefaultSession>;
+  llmProvider: Provider;
+  model: string;
 }
 
 export function createFlux(config: FluxConfig): FluxInstance {
@@ -75,5 +77,5 @@ export function createFlux(config: FluxConfig): FluxInstance {
     return result.text;
   }
 
-  return { process, session };
+  return { process, session, llmProvider: provider, model: config.model };
 }

@@ -4,7 +4,7 @@
     "build": "turbo run build",
     "typecheck": "turbo run typecheck",
     "lint": "turbo run lint",
-    "test": "turbo run test",
+    "test": "vitest run",
     "format": "biome check --write ."
   },
   "packageManager": "pnpm@11.3.0",
@@ -14,6 +14,7 @@
     "@types/node": "^26.1.0",
     "tsx": "^4.23.0",
     "turbo": "^2.10.3",
-    "typescript": "^6.0.3"
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.10"
   }
 }

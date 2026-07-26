@@ -1,4 +1,4 @@
-import { DefaultToolRegistry, echoTool, createReadFileTool, createWriteFileTool, createEditFileTool, createListDirectoryTool, createRunCommandTool, createGitStatusTool, createGitDiffTool, createGitLogTool, createGitAddTool, createGitCommitTool, createGitBranchTool, createGitCheckoutTool, createGitPushTool, createGitPullTool, createHttpRequestTool, createProcessMonitorTool, createCronTool, createSystemInfoTool } from "@ai-agent/tools";
+import { DefaultToolRegistry, echoTool, createReadFileTool, createWriteFileTool, createEditFileTool, createListDirectoryTool, createRunCommandTool, createGitStatusTool, createGitDiffTool, createGitLogTool, createGitAddTool, createGitCommitTool, createGitBranchTool, createGitCheckoutTool, createGitPushTool, createGitPullTool, createHttpRequestTool, createProcessMonitorTool, createCronTool, createSystemInfoTool, createDockerTool } from "@ai-agent/tools";
 import { DefaultProviderFactory, type ProviderName, type Provider } from "@ai-agent/providers";
 import { DefaultSession } from "@ai-agent/agent";
 import { DefaultServiceRegistry, Orchestrator, type LlmProvider } from "@ai-agent/services-core";
@@ -43,6 +43,7 @@ export function createFlux(config: FluxConfig): FluxInstance {
   toolRegistry.register(createProcessMonitorTool());
   toolRegistry.register(createCronTool());
   toolRegistry.register(createSystemInfoTool());
+  toolRegistry.register(createDockerTool());
 
   const factory = new DefaultProviderFactory(config.providerConfigs);
   const provider = factory.create(config.provider);

@@ -3,6 +3,7 @@ import { createHttpRequestTool } from "../tools/http/http-request.js";
 import { createProcessMonitorTool } from "../tools/process/process-monitor.js";
 import { createCronTool } from "../tools/schedule/cron.js";
 import { createSystemInfoTool } from "../tools/system/system-info.js";
+import { createDockerTool } from "../tools/docker/docker.js";
 
 describe("HttpRequestTool", () => {
   it("should have correct name and description", () => {
@@ -86,5 +87,31 @@ describe("SystemInfoTool", () => {
     const result = await tool.execute({ category: "memory" });
     expect(result.success).toBe(true);
     expect(result.output).toHaveProperty("memory");
+  });
+});
+
+describe("DockerTool", () => {
+  it("should have correct name", () => {
+    const tool = createDockerTool();
+    expect(tool.name).toBe("docker");
+  });
+
+  it("should list containers", async () => {
+    const tool = createDockerTool();
+    const result = await tool.execute({ action: "ps" });
+    expect(result.success).toBe(true);
+    expect(result.output).toHaveProperty("containers");
+  });
+
+  it("should require image for run", async () => {
+    const tool = createDockerTool();
+    const result = await tool.execute({ action: "run" });
+    expect(result.success).toBe(false);
+  });
+
+  it("should require target for stop", async () => {
+    const tool = createDockerTool();
+    const result = await tool.execute({ action: "stop" });
+    expect(result.success).toBe(false);
   });
 });

@@ -4,6 +4,7 @@ use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
 use std::sync::Mutex;
 use tauri::Manager;
+use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 
 struct ApiState {
     api_url: Mutex<String>,
@@ -84,7 +85,6 @@ fn stop_recording(
 
     let file_path = temp_lock.clone();
 
-    // Wait briefly for file to flush
     std::thread::sleep(std::time::Duration::from_millis(100));
 
     let audio_bytes = fs::read(&file_path).map_err(|e| format!("Failed to read audio: {}", e))?;
@@ -149,7 +149,6 @@ fn speak(text: String, state: tauri::State<ApiState>) -> Result<String, String> 
         .map_err(|e| e.to_string())?;
     drop(file);
 
-    // Play audio using sox 'play' or aplay
     let play_result = Command::new("play")
         .args(["-t", "wav", file_path.to_str().unwrap()])
         .stdout(Stdio::null())
@@ -157,7 +156,6 @@ fn speak(text: String, state: tauri::State<ApiState>) -> Result<String, String> 
         .status();
 
     if play_result.is_err() {
-        // Fallback to aplay
         let _ = Command::new("aplay")
             .arg(file_path.to_str().unwrap())
             .stdout(Stdio::null())
@@ -219,6 +217,36 @@ pub fn run() {
             speak,
         ])
         .setup(|app| {
+            // System tray
+            let _tray = TrayIconBuilder::new()
+                .tooltip("Flux Assistant")
+                .on_tray_icon_event(|tray, event| {
+                    if let TrayIconEvent::Click {
+                        button: MouseButton::Left,
+                        button_state: MouseButtonState::Up,
+                        ..
+                    } = event
+                    {
+                        let app = tray.app_handle();
+                        if let Some(window) = app.get_webview_window("main") {
+                            let _ = window.show();
+                            let _ = window.set_focus();
+                        }
+                    }
+                })
+                .build(app)?;
+
+            // Minimize to tray on close
+            if let Some(window) = app.get_webview_window("main") {
+                let window_clone = window.clone();
+                window.on_window_event(move |event| {
+                    if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                        api.prevent_close();
+                        let _ = window_clone.hide();
+                    }
+                });
+            }
+
             // Check if API is already running
             let client = reqwest::blocking::Client::builder()
                 .timeout(std::time::Duration::from_secs(2))
@@ -240,19 +268,16 @@ pub fn run() {
                 .resource_dir()
                 .ok()
                 .or_else(|| {
-                    // Fallback: try relative to current executable
                     std::env::current_exe().ok().and_then(|exe| {
                         exe.parent().and_then(|p| p.parent()).map(|p| p.to_path_buf())
                     })
                 });
 
             let api_dir = if let Some(dir) = resource_dir {
-                // In production: look for bundled API
                 let candidate = dir.join("apps").join("api");
                 if candidate.exists() {
                     candidate
                 } else {
-                    // Dev mode: relative path
                     std::env::current_dir()
                         .unwrap_or_else(|_| PathBuf::from("."))
                         .join("apps")

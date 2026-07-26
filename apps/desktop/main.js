@@ -8,19 +8,103 @@ const welcome = document.getElementById("welcome");
 const input = document.getElementById("input");
 const sendBtn = document.getElementById("send-btn");
 const micBtn = document.getElementById("mic-btn");
+const toastContainer = document.getElementById("toast-container");
 
 let isLoading = false;
 let isRecording = false;
 
-// Web Speech API TTS
+// ── Toast Notifications ──
+function showToast(message, type = "info", duration = 4000) {
+  const toast = document.createElement("div");
+  toast.className = `toast ${type}`;
+  toast.textContent = message;
+  toastContainer.appendChild(toast);
+
+  setTimeout(() => {
+    toast.classList.add("toast-exit");
+    setTimeout(() => toast.remove(), 300);
+  }, duration);
+}
+
+// ── Markdown Renderer ──
+function renderMarkdown(text) {
+  let html = text;
+
+  // Code blocks with language tag
+  html = html.replace(/```(\w+)?\n([\s\S]*?)```/g, (_, lang, code) => {
+    const label = lang ? `<span class="lang-label">${lang}</span>` : "";
+    return `<pre>${label}<code>${escapeHtml(code.trim())}</code></pre>`;
+  });
+
+  // Inline code
+  html = html.replace(/`([^`]+)`/g, "<code>$1</code>");
+
+  // Bold
+  html = html.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+
+  // Italic
+  html = html.replace(/\*(.+?)\*/g, "<em>$1</em>");
+
+  // Strikethrough
+  html = html.replace(/~~(.+?)~~/g, "<del>$1</del>");
+
+  // Headers
+  html = html.replace(/^### (.+)$/gm, "<h3>$1</h3>");
+  html = html.replace(/^## (.+)$/gm, "<h2>$1</h2>");
+  html = html.replace(/^# (.+)$/gm, "<h1>$1</h1>");
+
+  // Horizontal rule
+  html = html.replace(/^---$/gm, "<hr>");
+
+  // Blockquote
+  html = html.replace(/^> (.+)$/gm, "<blockquote>$1</blockquote>");
+
+  // Unordered list
+  html = html.replace(/^[*-] (.+)$/gm, "<li>$1</li>");
+  html = html.replace(/(<li>.*<\/li>\n?)+/g, (match) => `<ul>${match}</ul>`);
+
+  // Links
+  html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>');
+
+  // Line breaks (preserve paragraphs)
+  html = html.replace(/\n\n/g, "</p><p>");
+  html = html.replace(/\n/g, "<br>");
+  html = `<p>${html}</p>`;
+
+  // Clean up empty paragraphs
+  html = html.replace(/<p>\s*<\/p>/g, "");
+  html = html.replace(/<p>(<h[123]>)/g, "$1");
+  html = html.replace(/(<\/h[123]>)<\/p>/g, "$1");
+  html = html.replace(/<p>(<pre>)/g, "$1");
+  html = html.replace(/(<\/pre>)<\/p>/g, "$1");
+  html = html.replace(/<p>(<ul>)/g, "$1");
+  html = html.replace(/(<\/ul>)<\/p>/g, "$1");
+  html = html.replace(/<p>(<blockquote>)/g, "$1");
+  html = html.replace(/(<\/blockquote>)<\/p>/g, "$1");
+  html = html.replace(/<p>(<hr>)/g, "$1");
+
+  return html;
+}
+
+function escapeHtml(str) {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+// ── Web Speech API TTS ──
 const synth = window.speechSynthesis;
 
 function speakText(text) {
   if (!synth) return;
   synth.cancel();
-  const utter = new SpeechSynthesisUtterance(text);
+  const clean = text.replace(/[#*`_~\[\]()>]/g, "").replace(/\n+/g, ". ");
+  const utter = new SpeechSynthesisUtterance(clean);
   utter.rate = 1;
-  utter.pitch = 1;
+  utter.pitch = 0.9;
   const voices = synth.getVoices();
   const enVoice = voices.find(v => v.lang.startsWith("en"));
   if (enVoice) utter.voice = enVoice;
@@ -32,7 +116,8 @@ if (synth) {
   synth.onvoiceschanged = () => synth.getVoices();
 }
 
-function addMessage(role, text) {
+// ── Chat Functions ──
+function addMessage(role, text, isMarkdown = false) {
   if (welcome) welcome.remove();
 
   const msg = document.createElement("div");
@@ -40,11 +125,11 @@ function addMessage(role, text) {
 
   const avatar = document.createElement("div");
   avatar.className = "avatar";
-  avatar.textContent = role === "user" ? "You" : "⚡";
+  avatar.textContent = role === "user" ? "YOU" : "FX";
 
   const bubble = document.createElement("div");
   bubble.className = "bubble";
-  bubble.textContent = text;
+  bubble.innerHTML = isMarkdown ? renderMarkdown(text) : escapeHtml(text);
 
   msg.appendChild(avatar);
   msg.appendChild(bubble);
@@ -62,10 +147,10 @@ function addStreamingBubble() {
 
   const avatar = document.createElement("div");
   avatar.className = "avatar";
-  avatar.textContent = "⚡";
+  avatar.textContent = "FX";
 
   const bubble = document.createElement("div");
-  bubble.className = "bubble";
+  bubble.className = "bubble streaming-cursor";
   bubble.id = "streaming-bubble";
 
   msg.appendChild(avatar);
@@ -80,7 +165,12 @@ function showTyping() {
   const el = document.createElement("div");
   el.className = "typing";
   el.id = "typing";
-  el.innerHTML = "<span></span><span></span><span></span>";
+  el.innerHTML = `
+    <div class="typing-dot"></div>
+    <div class="typing-dot"></div>
+    <div class="typing-dot"></div>
+    <span class="typing-label">PROCESSING</span>
+  `;
   chatArea.appendChild(el);
   chatArea.scrollTop = chatArea.scrollHeight;
   return el;
@@ -129,23 +219,26 @@ async function sendMessage(text) {
         const data = JSON.parse(line.slice(6));
 
         if (data.error) {
-          bubble.textContent = `Error: ${data.error}`;
+          bubble.classList.remove("streaming-cursor");
+          bubble.innerHTML = renderMarkdown(`**Error:** ${data.error}`);
+          showToast(`Stream error: ${data.error}`, "error");
           break;
         }
 
         if (!data.done) {
           fullText += data.token;
-          bubble.textContent = fullText;
+          bubble.innerHTML = renderMarkdown(fullText);
           chatArea.scrollTop = chatArea.scrollHeight;
         } else {
-          bubble.textContent = data.text || fullText;
-          speakText(data.text || fullText);
+          bubble.classList.remove("streaming-cursor");
+          const finalText = data.text || fullText;
+          bubble.innerHTML = renderMarkdown(finalText);
+          speakText(finalText);
         }
       }
     }
   } catch (err) {
     removeTyping();
-    // Fallback to non-streaming
     try {
       const res = await fetch(`${API_URL}/chat`, {
         method: "POST",
@@ -153,10 +246,16 @@ async function sendMessage(text) {
         body: JSON.stringify({ message: text }),
       });
       const data = await res.json();
-      addMessage("assistant", data.reply || data.error || "Unknown error");
-      speakText(data.reply || "");
+      if (data.reply) {
+        addMessage("assistant", data.reply, true);
+        speakText(data.reply);
+      } else {
+        showToast(data.error || "Unknown error", "error");
+        addMessage("assistant", `**Error:** ${data.error || "Unknown error"}`, true);
+      }
     } catch (fallbackErr) {
-      addMessage("assistant", `Error: ${err}`);
+      showToast(`Connection failed: ${err.message}`, "error");
+      addMessage("assistant", `**System:** Connection to Flux API failed. Ensure the API server is running on port 3141.`, true);
     }
   } finally {
     isLoading = false;
@@ -177,8 +276,9 @@ async function startRecording() {
     await invoke("start_recording");
     isRecording = true;
     micBtn.classList.add("recording");
+    showToast("Recording started — hold to speak", "info", 2000);
   } catch (err) {
-    addMessage("assistant", `Recording error: ${err}`);
+    showToast(`Recording error: ${err}`, "error");
   }
 }
 
@@ -194,21 +294,20 @@ async function stopRecording() {
     removeTyping();
 
     if (transcript && transcript.trim()) {
-      await sendMessage(`[Voice] ${transcript}`);
+      showToast("Transcription received", "success", 2000);
+      await sendMessage(transcript);
     } else {
-      removeTyping();
-      addMessage("assistant", "No speech detected. Try again.");
+      showToast("No speech detected", "warning", 2000);
     }
   } catch (err) {
     removeTyping();
-    addMessage("assistant", `Voice error: ${err}`);
+    showToast(`Voice error: ${err}`, "error");
   }
 }
 
-// Send button
+// ── Event Listeners ──
 sendBtn.addEventListener("click", handleSend);
 
-// Text input
 input.addEventListener("keydown", (e) => {
   if (e.key === "Enter" && !e.shiftKey) {
     e.preventDefault();
@@ -216,7 +315,6 @@ input.addEventListener("keydown", (e) => {
   }
 });
 
-// Mic button — push to talk
 micBtn.addEventListener("mousedown", (e) => {
   e.preventDefault();
   startRecording();
@@ -241,4 +339,6 @@ micBtn.addEventListener("touchend", (e) => {
   stopRecording();
 });
 
+// ── Init ──
 input.focus();
+showToast("Flux neural interface initialized", "success", 3000);

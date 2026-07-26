@@ -3,39 +3,82 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Flux Assistant</title>
+    <title>FLUX // AI ASSISTANT</title>
     <link rel="stylesheet" href="./style.css" />
   </head>
   <body>
+    <div class="scanlines"></div>
     <div class="app">
       <header>
-        <h1>⚡ Flux</h1>
-        <span class="subtitle">AI Assistant</span>
+        <div class="logo-group">
+          <div class="logo-icon">
+            <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.5">
+              <polygon points="12,2 22,8.5 22,15.5 12,22 2,15.5 2,8.5"/>
+              <circle cx="12" cy="12" r="3"/>
+              <line x1="12" y1="2" x2="12" y2="9"/>
+              <line x1="22" y1="8.5" x2="15" y2="12"/>
+              <line x1="2" y1="8.5" x2="9" y2="12"/>
+              <line x1="12" y1="22" x2="12" y2="15"/>
+            </svg>
+          </div>
+          <div class="logo-text">
+            <h1>FLUX</h1>
+            <span class="version">v0.1.0 // NEURAL LINK ACTIVE</span>
+          </div>
+        </div>
+        <div class="status-bar">
+          <div class="status-dot online"></div>
+          <span class="status-text">SYSTEM ONLINE</span>
+        </div>
       </header>
 
       <div id="chat-area" class="chat-area">
         <div id="welcome" class="welcome">
-          <h2>Hello! I'm Flux</h2>
-          <p>Your AI assistant. Ask me anything.</p>
-          <p class="hint">Hold the mic button to speak, or type below.</p>
+          <div class="welcome-icon">
+            <svg viewBox="0 0 100 100" width="80" height="80">
+              <circle cx="50" cy="50" r="45" fill="none" stroke="var(--accent)" stroke-width="1" opacity="0.3"/>
+              <circle cx="50" cy="50" r="35" fill="none" stroke="var(--accent)" stroke-width="0.5" opacity="0.2"/>
+              <polygon points="50,15 80,35 80,65 50,85 20,65 20,35" fill="none" stroke="var(--accent)" stroke-width="1.5"/>
+              <circle cx="50" cy="50" r="5" fill="var(--accent)" opacity="0.8"/>
+              <line x1="50" y1="15" x2="50" y2="45" stroke="var(--accent)" stroke-width="0.5" opacity="0.5"/>
+              <line x1="80" y1="35" x2="55" y2="48" stroke="var(--accent)" stroke-width="0.5" opacity="0.5"/>
+              <line x1="20" y1="35" x2="45" y2="48" stroke="var(--accent)" stroke-width="0.5" opacity="0.5"/>
+            </svg>
+          </div>
+          <h2>NEURAL INTERFACE INITIALIZED</h2>
+          <p class="welcome-sub">Ready to process queries. Type or hold mic to speak.</p>
+          <div class="welcome-stats">
+            <span>Ollama: qwen2.5-coder:7b</span>
+            <span>|</span>
+            <span>Latency: &lt;100ms</span>
+          </div>
         </div>
       </div>
 
       <div class="input-area">
         <button id="mic-btn" class="mic-btn" title="Hold to speak">
-          <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
             <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/>
             <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
           </svg>
         </button>
-        <textarea
-          id="input"
-          placeholder="Type a message..."
-          rows="1"
-        ></textarea>
-        <button id="send-btn" class="send-btn" title="Send">➤</button>
+        <div class="input-wrapper">
+          <textarea
+            id="input"
+            placeholder="Enter command..."
+            rows="1"
+          ></textarea>
+          <div class="input-glow"></div>
+        </div>
+        <button id="send-btn" class="send-btn" title="Send">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+            <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+          </svg>
+        </button>
       </div>
     </div>
+
+    <div id="toast-container" class="toast-container"></div>
 
     <script type="module" src="./main.js"></script>
   </body>

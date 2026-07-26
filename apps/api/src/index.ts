@@ -98,7 +98,7 @@ const server = createServer(async (req, res) => {
       // Build the prompt with conversation history
       const history = await flux.session.memory.history();
       const messages = history.map((m) => `${m.role}: ${m.content}`).join("\n");
-      const prompt = `You are Flux, a helpful and friendly AI assistant. You are knowledgeable, concise, and conversational.\n\nConversation:\n${messages}\n\nassistant:`;
+      const prompt = `You are Flux — not a chatbot. You're a friend. Talk like a real person — casual, natural, witty. Match the user's energy. No "As an AI..." or "I'd be happy to help!" Just be genuine.\n\nConversation:\n${messages}\n\nFlux:`;
 
       let fullText = "";
 

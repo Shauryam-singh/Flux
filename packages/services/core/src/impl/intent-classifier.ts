@@ -38,10 +38,15 @@ const RULES: [RegExp, string][] = [
   [/^(shutdown|restart|reboot|sleep|lock|suspend)/i, "system"],
   [/^(screenshot|take\s+(a\s+)?screenshot)/i, "system"],
 
-  // ── Search (question patterns) ──
+  // ── Search (factual questions — NOT identity/conversation) ──
+  // Exclude: who are you, what's your name, how are you, etc.
   [/^(search|look\s*up|find|google|research)\s+/i, "search"],
   [/^(tell\s+me\s+about|explain|describe)\s+/i, "search"],
-  [/^(what|who|where|when|why|how)\s+(is|are|was|were|do|does|did|can|could|should|would)/i, "search"],
+  [/^(what|where|when|why|how)\s+(is|are|was|were|do|does|did|can|could|should|would)\s+(?!you\b|your\b|about you)/i, "search"],
+  // "who" questions that are NOT "who are you" — search for facts
+  [/^who\s+(is|are|was|were)\s+(?!you\b|your\b)/i, "search"],
+  // "what is" for things — but not "what's your name"
+  [/^(what('s| is| are))\s+(?!you\b|your\b|up\b|going on\b|happening\b)/i, "search"],
   [/^(latest|current|recent|news)\s+/i, "search"],
 
   // ── Coding (code actions — before general "create" in reminders) ──

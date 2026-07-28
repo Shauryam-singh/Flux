@@ -11,6 +11,8 @@ export interface FluxRuntimeConfig {
   readonly maxMemoryCapacity?: number;
   readonly attentionMinBrainScore?: number;
   readonly enableSelfEvolution?: boolean;
+  readonly backgroundTickMs?: number;
+  readonly autoStart?: boolean;
 }
 
 export interface FluxRuntimeMessage {
@@ -29,6 +31,14 @@ export interface FluxRuntimeResult {
   readonly metadata: Record<string, unknown>;
 }
 
+export interface TickEvent {
+  readonly tickNumber: number;
+  readonly timestamp: number;
+  readonly observations: number;
+  readonly cognitiveCycleRan: boolean;
+  readonly duration: number;
+}
+
 export interface FluxRuntime {
   readonly provider: Provider;
   readonly llmProvider: LlmProvider;
@@ -39,6 +49,10 @@ export interface FluxRuntime {
   processEvent(event: { source: ObservationSource; title: string; detail: string }): {
     readonly action: "ignore" | "buffer" | "immediate" | "summarize";
   };
+  start(): void;
+  stop(): void;
+  isRunning(): boolean;
+  onTick(handler: (event: TickEvent) => void): () => void;
   getHistory(): ReadonlyArray<FluxRuntimeMessage>;
   getState(): FluxRuntimeState;
   shutdown(): Promise<void>;
@@ -53,4 +67,7 @@ export interface FluxRuntimeState {
   readonly relationshipLevel: number;
   readonly totalInteractions: number;
   readonly uptime: number;
+  readonly isRunning: boolean;
+  readonly lastTickAt: number | null;
+  readonly tickCount: number;
 }

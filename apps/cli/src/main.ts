@@ -470,6 +470,9 @@ async function main(): Promise<void> {
     providerConfigs,
   });
 
+  // Start background cognition loop (observe → think → update → sleep → repeat)
+  flux.runtime.start();
+
   // Create persistent agent session for conversation history
   const agent = createAgent({
     provider: currentProvider,

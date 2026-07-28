@@ -14,6 +14,10 @@ const fluxConfig: FluxConfig = {
 };
 
 const flux = createFlux(fluxConfig);
+
+// Start background cognition loop (observe → think → update → sleep → repeat)
+flux.runtime.start();
+
 const stt = new WhisperEngine();
 const tts = new PiperEngine();
 

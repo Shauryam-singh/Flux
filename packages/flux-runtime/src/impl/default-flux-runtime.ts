@@ -1,4 +1,4 @@
-import type { FluxRuntime, FluxRuntimeConfig, FluxRuntimeMessage, FluxRuntimeResult, FluxRuntimeState } from "../interfaces/flux-runtime.js";
+import type { FluxRuntime, FluxRuntimeConfig, FluxRuntimeMessage, FluxRuntimeResult, FluxRuntimeState, TickEvent } from "../interfaces/flux-runtime.js";
 
 import { DefaultToolRegistry, echoTool, createReadFileTool, createWriteFileTool, createEditFileTool, createListDirectoryTool, createRunCommandTool, createGitStatusTool, createGitDiffTool, createGitLogTool, createGitAddTool, createGitCommitTool, createGitBranchTool, createGitCheckoutTool, createGitPushTool, createGitPullTool, createHttpRequestTool, createProcessMonitorTool, createCronTool, createSystemInfoTool, createDockerTool, createScreenMonitorTool } from "@ai-agent/tools";
 import { DefaultProviderFactory, type Provider } from "@ai-agent/providers";
@@ -28,11 +28,13 @@ import { DefaultStrategyLibrary } from "@ai-agent/strategy-library";
 import { DefaultConfidenceCalibration } from "@ai-agent/confidence-calibration";
 import { DefaultKnowledgeConsolidation } from "@ai-agent/knowledge-consolidation";
 import { DefaultHabitDiscovery } from "@ai-agent/habit-discovery";
+import { execSync } from "node:child_process";
 
 export class DefaultFluxRuntime implements FluxRuntime {
   private readonly config: FluxRuntimeConfig;
   private readonly startTime: number;
   private readonly history: FluxRuntimeMessage[] = [];
+  private readonly tickHandlers: Array<(event: TickEvent) => void> = [];
 
   readonly session: InstanceType<typeof DefaultSession>;
   readonly provider: Provider;
@@ -52,6 +54,12 @@ export class DefaultFluxRuntime implements FluxRuntime {
 
   private totalInteractions = 0;
   private cognitiveReady = false;
+  private running = false;
+  private backgroundTimer: ReturnType<typeof setInterval> | null = null;
+  private lastTickAt: number | null = null;
+  private tickCount = 0;
+  private lastScreenApp = "";
+  private lastScreenTitle = "";
 
   constructor(config: FluxRuntimeConfig) {
     this.config = config;
@@ -145,7 +153,184 @@ export class DefaultFluxRuntime implements FluxRuntime {
     this.habits = new DefaultHabitDiscovery();
 
     this.cognitiveReady = true;
+
+    // Auto-start if configured
+    if (config.autoStart) {
+      this.start();
+    }
   }
+
+  // ─── Background Cognition Loop ───────────────────────────────────
+
+  start(): void {
+    if (this.running) return;
+    this.running = true;
+
+    // Start the cognitive system's internal timers (5s think cycle, 30min reflection)
+    this.cognitive.start();
+
+    // Start our observation gathering loop
+    const tickMs = this.config.backgroundTickMs ?? 5000;
+    this.backgroundTimer = setInterval(() => {
+      this.runTick();
+    }, tickMs);
+
+    // Run first tick immediately
+    this.runTick();
+  }
+
+  stop(): void {
+    if (!this.running) return;
+    this.running = false;
+
+    // Stop cognitive system timers
+    this.cognitive.stop();
+
+    // Stop our background loop
+    if (this.backgroundTimer) {
+      clearInterval(this.backgroundTimer);
+      this.backgroundTimer = null;
+    }
+  }
+
+  isRunning(): boolean {
+    return this.running;
+  }
+
+  onTick(handler: (event: TickEvent) => void): () => void {
+    this.tickHandlers.push(handler);
+    return () => {
+      const idx = this.tickHandlers.indexOf(handler);
+      if (idx >= 0) this.tickHandlers.splice(idx, 1);
+    };
+  }
+
+  private runTick(): void {
+    if (!this.running) return;
+
+    const tickStart = Date.now();
+    this.tickCount++;
+    let observationsGathered = 0;
+
+    try {
+      // Gather observations from available sources
+      observationsGathered = this.gatherObservations();
+    } catch {
+      // Observation gathering is best-effort
+    }
+
+    this.lastTickAt = Date.now();
+
+    const event: TickEvent = {
+      tickNumber: this.tickCount,
+      timestamp: this.lastTickAt,
+      observations: observationsGathered,
+      cognitiveCycleRan: true,
+      duration: Date.now() - tickStart,
+    };
+
+    // Notify tick handlers
+    for (const handler of this.tickHandlers) {
+      try {
+        handler(event);
+      } catch {
+        // Handler errors are non-fatal
+      }
+    }
+  }
+
+  private gatherObservations(): number {
+    let count = 0;
+
+    // Source 1: Screen activity (if xdotool/osascript available)
+    const screenObs = this.gatherScreenObservation();
+    if (screenObs) {
+      this.attention.process(screenObs);
+      count++;
+    }
+
+    // Source 2: System health (periodic, every 3rd tick to reduce noise)
+    if (this.tickCount % 3 === 0) {
+      const sysObs = this.gatherSystemObservation();
+      if (sysObs) {
+        this.attention.process(sysObs);
+        count++;
+      }
+    }
+
+    // Source 3: Timer heartbeat (keeps the system alive)
+    this.attention.process({
+      source: "timer",
+      title: "cognition_tick",
+      detail: `Tick #${this.tickCount}`,
+    });
+    count++;
+
+    return count;
+  }
+
+  private gatherScreenObservation(): { source: ObservationSource; title: string; detail: string } | null {
+    try {
+      const platform = process.platform;
+      let app = "";
+      let title = "";
+
+      if (platform === "linux") {
+        const activeWindow = execSync("xdotool getactivewindow getwindowname 2>/dev/null", { encoding: "utf-8", timeout: 2000 }).trim();
+        const parts = activeWindow.split(" — ");
+        app = parts[0]?.trim() ?? activeWindow;
+        title = parts.slice(1).join(" — ").trim();
+      } else if (platform === "darwin") {
+        const script = `tell application "System Events" to get {name of first application process whose frontmost is true, name of front window of first application process whose frontmost is true}`;
+        const output = execSync(`osascript -e '${script}' 2>/dev/null`, { encoding: "utf-8", timeout: 2000 }).trim();
+        const parts = output.split(", ");
+        app = parts[0]?.trim() ?? "";
+        title = parts.slice(1).join(", ").trim();
+      }
+
+      if (!app) return null;
+
+      // Only emit if something changed (dedup)
+      if (app === this.lastScreenApp && title === this.lastScreenTitle) return null;
+      this.lastScreenApp = app;
+      this.lastScreenTitle = title;
+
+      return {
+        source: "screen",
+        title: `active_window: ${app}`,
+        detail: title || app,
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  private gatherSystemObservation(): { source: ObservationSource; title: string; detail: string } | null {
+    try {
+      const loadavg = execSync("cat /proc/loadavg 2>/dev/null || sysctl -n vm.loadavg 2>/dev/null", { encoding: "utf-8", timeout: 2000 }).trim();
+      const parts = loadavg.split(" ");
+      const load1 = parseFloat(parts[0] ?? "0");
+      const cpus = parseInt(execSync("nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4", { encoding: "utf-8", timeout: 2000 }).trim(), 10);
+      const ratio = load1 / cpus;
+
+      let detail = `load: ${load1} (${ratio.toFixed(2)}x ${cpus} cores)`;
+      let title = "system_load_normal";
+
+      if (ratio > 0.9) {
+        title = "system_load_critical";
+        detail += " [CRITICAL]";
+      } else if (ratio > 0.7) {
+        title = "system_load_high";
+        detail += " [HIGH]";
+      }
+
+      return { source: "system", title, detail };
+    } catch {
+      return null;
+    }
+  }
+
+  // ─── Core Processing ─────────────────────────────────────────────
 
   async process(input: string): Promise<FluxRuntimeResult> {
     const start = Date.now();
@@ -245,14 +430,18 @@ export class DefaultFluxRuntime implements FluxRuntime {
       activeGoals: this.goalManager.getAll().filter((g) => g.status === "active" || g.status === "in_progress").length,
       worldModelEntities: this.worldModel.getState().version,
       attentionBufferSize: this.attention.getBuffer().length,
-      cognitiveState: "active",
+      cognitiveState: this.running ? "running" : "idle",
       relationshipLevel: 0,
       totalInteractions: this.totalInteractions,
       uptime: Date.now() - this.startTime,
+      isRunning: this.running,
+      lastTickAt: this.lastTickAt,
+      tickCount: this.tickCount,
     };
   }
 
   async shutdown(): Promise<void> {
+    this.stop();
     this.cognitiveReady = false;
   }
 }

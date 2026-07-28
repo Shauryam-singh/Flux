@@ -102,20 +102,20 @@ const server = createServer(async (req, res) => {
 
       let fullText = "";
 
-      if (flux.llmProvider.completeStream) {
-        await flux.llmProvider.completeStream(
+      if (flux.runtime.provider.completeStream) {
+        await flux.runtime.provider.completeStream(
           { model: flux.model, prompt, temperature: 0.7 },
           {
-            onToken: (token) => {
+            onToken: (token: string) => {
               fullText += token;
               res.write(`data: ${JSON.stringify({ token, done: false })}\n\n`);
             },
-            onDone: async (response) => {
+            onDone: async (response: unknown) => {
               await flux.session.memory.add("assistant", fullText);
               res.write(`data: ${JSON.stringify({ token: "", done: true, text: fullText })}\n\n`);
               res.end();
             },
-            onError: (error) => {
+            onError: (error: Error) => {
               res.write(`data: ${JSON.stringify({ error: error.message })}\n\n`);
               res.end();
             },
@@ -262,13 +262,13 @@ const server = createServer(async (req, res) => {
   }
 
   if (req.method === "GET" && req.url === "/attention/stats") {
-    const stats = flux.attention.getStats();
+    const stats = flux.runtime.attention.getStats();
     sendJson(res, 200, stats);
     return;
   }
 
   if (req.method === "GET" && req.url === "/cognitive/state") {
-    const state = flux.cognitive.getState();
+    const state = flux.runtime.cognitive.getState();
     sendJson(res, 200, {
       world: state.world,
       activeGoal: state.activeGoal,
@@ -301,10 +301,6 @@ const server = createServer(async (req, res) => {
         detail: event.detail ?? "",
       });
 
-      if (result.observation) {
-        flux.cognitive.observe(result.observation);
-      }
-
       sendJson(res, 200, { processed: true, action: result.action });
     } catch (err) {
       const error = err instanceof Error ? err.message : String(err);
@@ -323,8 +319,8 @@ const server = createServer(async (req, res) => {
         return;
       }
 
-      flux.cognitive.message(message);
-      const state = flux.cognitive.getState();
+      flux.runtime.cognitive.message(message);
+      const state = flux.runtime.cognitive.getState();
 
       sendJson(res, 200, {
         activeGoal: state.activeGoal,
@@ -340,7 +336,7 @@ const server = createServer(async (req, res) => {
 
   if (req.method === "POST" && req.url === "/cognitive/reason") {
     try {
-      const result = await flux.cognitive.forceCycle("user_message");
+      const result = await flux.runtime.cognitive.forceCycle("user_message");
       sendJson(res, 200, {
         thoughts: result.thoughts,
         recommendedAction: result.recommendedAction,
@@ -355,7 +351,7 @@ const server = createServer(async (req, res) => {
   }
 
   if (req.method === "GET" && req.url === "/cognitive/goals") {
-    const state = flux.cognitive.getState();
+    const state = flux.runtime.cognitive.getState();
     sendJson(res, 200, {
       active: state.activeGoal,
       all: state.goals,

@@ -78,6 +78,7 @@
     "@ai-agent/background-projects": "workspace:*",
     "@ai-agent/long-goals": "workspace:*",
     "@ai-agent/executive-core": "workspace:*",
+    "@ai-agent/flux-runtime": "workspace:*",
     "@ai-agent/evo-types": "workspace:*",
     "@ai-agent/meta-cognition": "workspace:*",
     "@ai-agent/strategy-library": "workspace:*",

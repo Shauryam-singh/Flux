@@ -7,6 +7,7 @@ import { DefaultProviderFactory } from "@ai-agent/providers";
 import { DefaultSession, type AgentMode } from "@ai-agent/agent";
 import { loadAppConfig } from "./config.js";
 import { createAgent } from "./chat/agent.js";
+import { createFlux } from "./flux.js";
 import { extractText, renderMessage } from "./chat/format.js";
 import {
   loadSession,
@@ -462,6 +463,13 @@ async function main(): Promise<void> {
     process.stdout.write(paint(text, claudeTheme.coral));
   }
 
+  // Create FluxRuntime - the central nervous system connecting all layers
+  const flux = createFlux({
+    provider: currentProvider,
+    model: currentModel,
+    providerConfigs,
+  });
+
   // Create persistent agent session for conversation history
   const agent = createAgent({
     provider: currentProvider,
@@ -608,6 +616,9 @@ async function main(): Promise<void> {
       let toolInput: Record<string, unknown> = {};
       let toolResult: unknown = null;
       let multipleToolResults: Array<{ name: string; input: Record<string, unknown>; result: unknown }> = [];
+
+      // Feed user input through FluxRuntime pipeline (attention → cognitive → working memory)
+      await flux.process(input);
 
       await agent.runStream(agentSession, {
         input: { message: input, type: "chat" },

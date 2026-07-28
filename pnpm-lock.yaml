@@ -342,6 +342,9 @@ importers:
       '@ai-agent/experience-db':
         specifier: workspace:*
         version: link:../../packages/experience-db
+      '@ai-agent/flux-runtime':
+        specifier: workspace:*
+        version: link:../../packages/flux-runtime
       '@ai-agent/goals':
         specifier: workspace:*
         version: link:../../packages/goals
@@ -947,6 +950,102 @@ importers:
       '@ai-agent/shared':
         specifier: workspace:*
         version: link:../shared
+
+  packages/flux-runtime:
+    dependencies:
+      '@ai-agent/agent':
+        specifier: workspace:*
+        version: link:../agent
+      '@ai-agent/attention':
+        specifier: workspace:*
+        version: link:../attention
+      '@ai-agent/cognitive':
+        specifier: workspace:*
+        version: link:../cognitive
+      '@ai-agent/confidence-calibration':
+        specifier: workspace:*
+        version: link:../confidence-calibration
+      '@ai-agent/decisions':
+        specifier: workspace:*
+        version: link:../decisions
+      '@ai-agent/evo-types':
+        specifier: workspace:*
+        version: link:../evo-types
+      '@ai-agent/exec-types':
+        specifier: workspace:*
+        version: link:../exec-types
+      '@ai-agent/experience-db':
+        specifier: workspace:*
+        version: link:../experience-db
+      '@ai-agent/goals':
+        specifier: workspace:*
+        version: link:../goals
+      '@ai-agent/habit-discovery':
+        specifier: workspace:*
+        version: link:../habit-discovery
+      '@ai-agent/knowledge-consolidation':
+        specifier: workspace:*
+        version: link:../knowledge-consolidation
+      '@ai-agent/meta-cognition':
+        specifier: workspace:*
+        version: link:../meta-cognition
+      '@ai-agent/providers':
+        specifier: workspace:*
+        version: link:../providers
+      '@ai-agent/reasoning':
+        specifier: workspace:*
+        version: link:../reasoning
+      '@ai-agent/services-automations':
+        specifier: workspace:*
+        version: link:../services/automations
+      '@ai-agent/services-chat':
+        specifier: workspace:*
+        version: link:../services/chat
+      '@ai-agent/services-coding':
+        specifier: workspace:*
+        version: link:../services/coding
+      '@ai-agent/services-context':
+        specifier: workspace:*
+        version: link:../services/context
+      '@ai-agent/services-core':
+        specifier: workspace:*
+        version: link:../services/core
+      '@ai-agent/services-files':
+        specifier: workspace:*
+        version: link:../services/files
+      '@ai-agent/services-monitor':
+        specifier: workspace:*
+        version: link:../services/monitor
+      '@ai-agent/services-notifications':
+        specifier: workspace:*
+        version: link:../services/notifications
+      '@ai-agent/services-proactive':
+        specifier: workspace:*
+        version: link:../services/proactive
+      '@ai-agent/services-reminders':
+        specifier: workspace:*
+        version: link:../services/reminders
+      '@ai-agent/services-search':
+        specifier: workspace:*
+        version: link:../services/search
+      '@ai-agent/services-system':
+        specifier: workspace:*
+        version: link:../services/system
+      '@ai-agent/shared':
+        specifier: workspace:*
+        version: link:../shared
+      '@ai-agent/strategy-library':
+        specifier: workspace:*
+        version: link:../strategy-library
+      '@ai-agent/tools':
+        specifier: workspace:*
+        version: link:../tools
+      '@ai-agent/working-memory':
+        specifier: workspace:*
+        version: link:../working-memory
+      '@ai-agent/world-model':
+        specifier: workspace:*
+        version: link:../world-model
 
   packages/goals:
     dependencies:

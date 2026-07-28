@@ -1,0 +1,27 @@
+{
+  "name": "@ai-agent/reasoning",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "lint": "biome check src",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@ai-agent/cognitive-types": "workspace:*",
+    "@ai-agent/attention": "workspace:*",
+    "@ai-agent/world-model": "workspace:*",
+    "@ai-agent/working-memory": "workspace:*",
+    "@ai-agent/goals": "workspace:*"
+  }
+}

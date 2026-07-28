@@ -14,6 +14,12 @@ import { createAutomationService } from "@ai-agent/services-automations";
 import { createContextService } from "@ai-agent/services-context";
 import { createProactiveService } from "@ai-agent/services-proactive";
 import { AttentionManager, type ObservationSource } from "@ai-agent/attention";
+import { DefaultWorldModel } from "@ai-agent/world-model";
+import { DefaultWorkingMemory } from "@ai-agent/working-memory";
+import { DefaultGoalManager } from "@ai-agent/goals";
+import { DefaultReasoningEngine, LlmThoughtGenerator } from "@ai-agent/reasoning";
+import { DefaultDecisionEngine, DefaultInterruptController } from "@ai-agent/decisions";
+import { DefaultCognitiveOrchestrator, type CognitiveOrchestrator } from "@ai-agent/cognitive";
 
 export interface FluxConfig {
   provider: ProviderName;
@@ -32,6 +38,7 @@ export interface FluxInstance {
   llmProvider: Provider;
   model: string;
   attention: AttentionManager;
+  cognitive: CognitiveOrchestrator;
 }
 
 export function createFlux(config: FluxConfig): FluxInstance {
@@ -85,15 +92,54 @@ export function createFlux(config: FluxConfig): FluxInstance {
   const orchestrator = new Orchestrator(serviceRegistry);
   const session = new DefaultSession("flux-session");
 
+  const worldModel = new DefaultWorldModel();
+  const workingMemory = new DefaultWorkingMemory({ capacity: 50 });
+  const goalManager = new DefaultGoalManager();
+  const thoughtGenerator = new LlmThoughtGenerator(llmProvider);
+  const reasoningEngine = new DefaultReasoningEngine(thoughtGenerator);
+  const decisionEngine = new DefaultDecisionEngine();
+  const interruptController = new DefaultInterruptController();
+
+  let cognitiveReady = false;
+  const cognitive = new DefaultCognitiveOrchestrator(
+    worldModel,
+    workingMemory,
+    goalManager,
+    reasoningEngine,
+    decisionEngine,
+    interruptController,
+    {
+      llmProvider,
+      onAction: (decision) => {
+        if (decision.action.type === "speak") {
+          console.log(`[Cognitive] ${decision.action.payload["text"]}`);
+        }
+      },
+      onThought: (thought) => {
+        if (thought.confidence > 0.7) {
+          console.log(`[Thought] (${thought.type}) ${thought.content} [${(thought.confidence * 100).toFixed(0)}%]`);
+        }
+      },
+    },
+  );
+
   const attention = new AttentionManager({
     minBrainScore: 40,
     onSummary: (summary) => {
       console.log(`[Attention] Summary: ${summary.summary} (${summary.totalCount} events, ${summary.timeRange.start}-${summary.timeRange.end})`);
     },
+    onObservation: (observation) => {
+      if (cognitiveReady) {
+        cognitive.observe(observation);
+      }
+    },
   });
+
+  cognitiveReady = true;
 
   async function process(input: string): Promise<string> {
     await session.memory.add("user", input);
+    cognitive.message(input);
 
     const result = await orchestrator.process(input, {
       sessionId: session.id,
@@ -111,5 +157,5 @@ export function createFlux(config: FluxConfig): FluxInstance {
     return attention.process(event);
   }
 
-  return { process, session, llmProvider: provider, model: config.model, attention, processEvent };
+  return { process, session, llmProvider: provider, model: config.model, attention, processEvent, cognitive };
 }

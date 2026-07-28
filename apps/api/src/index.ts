@@ -231,6 +231,7 @@ const server = createServer(async (req, res) => {
         { name: "files", description: "File manager" },
         { name: "voice", description: "Voice transcription and speech" },
         { name: "attention", description: "Event filtering and prioritization" },
+        { name: "cognitive", description: "Reasoning, goals, and decision engine" },
       ],
     });
     return;
@@ -266,18 +267,119 @@ const server = createServer(async (req, res) => {
     return;
   }
 
+  if (req.method === "GET" && req.url === "/cognitive/state") {
+    const state = flux.cognitive.getState();
+    sendJson(res, 200, {
+      world: state.world,
+      activeGoal: state.activeGoal,
+      goals: state.goals,
+      memoryUtilization: state.memory.utilization,
+      reasoningState: state.reasoningState,
+      stats: {
+        totalCycles: state.totalCycles,
+        totalThoughts: state.totalThoughts,
+        totalActions: state.totalActions,
+        lastCycleDuration: state.lastCycleDuration,
+      },
+    });
+    return;
+  }
+
+  if (req.method === "POST" && req.url === "/cognitive/observe") {
+    try {
+      const body = await parseBody(req);
+      const event = JSON.parse(body.toString()) as { source: string; title: string; detail: string };
+
+      if (!event.source || !event.title) {
+        sendJson(res, 400, { error: "source and title are required" });
+        return;
+      }
+
+      const result = flux.processEvent({
+        source: event.source as import("@ai-agent/attention").ObservationSource,
+        title: event.title,
+        detail: event.detail ?? "",
+      });
+
+      if (result.observation) {
+        flux.cognitive.observe(result.observation);
+      }
+
+      sendJson(res, 200, { processed: true, action: result.action });
+    } catch (err) {
+      const error = err instanceof Error ? err.message : String(err);
+      sendJson(res, 500, { error });
+    }
+    return;
+  }
+
+  if (req.method === "POST" && req.url === "/cognitive/message") {
+    try {
+      const body = await parseBody(req);
+      const { message } = JSON.parse(body.toString()) as { message?: string };
+
+      if (!message || typeof message !== "string") {
+        sendJson(res, 400, { error: "message is required" });
+        return;
+      }
+
+      flux.cognitive.message(message);
+      const state = flux.cognitive.getState();
+
+      sendJson(res, 200, {
+        activeGoal: state.activeGoal,
+        goals: state.goals,
+        memoryUtilization: state.memory.utilization,
+      });
+    } catch (err) {
+      const error = err instanceof Error ? err.message : String(err);
+      sendJson(res, 500, { error });
+    }
+    return;
+  }
+
+  if (req.method === "POST" && req.url === "/cognitive/reason") {
+    try {
+      const result = await flux.cognitive.forceCycle("user_message");
+      sendJson(res, 200, {
+        thoughts: result.thoughts,
+        recommendedAction: result.recommendedAction,
+        confidence: result.confidence,
+        durationMs: result.durationMs,
+      });
+    } catch (err) {
+      const error = err instanceof Error ? err.message : String(err);
+      sendJson(res, 500, { error });
+    }
+    return;
+  }
+
+  if (req.method === "GET" && req.url === "/cognitive/goals") {
+    const state = flux.cognitive.getState();
+    sendJson(res, 200, {
+      active: state.activeGoal,
+      all: state.goals,
+    });
+    return;
+  }
+
   sendJson(res, 404, { error: "Not found" });
 });
 
 server.listen(PORT, () => {
   console.log(`Flux API server running on http://localhost:${PORT}`);
   console.log(`Endpoints:`);
-  console.log(`  POST /chat              - Send a message`);
-  console.log(`  POST /chat/stream       - Send a message (SSE streaming)`);
-  console.log(`  POST /voice/transcribe  - Transcribe audio (base64 WAV)`);
-  console.log(`  POST /voice/speak       - Text to speech (returns WAV)`);
-  console.log(`  POST /attention/process - Process an observation event`);
-  console.log(`  GET  /attention/stats   - Get attention system stats`);
-  console.log(`  GET  /health            - Health check`);
-  console.log(`  GET  /services          - List available services`);
+  console.log(`  POST /chat                - Send a message`);
+  console.log(`  POST /chat/stream         - Send a message (SSE streaming)`);
+  console.log(`  POST /voice/transcribe    - Transcribe audio (base64 WAV)`);
+  console.log(`  POST /voice/speak         - Text to speech (returns WAV)`);
+  console.log(`  POST /attention/process   - Process an observation event`);
+  console.log(`  GET  /attention/stats     - Get attention system stats`);
+  console.log(`  GET  /cognitive/state     - Get cognitive system state`);
+  console.log(`  POST /cognitive/observe   - Feed observation to cognitive system`);
+  console.log(`  POST /cognitive/message   - Feed user message to cognitive system`);
+  console.log(`  POST /cognitive/reason    - Force a reasoning cycle`);
+  console.log(`  GET  /cognitive/goals     - Get current goals`);
+  console.log(`  GET  /health              - Health check`);
+  console.log(`  GET  /services            - List available services`);
 });

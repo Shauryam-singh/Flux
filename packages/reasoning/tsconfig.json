@@ -1,0 +1,21 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "dist",
+    "rootDir": "src",
+    "composite": true,
+    "declaration": true,
+    "declarationMap": false,
+    "emitDeclarationOnly": false,
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext"
+  },
+  "include": ["src"],
+  "references": [
+    { "path": "../../packages/cognitive-types" },
+    { "path": "../../packages/attention" },
+    { "path": "../../packages/world-model" },
+    { "path": "../../packages/working-memory" },
+    { "path": "../../packages/goals" }
+  ]
+}

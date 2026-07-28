@@ -38,12 +38,24 @@ importers:
       '@ai-agent/cli':
         specifier: workspace:*
         version: link:../cli
+      '@ai-agent/cognitive':
+        specifier: workspace:*
+        version: link:../../packages/cognitive
       '@ai-agent/config':
         specifier: workspace:*
         version: link:../../packages/config
+      '@ai-agent/decisions':
+        specifier: workspace:*
+        version: link:../../packages/decisions
+      '@ai-agent/goals':
+        specifier: workspace:*
+        version: link:../../packages/goals
       '@ai-agent/providers':
         specifier: workspace:*
         version: link:../../packages/providers
+      '@ai-agent/reasoning':
+        specifier: workspace:*
+        version: link:../../packages/reasoning
       '@ai-agent/services-chat':
         specifier: workspace:*
         version: link:../../packages/services/chat
@@ -74,6 +86,12 @@ importers:
       '@ai-agent/voice-tts':
         specifier: workspace:*
         version: link:../../packages/voice/tts
+      '@ai-agent/working-memory':
+        specifier: workspace:*
+        version: link:../../packages/working-memory
+      '@ai-agent/world-model':
+        specifier: workspace:*
+        version: link:../../packages/world-model
     devDependencies:
       '@types/node':
         specifier: ^26.1.0
@@ -90,12 +108,24 @@ importers:
       '@ai-agent/attention':
         specifier: workspace:*
         version: link:../../packages/attention
+      '@ai-agent/cognitive':
+        specifier: workspace:*
+        version: link:../../packages/cognitive
       '@ai-agent/config':
         specifier: workspace:*
         version: link:../../packages/config
+      '@ai-agent/decisions':
+        specifier: workspace:*
+        version: link:../../packages/decisions
+      '@ai-agent/goals':
+        specifier: workspace:*
+        version: link:../../packages/goals
       '@ai-agent/providers':
         specifier: workspace:*
         version: link:../../packages/providers
+      '@ai-agent/reasoning':
+        specifier: workspace:*
+        version: link:../../packages/reasoning
       '@ai-agent/services-automations':
         specifier: workspace:*
         version: link:../../packages/services/automations
@@ -135,6 +165,12 @@ importers:
       '@ai-agent/tools':
         specifier: workspace:*
         version: link:../../packages/tools
+      '@ai-agent/working-memory':
+        specifier: workspace:*
+        version: link:../../packages/working-memory
+      '@ai-agent/world-model':
+        specifier: workspace:*
+        version: link:../../packages/world-model
     devDependencies:
       tsx:
         specifier: ^4.23.0
@@ -174,11 +210,71 @@ importers:
         specifier: workspace:*
         version: link:../shared
 
+  packages/cognitive:
+    dependencies:
+      '@ai-agent/attention':
+        specifier: workspace:*
+        version: link:../attention
+      '@ai-agent/cognitive-types':
+        specifier: workspace:*
+        version: link:../cognitive-types
+      '@ai-agent/decisions':
+        specifier: workspace:*
+        version: link:../decisions
+      '@ai-agent/goals':
+        specifier: workspace:*
+        version: link:../goals
+      '@ai-agent/reasoning':
+        specifier: workspace:*
+        version: link:../reasoning
+      '@ai-agent/shared':
+        specifier: workspace:*
+        version: link:../shared
+      '@ai-agent/working-memory':
+        specifier: workspace:*
+        version: link:../working-memory
+      '@ai-agent/world-model':
+        specifier: workspace:*
+        version: link:../world-model
+
+  packages/cognitive-types:
+    dependencies:
+      '@ai-agent/shared':
+        specifier: workspace:*
+        version: link:../shared
+
   packages/config:
     dependencies:
       '@ai-agent/shared':
         specifier: workspace:*
         version: link:../shared
+
+  packages/decisions:
+    dependencies:
+      '@ai-agent/cognitive-types':
+        specifier: workspace:*
+        version: link:../cognitive-types
+      '@ai-agent/goals':
+        specifier: workspace:*
+        version: link:../goals
+      '@ai-agent/shared':
+        specifier: workspace:*
+        version: link:../shared
+      '@ai-agent/working-memory':
+        specifier: workspace:*
+        version: link:../working-memory
+      '@ai-agent/world-model':
+        specifier: workspace:*
+        version: link:../world-model
+
+  packages/goals:
+    dependencies:
+      '@ai-agent/shared':
+        specifier: workspace:*
+        version: link:../shared
+      '@ai-agent/world-model':
+        specifier: workspace:*
+        version: link:../world-model
 
   packages/providers:
     dependencies:
@@ -194,6 +290,24 @@ importers:
       zod:
         specifier: ^4.4.3
         version: 4.4.3
+
+  packages/reasoning:
+    dependencies:
+      '@ai-agent/attention':
+        specifier: workspace:*
+        version: link:../attention
+      '@ai-agent/cognitive-types':
+        specifier: workspace:*
+        version: link:../cognitive-types
+      '@ai-agent/goals':
+        specifier: workspace:*
+        version: link:../goals
+      '@ai-agent/working-memory':
+        specifier: workspace:*
+        version: link:../working-memory
+      '@ai-agent/world-model':
+        specifier: workspace:*
+        version: link:../world-model
 
   packages/router:
     dependencies:
@@ -357,6 +471,21 @@ importers:
       '@ai-agent/shared':
         specifier: workspace:*
         version: link:../../shared
+
+  packages/working-memory:
+    dependencies:
+      '@ai-agent/shared':
+        specifier: workspace:*
+        version: link:../shared
+
+  packages/world-model:
+    dependencies:
+      '@ai-agent/attention':
+        specifier: workspace:*
+        version: link:../attention
+      '@ai-agent/shared':
+        specifier: workspace:*
+        version: link:../shared
 
 packages:
 

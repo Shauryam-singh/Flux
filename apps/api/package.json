@@ -23,7 +23,13 @@
     "@ai-agent/cli": "workspace:*",
     "@ai-agent/voice-stt": "workspace:*",
     "@ai-agent/voice-tts": "workspace:*",
-    "@ai-agent/attention": "workspace:*"
+    "@ai-agent/attention": "workspace:*",
+    "@ai-agent/world-model": "workspace:*",
+    "@ai-agent/working-memory": "workspace:*",
+    "@ai-agent/goals": "workspace:*",
+    "@ai-agent/reasoning": "workspace:*",
+    "@ai-agent/decisions": "workspace:*",
+    "@ai-agent/cognitive": "workspace:*"
   },
   "devDependencies": {
     "tsx": "^4.23.0",

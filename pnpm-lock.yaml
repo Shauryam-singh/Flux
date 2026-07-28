@@ -99,6 +99,9 @@ importers:
       '@ai-agent/services-coding':
         specifier: workspace:*
         version: link:../../packages/services/coding
+      '@ai-agent/services-context':
+        specifier: workspace:*
+        version: link:../../packages/services/context
       '@ai-agent/services-core':
         specifier: workspace:*
         version: link:../../packages/services/core
@@ -111,6 +114,9 @@ importers:
       '@ai-agent/services-notifications':
         specifier: workspace:*
         version: link:../../packages/services/notifications
+      '@ai-agent/services-proactive':
+        specifier: workspace:*
+        version: link:../../packages/services/proactive
       '@ai-agent/services-reminders':
         specifier: workspace:*
         version: link:../../packages/services/reminders
@@ -231,6 +237,15 @@ importers:
         specifier: workspace:*
         version: link:../../tools
 
+  packages/services/context:
+    dependencies:
+      '@ai-agent/services-core':
+        specifier: workspace:*
+        version: link:../core
+      '@ai-agent/shared':
+        specifier: workspace:*
+        version: link:../../shared
+
   packages/services/core:
     dependencies:
       '@ai-agent/agent':
@@ -259,6 +274,15 @@ importers:
         version: link:../../shared
 
   packages/services/notifications:
+    dependencies:
+      '@ai-agent/services-core':
+        specifier: workspace:*
+        version: link:../core
+      '@ai-agent/shared':
+        specifier: workspace:*
+        version: link:../../shared
+
+  packages/services/proactive:
     dependencies:
       '@ai-agent/services-core':
         specifier: workspace:*

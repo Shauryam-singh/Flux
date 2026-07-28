@@ -4,6 +4,7 @@ import { createProcessMonitorTool } from "../tools/process/process-monitor.js";
 import { createCronTool } from "../tools/schedule/cron.js";
 import { createSystemInfoTool } from "../tools/system/system-info.js";
 import { createDockerTool } from "../tools/docker/docker.js";
+import { createScreenMonitorTool } from "../tools/screen/screen-monitor.js";
 
 describe("HttpRequestTool", () => {
   it("should have correct name and description", () => {
@@ -113,5 +114,34 @@ describe("DockerTool", () => {
     const tool = createDockerTool();
     const result = await tool.execute({ action: "stop" });
     expect(result.success).toBe(false);
+  });
+});
+
+describe("ScreenMonitorTool", () => {
+  it("should have correct name", () => {
+    const tool = createScreenMonitorTool();
+    expect(tool.name).toBe("screen_monitor");
+  });
+
+  it("should check current state", async () => {
+    const tool = createScreenMonitorTool();
+    const result = await tool.execute({ action: "check" });
+    expect(result.success).toBe(true);
+    expect(result.output).toHaveProperty("activeApp");
+    expect(result.output).toHaveProperty("context");
+  });
+
+  it("should get diff", async () => {
+    const tool = createScreenMonitorTool();
+    const result = await tool.execute({ action: "diff" });
+    expect(result.success).toBe(true);
+    expect(result.output).toHaveProperty("current");
+  });
+
+  it("should list windows", async () => {
+    const tool = createScreenMonitorTool();
+    const result = await tool.execute({ action: "windows" });
+    expect(result.success).toBe(true);
+    expect(result.output).toHaveProperty("windows");
   });
 });

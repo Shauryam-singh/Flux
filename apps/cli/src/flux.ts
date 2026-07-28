@@ -1,4 +1,4 @@
-import { DefaultToolRegistry, echoTool, createReadFileTool, createWriteFileTool, createEditFileTool, createListDirectoryTool, createRunCommandTool, createGitStatusTool, createGitDiffTool, createGitLogTool, createGitAddTool, createGitCommitTool, createGitBranchTool, createGitCheckoutTool, createGitPushTool, createGitPullTool, createHttpRequestTool, createProcessMonitorTool, createCronTool, createSystemInfoTool, createDockerTool } from "@ai-agent/tools";
+import { DefaultToolRegistry, echoTool, createReadFileTool, createWriteFileTool, createEditFileTool, createListDirectoryTool, createRunCommandTool, createGitStatusTool, createGitDiffTool, createGitLogTool, createGitAddTool, createGitCommitTool, createGitBranchTool, createGitCheckoutTool, createGitPushTool, createGitPullTool, createHttpRequestTool, createProcessMonitorTool, createCronTool, createSystemInfoTool, createDockerTool, createScreenMonitorTool } from "@ai-agent/tools";
 import { DefaultProviderFactory, type ProviderName, type Provider } from "@ai-agent/providers";
 import { DefaultSession } from "@ai-agent/agent";
 import { DefaultServiceRegistry, Orchestrator, type LlmProvider } from "@ai-agent/services-core";
@@ -11,6 +11,8 @@ import { createFilesService } from "@ai-agent/services-files";
 import { createNotificationService } from "@ai-agent/services-notifications";
 import { createMonitorService } from "@ai-agent/services-monitor";
 import { createAutomationService } from "@ai-agent/services-automations";
+import { createContextService } from "@ai-agent/services-context";
+import { createProactiveService } from "@ai-agent/services-proactive";
 
 export interface FluxConfig {
   provider: ProviderName;
@@ -47,6 +49,7 @@ export function createFlux(config: FluxConfig): FluxInstance {
   toolRegistry.register(createCronTool());
   toolRegistry.register(createSystemInfoTool());
   toolRegistry.register(createDockerTool());
+  toolRegistry.register(createScreenMonitorTool());
 
   const factory = new DefaultProviderFactory(config.providerConfigs);
   const provider = factory.create(config.provider);
@@ -69,6 +72,8 @@ export function createFlux(config: FluxConfig): FluxInstance {
   serviceRegistry.register(createNotificationService());
   serviceRegistry.register(createMonitorService());
   serviceRegistry.register(createAutomationService());
+  serviceRegistry.register(createContextService());
+  serviceRegistry.register(createProactiveService());
 
   const orchestrator = new Orchestrator(serviceRegistry);
   const session = new DefaultSession("flux-session");

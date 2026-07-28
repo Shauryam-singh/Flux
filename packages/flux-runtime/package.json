@@ -38,6 +38,7 @@
     "@ai-agent/strategy-library": "workspace:*",
     "@ai-agent/confidence-calibration": "workspace:*",
     "@ai-agent/knowledge-consolidation": "workspace:*",
-    "@ai-agent/habit-discovery": "workspace:*"
+    "@ai-agent/habit-discovery": "workspace:*",
+    "@ai-agent/thought-graph": "workspace:*"
   }
 }

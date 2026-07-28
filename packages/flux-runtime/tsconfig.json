@@ -33,6 +33,7 @@
     { "path": "../../packages/strategy-library" },
     { "path": "../../packages/confidence-calibration" },
     { "path": "../../packages/knowledge-consolidation" },
-    { "path": "../../packages/habit-discovery" }
+    { "path": "../../packages/habit-discovery" },
+    { "path": "../../packages/thought-graph" }
   ]
 }

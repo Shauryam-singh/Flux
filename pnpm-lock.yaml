@@ -1037,6 +1037,9 @@ importers:
       '@ai-agent/strategy-library':
         specifier: workspace:*
         version: link:../strategy-library
+      '@ai-agent/thought-graph':
+        specifier: workspace:*
+        version: link:../thought-graph
       '@ai-agent/tools':
         specifier: workspace:*
         version: link:../tools
@@ -1504,6 +1507,12 @@ importers:
       '@ai-agent/exec-types':
         specifier: workspace:*
         version: link:../exec-types
+      '@ai-agent/shared':
+        specifier: workspace:*
+        version: link:../shared
+
+  packages/thought-graph:
+    dependencies:
       '@ai-agent/shared':
         specifier: workspace:*
         version: link:../shared

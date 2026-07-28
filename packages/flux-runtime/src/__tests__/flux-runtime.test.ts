@@ -53,6 +53,7 @@ describe("FluxRuntime", () => {
     expect(runtime.confidenceCalibration).toBeDefined();
     expect(runtime.knowledge).toBeDefined();
     expect(runtime.habits).toBeDefined();
+    expect(runtime.thoughtGraph).toBeDefined();
   });
 
   it("should return initial state when not running", async () => {
@@ -67,6 +68,9 @@ describe("FluxRuntime", () => {
     expect(state.cognitiveState).toBe("idle");
     expect(state.tickCount).toBe(0);
     expect(state.lastTickAt).toBeNull();
+    expect(state.thoughtGraphNodes).toBe(0);
+    expect(state.thoughtGraphEdges).toBe(0);
+    expect(state.lastPipelineDurationMs).toBeNull();
   });
 
   it("should start and stop background loop", async () => {
@@ -119,6 +123,41 @@ describe("FluxRuntime", () => {
     expect(typeof unsub).toBe("function");
     unsub();
     // Handler should not be called after unsubscribe
+  });
+
+  it("should manage thought graph", async () => {
+    const { DefaultFluxRuntime } = await import("../impl/default-flux-runtime.js");
+    runtime = new DefaultFluxRuntime(testConfig);
+
+    // Add thoughts manually
+    const thought = runtime.thoughtGraph.addNode({
+      type: "observation_interpretation",
+      content: "Test thought",
+      reasoning: "Testing thought graph",
+      confidence: { value: 0.8, reason: "test", timestamp: Date.now() },
+      evidence: [],
+      counterarguments: [],
+      relatedThoughtIds: [],
+      observationIds: [],
+      goalId: null,
+      expiresAt: null,
+      metadata: {},
+    });
+
+    expect(thought.id).toBeTruthy();
+    expect(runtime.thoughtGraph.snapshot().nodeCount).toBe(1);
+
+    // Test explanation
+    const explanation = runtime.explainThought(thought.id);
+    expect(explanation.mainThought).toBe("Test thought");
+    expect(explanation.confidenceReasoning).toBeTruthy();
+
+    // Test retrieval
+    const recent = runtime.getRecentThoughts(5);
+    expect(recent.length).toBeGreaterThanOrEqual(1);
+
+    const strongest = runtime.getStrongestThoughts(5);
+    expect(strongest.length).toBeGreaterThanOrEqual(1);
   });
 
   it("should shutdown cleanly", async () => {

@@ -28,6 +28,8 @@ import { DefaultStrategyLibrary } from "@ai-agent/strategy-library";
 import { DefaultConfidenceCalibration } from "@ai-agent/confidence-calibration";
 import { DefaultKnowledgeConsolidation } from "@ai-agent/knowledge-consolidation";
 import { DefaultHabitDiscovery } from "@ai-agent/habit-discovery";
+import { DefaultThoughtGraph, type CognitionResult } from "@ai-agent/thought-graph";
+import { CognitionPipeline } from "./cognition-pipeline.js";
 import { execSync } from "node:child_process";
 
 export class DefaultFluxRuntime implements FluxRuntime {
@@ -51,6 +53,8 @@ export class DefaultFluxRuntime implements FluxRuntime {
   readonly confidenceCalibration: InstanceType<typeof DefaultConfidenceCalibration>;
   readonly knowledge: InstanceType<typeof DefaultKnowledgeConsolidation>;
   readonly habits: InstanceType<typeof DefaultHabitDiscovery>;
+  readonly thoughtGraph: DefaultThoughtGraph;
+  private readonly pipeline: CognitionPipeline;
 
   private totalInteractions = 0;
   private cognitiveReady = false;
@@ -60,6 +64,7 @@ export class DefaultFluxRuntime implements FluxRuntime {
   private tickCount = 0;
   private lastScreenApp = "";
   private lastScreenTitle = "";
+  private lastPipelineDurationMs: number | null = null;
 
   constructor(config: FluxRuntimeConfig) {
     this.config = config;
@@ -139,7 +144,9 @@ export class DefaultFluxRuntime implements FluxRuntime {
       onSummary: () => {},
       onObservation: (observation) => {
         if (this.cognitiveReady) {
+          // Feed to both legacy cognitive system and new pipeline
           this.cognitive.observe(observation);
+          this.pipeline.feedObservation(observation);
         }
       },
     });
@@ -151,6 +158,17 @@ export class DefaultFluxRuntime implements FluxRuntime {
     this.confidenceCalibration = new DefaultConfidenceCalibration();
     this.knowledge = new DefaultKnowledgeConsolidation();
     this.habits = new DefaultHabitDiscovery();
+
+    // --- Layer 8: Thought Graph + Cognition Pipeline ---
+    this.thoughtGraph = new DefaultThoughtGraph();
+    this.pipeline = new CognitionPipeline(
+      this.thoughtGraph,
+      this.worldModel,
+      this.workingMemory,
+      this.goalManager,
+      this.llmProvider,
+      this.attention,
+    );
 
     this.cognitiveReady = true;
 
@@ -205,6 +223,18 @@ export class DefaultFluxRuntime implements FluxRuntime {
     };
   }
 
+  explainThought(thoughtId: string) {
+    return this.thoughtGraph.explain(thoughtId);
+  }
+
+  getRecentThoughts(limit = 10) {
+    return this.thoughtGraph.getRecentThoughts(limit);
+  }
+
+  getStrongestThoughts(limit = 10) {
+    return this.thoughtGraph.getStrongestThoughts(limit);
+  }
+
   private runTick(): void {
     if (!this.running) return;
 
@@ -217,6 +247,20 @@ export class DefaultFluxRuntime implements FluxRuntime {
       observationsGathered = this.gatherObservations();
     } catch {
       // Observation gathering is best-effort
+    }
+
+    // Run the 14-stage cognition pipeline
+    let pipelineResult: CognitionResult | undefined;
+    try {
+      // Use a synchronous wrapper for the async pipeline
+      this.pipeline.runTick().then((result) => {
+        this.lastPipelineDurationMs = result.durationMs;
+        pipelineResult = result;
+      }).catch(() => {
+        // Pipeline errors are non-fatal
+      });
+    } catch {
+      // Pipeline errors are non-fatal
     }
 
     this.lastTickAt = Date.now();
@@ -402,6 +446,21 @@ export class DefaultFluxRuntime implements FluxRuntime {
     // Step 10: Track confidence
     this.confidenceCalibration.record("chat_response", 0.8, responseText.length > 0);
 
+    // Step 11: Generate a thought about this interaction
+    this.thoughtGraph.addNode({
+      type: "observation_interpretation",
+      content: `User said: ${input.slice(0, 100)}`,
+      reasoning: "Direct user message",
+      confidence: { value: 1.0, reason: "Direct observation", timestamp: Date.now() },
+      evidence: [],
+      counterarguments: [],
+      relatedThoughtIds: [],
+      observationIds: [],
+      goalId: null,
+      expiresAt: Date.now() + 86400000, // 24 hours
+      metadata: { role: "user" },
+    });
+
     return {
       text: responseText,
       confidence: 0.8,
@@ -410,6 +469,8 @@ export class DefaultFluxRuntime implements FluxRuntime {
       metadata: {
         totalInteractions: this.totalInteractions,
         memorySize: this.workingMemory.snapshot().entries.length,
+        thoughtGraphNodes: this.thoughtGraph.snapshot().nodeCount,
+        thoughtGraphEdges: this.thoughtGraph.snapshot().edgeCount,
       },
     };
   }
@@ -425,6 +486,7 @@ export class DefaultFluxRuntime implements FluxRuntime {
   }
 
   getState(): FluxRuntimeState {
+    const graphSnapshot = this.thoughtGraph.snapshot();
     return {
       memorySize: this.workingMemory.snapshot().entries.length,
       activeGoals: this.goalManager.getAll().filter((g) => g.status === "active" || g.status === "in_progress").length,
@@ -437,6 +499,9 @@ export class DefaultFluxRuntime implements FluxRuntime {
       isRunning: this.running,
       lastTickAt: this.lastTickAt,
       tickCount: this.tickCount,
+      thoughtGraphNodes: graphSnapshot.nodeCount,
+      thoughtGraphEdges: graphSnapshot.edgeCount,
+      lastPipelineDurationMs: this.lastPipelineDurationMs,
     };
   }
 

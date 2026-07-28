@@ -3,6 +3,7 @@ import type { ObservationSource, AttentionManager } from "@ai-agent/attention";
 import type { CognitiveOrchestrator } from "@ai-agent/cognitive";
 import type { DefaultSession } from "@ai-agent/agent";
 import type { LlmProvider } from "@ai-agent/services-core";
+import type { DefaultThoughtGraph, CognitionResult } from "@ai-agent/thought-graph";
 
 export interface FluxRuntimeConfig {
   readonly provider: ProviderName;
@@ -37,6 +38,7 @@ export interface TickEvent {
   readonly observations: number;
   readonly cognitiveCycleRan: boolean;
   readonly duration: number;
+  readonly pipelineResult?: CognitionResult;
 }
 
 export interface FluxRuntime {
@@ -45,6 +47,7 @@ export interface FluxRuntime {
   readonly session: InstanceType<typeof DefaultSession>;
   readonly attention: InstanceType<typeof AttentionManager>;
   readonly cognitive: CognitiveOrchestrator;
+  readonly thoughtGraph: DefaultThoughtGraph;
   process(input: string): Promise<FluxRuntimeResult>;
   processEvent(event: { source: ObservationSource; title: string; detail: string }): {
     readonly action: "ignore" | "buffer" | "immediate" | "summarize";
@@ -55,6 +58,9 @@ export interface FluxRuntime {
   onTick(handler: (event: TickEvent) => void): () => void;
   getHistory(): ReadonlyArray<FluxRuntimeMessage>;
   getState(): FluxRuntimeState;
+  explainThought(thoughtId: string): ReturnType<DefaultThoughtGraph["explain"]>;
+  getRecentThoughts(limit?: number): ReturnType<DefaultThoughtGraph["getRecentThoughts"]>;
+  getStrongestThoughts(limit?: number): ReturnType<DefaultThoughtGraph["getStrongestThoughts"]>;
   shutdown(): Promise<void>;
 }
 
@@ -70,4 +76,7 @@ export interface FluxRuntimeState {
   readonly isRunning: boolean;
   readonly lastTickAt: number | null;
   readonly tickCount: number;
+  readonly thoughtGraphNodes: number;
+  readonly thoughtGraphEdges: number;
+  readonly lastPipelineDurationMs: number | null;
 }

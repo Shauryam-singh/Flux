@@ -207,6 +207,76 @@ export function renderMemoryPage() {
   });
 }
 
+// ─── Voice Recording Indicator ───
+
+export function setVoiceRecording(recording) {
+  // Update voice button visual state
+  const voiceBtn = document.querySelector('.action-btn[data-action="voice"]');
+  if (voiceBtn) {
+    if (recording) {
+      voiceBtn.classList.add('recording');
+      voiceBtn.textContent = 'Stop';
+    } else {
+      voiceBtn.classList.remove('recording');
+      voiceBtn.textContent = 'Voice';
+    }
+  }
+
+  // Update status indicator
+  const statusDot = document.getElementById('status-dot');
+  const statusText = document.getElementById('status-text');
+  if (recording) {
+    if (statusDot) statusDot.style.background = 'var(--error)';
+    if (statusText) statusText.textContent = 'Recording';
+  } else {
+    if (statusDot) statusDot.style.background = '';
+    if (statusText) statusText.textContent = 'Watching';
+  }
+}
+
+// ─── Toast Notifications ───
+
+export function showToast(message, type = 'info', duration = 3000) {
+  let container = document.getElementById('toast-container');
+  if (!container) {
+    container = document.createElement('div');
+    container.id = 'toast-container';
+    container.style.cssText = 'position:fixed;top:12px;right:12px;z-index:9999;display:flex;flex-direction:column;gap:6px;pointer-events:none;';
+    document.body.appendChild(container);
+  }
+
+  const colors = {
+    info: 'var(--accent)',
+    success: 'var(--success)',
+    warning: 'var(--warning)',
+    error: 'var(--error)',
+  };
+
+  const toast = document.createElement('div');
+  toast.style.cssText = `
+    padding: 8px 14px;
+    border-radius: 8px;
+    background: rgba(25, 30, 40, 0.9);
+    backdrop-filter: blur(12px);
+    border: 1px solid ${colors[type] || colors.info}33;
+    border-left: 3px solid ${colors[type] || colors.info};
+    color: var(--text);
+    font-size: 11px;
+    font-family: var(--font-sans);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    animation: slide-in-right 0.2s ease;
+    pointer-events: auto;
+    max-width: 280px;
+  `;
+  toast.textContent = message;
+  container.appendChild(toast);
+
+  setTimeout(() => {
+    toast.style.animation = 'fade-out 0.2s ease forwards';
+    setTimeout(() => toast.remove(), 200);
+  }, duration);
+}
+
 // ─── Helpers ───
 
 function escapeHtml(str) {

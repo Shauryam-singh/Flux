@@ -711,6 +711,12 @@ ul, ol {
   color: var(--accent);
   border-color: rgba(85, 214, 255, 0.2);
 }
+.action-btn.recording {
+  color: var(--error);
+  border-color: rgba(255, 107, 107, 0.3);
+  background: var(--error-dim);
+  animation: glow-pulse 1s ease-in-out infinite;
+}
 
 /* ─── MISSION CONTROL — Full Dashboard ─── */
 #mode-dashboard {

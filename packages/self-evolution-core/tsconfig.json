@@ -1,0 +1,24 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": { "outDir": "dist", "rootDir": "src", "composite": true, "declaration": true, "declarationMap": false, "emitDeclarationOnly": false, "module": "NodeNext", "moduleResolution": "NodeNext" },
+  "include": ["src"],
+  "references": [
+    { "path": "../../packages/shared" },
+    { "path": "../../packages/exec-types" },
+    { "path": "../../packages/evo-types" },
+    { "path": "../../packages/meta-cognition" },
+    { "path": "../../packages/strategy-library" },
+    { "path": "../../packages/experience-db" },
+    { "path": "../../packages/adaptive-planner" },
+    { "path": "../../packages/workflow-discovery" },
+    { "path": "../../packages/skill-library" },
+    { "path": "../../packages/knowledge-consolidation" },
+    { "path": "../../packages/confidence-calibration" },
+    { "path": "../../packages/self-evaluation" },
+    { "path": "../../packages/habit-discovery" },
+    { "path": "../../packages/automation-builder" },
+    { "path": "../../packages/cognitive-health" },
+    { "path": "../../packages/simulation-engine" },
+    { "path": "../../packages/research-mode" }
+  ]
+}

@@ -77,7 +77,23 @@
     "@ai-agent/verification": "workspace:*",
     "@ai-agent/background-projects": "workspace:*",
     "@ai-agent/long-goals": "workspace:*",
-    "@ai-agent/executive-core": "workspace:*"
+    "@ai-agent/executive-core": "workspace:*",
+    "@ai-agent/evo-types": "workspace:*",
+    "@ai-agent/meta-cognition": "workspace:*",
+    "@ai-agent/strategy-library": "workspace:*",
+    "@ai-agent/experience-db": "workspace:*",
+    "@ai-agent/adaptive-planner": "workspace:*",
+    "@ai-agent/workflow-discovery": "workspace:*",
+    "@ai-agent/skill-library": "workspace:*",
+    "@ai-agent/knowledge-consolidation": "workspace:*",
+    "@ai-agent/confidence-calibration": "workspace:*",
+    "@ai-agent/self-evaluation": "workspace:*",
+    "@ai-agent/habit-discovery": "workspace:*",
+    "@ai-agent/automation-builder": "workspace:*",
+    "@ai-agent/cognitive-health": "workspace:*",
+    "@ai-agent/simulation-engine": "workspace:*",
+    "@ai-agent/research-mode": "workspace:*",
+    "@ai-agent/self-evolution-core": "workspace:*"
   },
   "devDependencies": {
     "tsx": "^4.23.0"

@@ -1,0 +1,29 @@
+{
+  "name": "@ai-agent/self-evolution-core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" } },
+  "scripts": { "build": "tsc -b", "typecheck": "tsc --noEmit -p tsconfig.json" },
+  "dependencies": {
+    "@ai-agent/shared": "workspace:*",
+    "@ai-agent/exec-types": "workspace:*",
+    "@ai-agent/evo-types": "workspace:*",
+    "@ai-agent/meta-cognition": "workspace:*",
+    "@ai-agent/strategy-library": "workspace:*",
+    "@ai-agent/experience-db": "workspace:*",
+    "@ai-agent/adaptive-planner": "workspace:*",
+    "@ai-agent/workflow-discovery": "workspace:*",
+    "@ai-agent/skill-library": "workspace:*",
+    "@ai-agent/knowledge-consolidation": "workspace:*",
+    "@ai-agent/confidence-calibration": "workspace:*",
+    "@ai-agent/self-evaluation": "workspace:*",
+    "@ai-agent/habit-discovery": "workspace:*",
+    "@ai-agent/automation-builder": "workspace:*",
+    "@ai-agent/cognitive-health": "workspace:*",
+    "@ai-agent/simulation-engine": "workspace:*",
+    "@ai-agent/research-mode": "workspace:*"
+  }
+}

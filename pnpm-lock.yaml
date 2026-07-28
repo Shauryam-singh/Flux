@@ -29,6 +29,9 @@ importers:
 
   apps/api:
     dependencies:
+      '@ai-agent/adaptive-planner':
+        specifier: workspace:*
+        version: link:../../packages/adaptive-planner
       '@ai-agent/agent':
         specifier: workspace:*
         version: link:../../packages/agent
@@ -53,6 +56,9 @@ importers:
       '@ai-agent/attention':
         specifier: workspace:*
         version: link:../../packages/attention
+      '@ai-agent/automation-builder':
+        specifier: workspace:*
+        version: link:../../packages/automation-builder
       '@ai-agent/background-projects':
         specifier: workspace:*
         version: link:../../packages/background-projects
@@ -65,12 +71,18 @@ importers:
       '@ai-agent/cognitive':
         specifier: workspace:*
         version: link:../../packages/cognitive
+      '@ai-agent/cognitive-health':
+        specifier: workspace:*
+        version: link:../../packages/cognitive-health
       '@ai-agent/companion':
         specifier: workspace:*
         version: link:../../packages/companion
       '@ai-agent/companion-core':
         specifier: workspace:*
         version: link:../../packages/companion-core
+      '@ai-agent/confidence-calibration':
+        specifier: workspace:*
+        version: link:../../packages/confidence-calibration
       '@ai-agent/config':
         specifier: workspace:*
         version: link:../../packages/config
@@ -89,6 +101,9 @@ importers:
       '@ai-agent/env-timeline':
         specifier: workspace:*
         version: link:../../packages/env-timeline
+      '@ai-agent/evo-types':
+        specifier: workspace:*
+        version: link:../../packages/evo-types
       '@ai-agent/exec-types':
         specifier: workspace:*
         version: link:../../packages/exec-types
@@ -101,15 +116,27 @@ importers:
       '@ai-agent/executive-planner':
         specifier: workspace:*
         version: link:../../packages/executive-planner
+      '@ai-agent/experience-db':
+        specifier: workspace:*
+        version: link:../../packages/experience-db
       '@ai-agent/goals':
         specifier: workspace:*
         version: link:../../packages/goals
+      '@ai-agent/habit-discovery':
+        specifier: workspace:*
+        version: link:../../packages/habit-discovery
+      '@ai-agent/knowledge-consolidation':
+        specifier: workspace:*
+        version: link:../../packages/knowledge-consolidation
       '@ai-agent/learning':
         specifier: workspace:*
         version: link:../../packages/learning
       '@ai-agent/long-goals':
         specifier: workspace:*
         version: link:../../packages/long-goals
+      '@ai-agent/meta-cognition':
+        specifier: workspace:*
+        version: link:../../packages/meta-cognition
       '@ai-agent/multi-device':
         specifier: workspace:*
         version: link:../../packages/multi-device
@@ -137,9 +164,18 @@ importers:
       '@ai-agent/relationship':
         specifier: workspace:*
         version: link:../../packages/relationship
+      '@ai-agent/research-mode':
+        specifier: workspace:*
+        version: link:../../packages/research-mode
       '@ai-agent/resource-manager':
         specifier: workspace:*
         version: link:../../packages/resource-manager
+      '@ai-agent/self-evaluation':
+        specifier: workspace:*
+        version: link:../../packages/self-evaluation
+      '@ai-agent/self-evolution-core':
+        specifier: workspace:*
+        version: link:../../packages/self-evolution-core
       '@ai-agent/services-chat':
         specifier: workspace:*
         version: link:../../packages/services/chat
@@ -161,9 +197,18 @@ importers:
       '@ai-agent/services-system':
         specifier: workspace:*
         version: link:../../packages/services/system
+      '@ai-agent/simulation-engine':
+        specifier: workspace:*
+        version: link:../../packages/simulation-engine
+      '@ai-agent/skill-library':
+        specifier: workspace:*
+        version: link:../../packages/skill-library
       '@ai-agent/speech':
         specifier: workspace:*
         version: link:../../packages/speech
+      '@ai-agent/strategy-library':
+        specifier: workspace:*
+        version: link:../../packages/strategy-library
       '@ai-agent/task-graph':
         specifier: workspace:*
         version: link:../../packages/task-graph
@@ -188,6 +233,9 @@ importers:
       '@ai-agent/voice-tts':
         specifier: workspace:*
         version: link:../../packages/voice/tts
+      '@ai-agent/workflow-discovery':
+        specifier: workspace:*
+        version: link:../../packages/workflow-discovery
       '@ai-agent/working-memory':
         specifier: workspace:*
         version: link:../../packages/working-memory
@@ -207,6 +255,9 @@ importers:
 
   apps/cli:
     dependencies:
+      '@ai-agent/adaptive-planner':
+        specifier: workspace:*
+        version: link:../../packages/adaptive-planner
       '@ai-agent/agent':
         specifier: workspace:*
         version: link:../../packages/agent
@@ -231,6 +282,9 @@ importers:
       '@ai-agent/attention':
         specifier: workspace:*
         version: link:../../packages/attention
+      '@ai-agent/automation-builder':
+        specifier: workspace:*
+        version: link:../../packages/automation-builder
       '@ai-agent/background-projects':
         specifier: workspace:*
         version: link:../../packages/background-projects
@@ -240,12 +294,18 @@ importers:
       '@ai-agent/cognitive':
         specifier: workspace:*
         version: link:../../packages/cognitive
+      '@ai-agent/cognitive-health':
+        specifier: workspace:*
+        version: link:../../packages/cognitive-health
       '@ai-agent/companion':
         specifier: workspace:*
         version: link:../../packages/companion
       '@ai-agent/companion-core':
         specifier: workspace:*
         version: link:../../packages/companion-core
+      '@ai-agent/confidence-calibration':
+        specifier: workspace:*
+        version: link:../../packages/confidence-calibration
       '@ai-agent/config':
         specifier: workspace:*
         version: link:../../packages/config
@@ -264,6 +324,9 @@ importers:
       '@ai-agent/env-timeline':
         specifier: workspace:*
         version: link:../../packages/env-timeline
+      '@ai-agent/evo-types':
+        specifier: workspace:*
+        version: link:../../packages/evo-types
       '@ai-agent/exec-types':
         specifier: workspace:*
         version: link:../../packages/exec-types
@@ -276,15 +339,27 @@ importers:
       '@ai-agent/executive-planner':
         specifier: workspace:*
         version: link:../../packages/executive-planner
+      '@ai-agent/experience-db':
+        specifier: workspace:*
+        version: link:../../packages/experience-db
       '@ai-agent/goals':
         specifier: workspace:*
         version: link:../../packages/goals
+      '@ai-agent/habit-discovery':
+        specifier: workspace:*
+        version: link:../../packages/habit-discovery
+      '@ai-agent/knowledge-consolidation':
+        specifier: workspace:*
+        version: link:../../packages/knowledge-consolidation
       '@ai-agent/learning':
         specifier: workspace:*
         version: link:../../packages/learning
       '@ai-agent/long-goals':
         specifier: workspace:*
         version: link:../../packages/long-goals
+      '@ai-agent/meta-cognition':
+        specifier: workspace:*
+        version: link:../../packages/meta-cognition
       '@ai-agent/multi-device':
         specifier: workspace:*
         version: link:../../packages/multi-device
@@ -312,9 +387,18 @@ importers:
       '@ai-agent/relationship':
         specifier: workspace:*
         version: link:../../packages/relationship
+      '@ai-agent/research-mode':
+        specifier: workspace:*
+        version: link:../../packages/research-mode
       '@ai-agent/resource-manager':
         specifier: workspace:*
         version: link:../../packages/resource-manager
+      '@ai-agent/self-evaluation':
+        specifier: workspace:*
+        version: link:../../packages/self-evaluation
+      '@ai-agent/self-evolution-core':
+        specifier: workspace:*
+        version: link:../../packages/self-evolution-core
       '@ai-agent/services-automations':
         specifier: workspace:*
         version: link:../../packages/services/automations
@@ -351,9 +435,18 @@ importers:
       '@ai-agent/services-system':
         specifier: workspace:*
         version: link:../../packages/services/system
+      '@ai-agent/simulation-engine':
+        specifier: workspace:*
+        version: link:../../packages/simulation-engine
+      '@ai-agent/skill-library':
+        specifier: workspace:*
+        version: link:../../packages/skill-library
       '@ai-agent/speech':
         specifier: workspace:*
         version: link:../../packages/speech
+      '@ai-agent/strategy-library':
+        specifier: workspace:*
+        version: link:../../packages/strategy-library
       '@ai-agent/task-graph':
         specifier: workspace:*
         version: link:../../packages/task-graph
@@ -372,6 +465,9 @@ importers:
       '@ai-agent/vision':
         specifier: workspace:*
         version: link:../../packages/vision
+      '@ai-agent/workflow-discovery':
+        specifier: workspace:*
+        version: link:../../packages/workflow-discovery
       '@ai-agent/working-memory':
         specifier: workspace:*
         version: link:../../packages/working-memory
@@ -398,6 +494,24 @@ importers:
       vite:
         specifier: ^6.0.0
         version: 6.4.3(@types/node@26.1.0)(tsx@4.23.0)
+
+  packages/adaptive-planner:
+    dependencies:
+      '@ai-agent/evo-types':
+        specifier: workspace:*
+        version: link:../evo-types
+      '@ai-agent/exec-types':
+        specifier: workspace:*
+        version: link:../exec-types
+      '@ai-agent/experience-db':
+        specifier: workspace:*
+        version: link:../experience-db
+      '@ai-agent/shared':
+        specifier: workspace:*
+        version: link:../shared
+      '@ai-agent/strategy-library':
+        specifier: workspace:*
+        version: link:../strategy-library
 
   packages/agent:
     dependencies:
@@ -516,6 +630,24 @@ importers:
         specifier: workspace:*
         version: link:../shared
 
+  packages/automation-builder:
+    dependencies:
+      '@ai-agent/evo-types':
+        specifier: workspace:*
+        version: link:../evo-types
+      '@ai-agent/exec-types':
+        specifier: workspace:*
+        version: link:../exec-types
+      '@ai-agent/experience-db':
+        specifier: workspace:*
+        version: link:../experience-db
+      '@ai-agent/shared':
+        specifier: workspace:*
+        version: link:../shared
+      '@ai-agent/workflow-discovery':
+        specifier: workspace:*
+        version: link:../workflow-discovery
+
   packages/background-projects:
     dependencies:
       '@ai-agent/exec-types':
@@ -560,6 +692,24 @@ importers:
       '@ai-agent/world-model':
         specifier: workspace:*
         version: link:../world-model
+
+  packages/cognitive-health:
+    dependencies:
+      '@ai-agent/confidence-calibration':
+        specifier: workspace:*
+        version: link:../confidence-calibration
+      '@ai-agent/evo-types':
+        specifier: workspace:*
+        version: link:../evo-types
+      '@ai-agent/exec-types':
+        specifier: workspace:*
+        version: link:../exec-types
+      '@ai-agent/experience-db':
+        specifier: workspace:*
+        version: link:../experience-db
+      '@ai-agent/shared':
+        specifier: workspace:*
+        version: link:../shared
 
   packages/cognitive-types:
     dependencies:
@@ -623,6 +773,21 @@ importers:
       '@ai-agent/world-model':
         specifier: workspace:*
         version: link:../world-model
+
+  packages/confidence-calibration:
+    dependencies:
+      '@ai-agent/evo-types':
+        specifier: workspace:*
+        version: link:../evo-types
+      '@ai-agent/exec-types':
+        specifier: workspace:*
+        version: link:../exec-types
+      '@ai-agent/experience-db':
+        specifier: workspace:*
+        version: link:../experience-db
+      '@ai-agent/shared':
+        specifier: workspace:*
+        version: link:../shared
 
   packages/config:
     dependencies:
@@ -689,6 +854,12 @@ importers:
       '@ai-agent/shared':
         specifier: workspace:*
         version: link:../shared
+
+  packages/evo-types:
+    dependencies:
+      '@ai-agent/exec-types':
+        specifier: workspace:*
+        version: link:../exec-types
 
   packages/exec-types:
     dependencies:
@@ -765,6 +936,18 @@ importers:
         specifier: workspace:*
         version: link:../task-graph
 
+  packages/experience-db:
+    dependencies:
+      '@ai-agent/evo-types':
+        specifier: workspace:*
+        version: link:../evo-types
+      '@ai-agent/exec-types':
+        specifier: workspace:*
+        version: link:../exec-types
+      '@ai-agent/shared':
+        specifier: workspace:*
+        version: link:../shared
+
   packages/goals:
     dependencies:
       '@ai-agent/shared':
@@ -773,6 +956,36 @@ importers:
       '@ai-agent/world-model':
         specifier: workspace:*
         version: link:../world-model
+
+  packages/habit-discovery:
+    dependencies:
+      '@ai-agent/evo-types':
+        specifier: workspace:*
+        version: link:../evo-types
+      '@ai-agent/exec-types':
+        specifier: workspace:*
+        version: link:../exec-types
+      '@ai-agent/experience-db':
+        specifier: workspace:*
+        version: link:../experience-db
+      '@ai-agent/shared':
+        specifier: workspace:*
+        version: link:../shared
+
+  packages/knowledge-consolidation:
+    dependencies:
+      '@ai-agent/evo-types':
+        specifier: workspace:*
+        version: link:../evo-types
+      '@ai-agent/exec-types':
+        specifier: workspace:*
+        version: link:../exec-types
+      '@ai-agent/experience-db':
+        specifier: workspace:*
+        version: link:../experience-db
+      '@ai-agent/shared':
+        specifier: workspace:*
+        version: link:../shared
 
   packages/learning:
     dependencies:
@@ -788,6 +1001,18 @@ importers:
 
   packages/long-goals:
     dependencies:
+      '@ai-agent/exec-types':
+        specifier: workspace:*
+        version: link:../exec-types
+      '@ai-agent/shared':
+        specifier: workspace:*
+        version: link:../shared
+
+  packages/meta-cognition:
+    dependencies:
+      '@ai-agent/evo-types':
+        specifier: workspace:*
+        version: link:../evo-types
       '@ai-agent/exec-types':
         specifier: workspace:*
         version: link:../exec-types
@@ -888,6 +1113,24 @@ importers:
         specifier: workspace:*
         version: link:../shared
 
+  packages/research-mode:
+    dependencies:
+      '@ai-agent/evo-types':
+        specifier: workspace:*
+        version: link:../evo-types
+      '@ai-agent/exec-types':
+        specifier: workspace:*
+        version: link:../exec-types
+      '@ai-agent/experience-db':
+        specifier: workspace:*
+        version: link:../experience-db
+      '@ai-agent/shared':
+        specifier: workspace:*
+        version: link:../shared
+      '@ai-agent/strategy-library':
+        specifier: workspace:*
+        version: link:../strategy-library
+
   packages/resource-manager:
     dependencies:
       '@ai-agent/exec-types':
@@ -908,6 +1151,78 @@ importers:
       '@ai-agent/shared':
         specifier: workspace:*
         version: link:../shared
+
+  packages/self-evaluation:
+    dependencies:
+      '@ai-agent/confidence-calibration':
+        specifier: workspace:*
+        version: link:../confidence-calibration
+      '@ai-agent/evo-types':
+        specifier: workspace:*
+        version: link:../evo-types
+      '@ai-agent/exec-types':
+        specifier: workspace:*
+        version: link:../exec-types
+      '@ai-agent/experience-db':
+        specifier: workspace:*
+        version: link:../experience-db
+      '@ai-agent/shared':
+        specifier: workspace:*
+        version: link:../shared
+
+  packages/self-evolution-core:
+    dependencies:
+      '@ai-agent/adaptive-planner':
+        specifier: workspace:*
+        version: link:../adaptive-planner
+      '@ai-agent/automation-builder':
+        specifier: workspace:*
+        version: link:../automation-builder
+      '@ai-agent/cognitive-health':
+        specifier: workspace:*
+        version: link:../cognitive-health
+      '@ai-agent/confidence-calibration':
+        specifier: workspace:*
+        version: link:../confidence-calibration
+      '@ai-agent/evo-types':
+        specifier: workspace:*
+        version: link:../evo-types
+      '@ai-agent/exec-types':
+        specifier: workspace:*
+        version: link:../exec-types
+      '@ai-agent/experience-db':
+        specifier: workspace:*
+        version: link:../experience-db
+      '@ai-agent/habit-discovery':
+        specifier: workspace:*
+        version: link:../habit-discovery
+      '@ai-agent/knowledge-consolidation':
+        specifier: workspace:*
+        version: link:../knowledge-consolidation
+      '@ai-agent/meta-cognition':
+        specifier: workspace:*
+        version: link:../meta-cognition
+      '@ai-agent/research-mode':
+        specifier: workspace:*
+        version: link:../research-mode
+      '@ai-agent/self-evaluation':
+        specifier: workspace:*
+        version: link:../self-evaluation
+      '@ai-agent/shared':
+        specifier: workspace:*
+        version: link:../shared
+      '@ai-agent/simulation-engine':
+        specifier: workspace:*
+        version: link:../simulation-engine
+      '@ai-agent/skill-library':
+        specifier: workspace:*
+        version: link:../skill-library
+      '@ai-agent/strategy-library':
+        specifier: workspace:*
+        version: link:../strategy-library
+      '@ai-agent/workflow-discovery':
+        specifier: workspace:*
+        version: link:../workflow-discovery
 
   packages/services/automations:
     dependencies:
@@ -1034,11 +1349,53 @@ importers:
 
   packages/shared: {}
 
+  packages/simulation-engine:
+    dependencies:
+      '@ai-agent/evo-types':
+        specifier: workspace:*
+        version: link:../evo-types
+      '@ai-agent/exec-types':
+        specifier: workspace:*
+        version: link:../exec-types
+      '@ai-agent/shared':
+        specifier: workspace:*
+        version: link:../shared
+      '@ai-agent/strategy-library':
+        specifier: workspace:*
+        version: link:../strategy-library
+
+  packages/skill-library:
+    dependencies:
+      '@ai-agent/evo-types':
+        specifier: workspace:*
+        version: link:../evo-types
+      '@ai-agent/exec-types':
+        specifier: workspace:*
+        version: link:../exec-types
+      '@ai-agent/experience-db':
+        specifier: workspace:*
+        version: link:../experience-db
+      '@ai-agent/shared':
+        specifier: workspace:*
+        version: link:../shared
+
   packages/speech:
     dependencies:
       '@ai-agent/personality':
         specifier: workspace:*
         version: link:../personality
+      '@ai-agent/shared':
+        specifier: workspace:*
+        version: link:../shared
+
+  packages/strategy-library:
+    dependencies:
+      '@ai-agent/evo-types':
+        specifier: workspace:*
+        version: link:../evo-types
+      '@ai-agent/exec-types':
+        specifier: workspace:*
+        version: link:../exec-types
       '@ai-agent/shared':
         specifier: workspace:*
         version: link:../shared
@@ -1113,6 +1470,21 @@ importers:
       '@ai-agent/shared':
         specifier: workspace:*
         version: link:../../shared
+
+  packages/workflow-discovery:
+    dependencies:
+      '@ai-agent/evo-types':
+        specifier: workspace:*
+        version: link:../evo-types
+      '@ai-agent/exec-types':
+        specifier: workspace:*
+        version: link:../exec-types
+      '@ai-agent/experience-db':
+        specifier: workspace:*
+        version: link:../experience-db
+      '@ai-agent/shared':
+        specifier: workspace:*
+        version: link:../shared
 
   packages/working-memory:
     dependencies:

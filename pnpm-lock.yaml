@@ -32,15 +32,30 @@ importers:
       '@ai-agent/agent':
         specifier: workspace:*
         version: link:../../packages/agent
+      '@ai-agent/agent-framework':
+        specifier: workspace:*
+        version: link:../../packages/agent-framework
+      '@ai-agent/agent-protocol':
+        specifier: workspace:*
+        version: link:../../packages/agent-protocol
+      '@ai-agent/agent-registry':
+        specifier: workspace:*
+        version: link:../../packages/agent-registry
       '@ai-agent/ambient-core':
         specifier: workspace:*
         version: link:../../packages/ambient-core
       '@ai-agent/ambient-types':
         specifier: workspace:*
         version: link:../../packages/ambient-types
+      '@ai-agent/approval-pipeline':
+        specifier: workspace:*
+        version: link:../../packages/approval-pipeline
       '@ai-agent/attention':
         specifier: workspace:*
         version: link:../../packages/attention
+      '@ai-agent/background-projects':
+        specifier: workspace:*
+        version: link:../../packages/background-projects
       '@ai-agent/calendar':
         specifier: workspace:*
         version: link:../../packages/calendar
@@ -65,18 +80,36 @@ importers:
       '@ai-agent/decisions':
         specifier: workspace:*
         version: link:../../packages/decisions
+      '@ai-agent/delegation':
+        specifier: workspace:*
+        version: link:../../packages/delegation
       '@ai-agent/email':
         specifier: workspace:*
         version: link:../../packages/email
       '@ai-agent/env-timeline':
         specifier: workspace:*
         version: link:../../packages/env-timeline
+      '@ai-agent/exec-types':
+        specifier: workspace:*
+        version: link:../../packages/exec-types
+      '@ai-agent/execution-supervisor':
+        specifier: workspace:*
+        version: link:../../packages/execution-supervisor
+      '@ai-agent/executive-core':
+        specifier: workspace:*
+        version: link:../../packages/executive-core
+      '@ai-agent/executive-planner':
+        specifier: workspace:*
+        version: link:../../packages/executive-planner
       '@ai-agent/goals':
         specifier: workspace:*
         version: link:../../packages/goals
       '@ai-agent/learning':
         specifier: workspace:*
         version: link:../../packages/learning
+      '@ai-agent/long-goals':
+        specifier: workspace:*
+        version: link:../../packages/long-goals
       '@ai-agent/multi-device':
         specifier: workspace:*
         version: link:../../packages/multi-device
@@ -104,6 +137,9 @@ importers:
       '@ai-agent/relationship':
         specifier: workspace:*
         version: link:../../packages/relationship
+      '@ai-agent/resource-manager':
+        specifier: workspace:*
+        version: link:../../packages/resource-manager
       '@ai-agent/services-chat':
         specifier: workspace:*
         version: link:../../packages/services/chat
@@ -128,6 +164,9 @@ importers:
       '@ai-agent/speech':
         specifier: workspace:*
         version: link:../../packages/speech
+      '@ai-agent/task-graph':
+        specifier: workspace:*
+        version: link:../../packages/task-graph
       '@ai-agent/timeline':
         specifier: workspace:*
         version: link:../../packages/timeline
@@ -137,6 +176,9 @@ importers:
       '@ai-agent/user-model':
         specifier: workspace:*
         version: link:../../packages/user-model
+      '@ai-agent/verification':
+        specifier: workspace:*
+        version: link:../../packages/verification
       '@ai-agent/vision':
         specifier: workspace:*
         version: link:../../packages/vision
@@ -168,15 +210,30 @@ importers:
       '@ai-agent/agent':
         specifier: workspace:*
         version: link:../../packages/agent
+      '@ai-agent/agent-framework':
+        specifier: workspace:*
+        version: link:../../packages/agent-framework
+      '@ai-agent/agent-protocol':
+        specifier: workspace:*
+        version: link:../../packages/agent-protocol
+      '@ai-agent/agent-registry':
+        specifier: workspace:*
+        version: link:../../packages/agent-registry
       '@ai-agent/ambient-core':
         specifier: workspace:*
         version: link:../../packages/ambient-core
       '@ai-agent/ambient-types':
         specifier: workspace:*
         version: link:../../packages/ambient-types
+      '@ai-agent/approval-pipeline':
+        specifier: workspace:*
+        version: link:../../packages/approval-pipeline
       '@ai-agent/attention':
         specifier: workspace:*
         version: link:../../packages/attention
+      '@ai-agent/background-projects':
+        specifier: workspace:*
+        version: link:../../packages/background-projects
       '@ai-agent/calendar':
         specifier: workspace:*
         version: link:../../packages/calendar
@@ -198,18 +255,36 @@ importers:
       '@ai-agent/decisions':
         specifier: workspace:*
         version: link:../../packages/decisions
+      '@ai-agent/delegation':
+        specifier: workspace:*
+        version: link:../../packages/delegation
       '@ai-agent/email':
         specifier: workspace:*
         version: link:../../packages/email
       '@ai-agent/env-timeline':
         specifier: workspace:*
         version: link:../../packages/env-timeline
+      '@ai-agent/exec-types':
+        specifier: workspace:*
+        version: link:../../packages/exec-types
+      '@ai-agent/execution-supervisor':
+        specifier: workspace:*
+        version: link:../../packages/execution-supervisor
+      '@ai-agent/executive-core':
+        specifier: workspace:*
+        version: link:../../packages/executive-core
+      '@ai-agent/executive-planner':
+        specifier: workspace:*
+        version: link:../../packages/executive-planner
       '@ai-agent/goals':
         specifier: workspace:*
         version: link:../../packages/goals
       '@ai-agent/learning':
         specifier: workspace:*
         version: link:../../packages/learning
+      '@ai-agent/long-goals':
+        specifier: workspace:*
+        version: link:../../packages/long-goals
       '@ai-agent/multi-device':
         specifier: workspace:*
         version: link:../../packages/multi-device
@@ -237,6 +312,9 @@ importers:
       '@ai-agent/relationship':
         specifier: workspace:*
         version: link:../../packages/relationship
+      '@ai-agent/resource-manager':
+        specifier: workspace:*
+        version: link:../../packages/resource-manager
       '@ai-agent/services-automations':
         specifier: workspace:*
         version: link:../../packages/services/automations
@@ -276,6 +354,9 @@ importers:
       '@ai-agent/speech':
         specifier: workspace:*
         version: link:../../packages/speech
+      '@ai-agent/task-graph':
+        specifier: workspace:*
+        version: link:../../packages/task-graph
       '@ai-agent/timeline':
         specifier: workspace:*
         version: link:../../packages/timeline
@@ -285,6 +366,9 @@ importers:
       '@ai-agent/user-model':
         specifier: workspace:*
         version: link:../../packages/user-model
+      '@ai-agent/verification':
+        specifier: workspace:*
+        version: link:../../packages/verification
       '@ai-agent/vision':
         specifier: workspace:*
         version: link:../../packages/vision
@@ -329,6 +413,42 @@ importers:
       '@ai-agent/tools':
         specifier: workspace:*
         version: link:../tools
+
+  packages/agent-framework:
+    dependencies:
+      '@ai-agent/agent-protocol':
+        specifier: workspace:*
+        version: link:../agent-protocol
+      '@ai-agent/exec-types':
+        specifier: workspace:*
+        version: link:../exec-types
+      '@ai-agent/shared':
+        specifier: workspace:*
+        version: link:../shared
+
+  packages/agent-protocol:
+    dependencies:
+      '@ai-agent/exec-types':
+        specifier: workspace:*
+        version: link:../exec-types
+      '@ai-agent/shared':
+        specifier: workspace:*
+        version: link:../shared
+
+  packages/agent-registry:
+    dependencies:
+      '@ai-agent/agent-framework':
+        specifier: workspace:*
+        version: link:../agent-framework
+      '@ai-agent/agent-protocol':
+        specifier: workspace:*
+        version: link:../agent-protocol
+      '@ai-agent/exec-types':
+        specifier: workspace:*
+        version: link:../exec-types
+      '@ai-agent/shared':
+        specifier: workspace:*
+        version: link:../shared
 
   packages/ambient-core:
     dependencies:
@@ -381,8 +501,26 @@ importers:
         specifier: workspace:*
         version: link:../shared
 
+  packages/approval-pipeline:
+    dependencies:
+      '@ai-agent/exec-types':
+        specifier: workspace:*
+        version: link:../exec-types
+      '@ai-agent/shared':
+        specifier: workspace:*
+        version: link:../shared
+
   packages/attention:
     dependencies:
+      '@ai-agent/shared':
+        specifier: workspace:*
+        version: link:../shared
+
+  packages/background-projects:
+    dependencies:
+      '@ai-agent/exec-types':
+        specifier: workspace:*
+        version: link:../exec-types
       '@ai-agent/shared':
         specifier: workspace:*
         version: link:../shared
@@ -522,6 +660,18 @@ importers:
         specifier: workspace:*
         version: link:../world-model
 
+  packages/delegation:
+    dependencies:
+      '@ai-agent/agent-registry':
+        specifier: workspace:*
+        version: link:../agent-registry
+      '@ai-agent/exec-types':
+        specifier: workspace:*
+        version: link:../exec-types
+      '@ai-agent/shared':
+        specifier: workspace:*
+        version: link:../shared
+
   packages/email:
     dependencies:
       '@ai-agent/ambient-types':
@@ -539,6 +689,81 @@ importers:
       '@ai-agent/shared':
         specifier: workspace:*
         version: link:../shared
+
+  packages/exec-types:
+    dependencies:
+      '@ai-agent/shared':
+        specifier: workspace:*
+        version: link:../shared
+
+  packages/execution-supervisor:
+    dependencies:
+      '@ai-agent/agent-protocol':
+        specifier: workspace:*
+        version: link:../agent-protocol
+      '@ai-agent/exec-types':
+        specifier: workspace:*
+        version: link:../exec-types
+      '@ai-agent/shared':
+        specifier: workspace:*
+        version: link:../shared
+
+  packages/executive-core:
+    dependencies:
+      '@ai-agent/agent-framework':
+        specifier: workspace:*
+        version: link:../agent-framework
+      '@ai-agent/agent-protocol':
+        specifier: workspace:*
+        version: link:../agent-protocol
+      '@ai-agent/agent-registry':
+        specifier: workspace:*
+        version: link:../agent-registry
+      '@ai-agent/approval-pipeline':
+        specifier: workspace:*
+        version: link:../approval-pipeline
+      '@ai-agent/background-projects':
+        specifier: workspace:*
+        version: link:../background-projects
+      '@ai-agent/delegation':
+        specifier: workspace:*
+        version: link:../delegation
+      '@ai-agent/exec-types':
+        specifier: workspace:*
+        version: link:../exec-types
+      '@ai-agent/execution-supervisor':
+        specifier: workspace:*
+        version: link:../execution-supervisor
+      '@ai-agent/executive-planner':
+        specifier: workspace:*
+        version: link:../executive-planner
+      '@ai-agent/long-goals':
+        specifier: workspace:*
+        version: link:../long-goals
+      '@ai-agent/resource-manager':
+        specifier: workspace:*
+        version: link:../resource-manager
+      '@ai-agent/shared':
+        specifier: workspace:*
+        version: link:../shared
+      '@ai-agent/task-graph':
+        specifier: workspace:*
+        version: link:../task-graph
+      '@ai-agent/verification':
+        specifier: workspace:*
+        version: link:../verification
+
+  packages/executive-planner:
+    dependencies:
+      '@ai-agent/exec-types':
+        specifier: workspace:*
+        version: link:../exec-types
+      '@ai-agent/shared':
+        specifier: workspace:*
+        version: link:../shared
+      '@ai-agent/task-graph':
+        specifier: workspace:*
+        version: link:../task-graph
 
   packages/goals:
     dependencies:
@@ -560,6 +785,15 @@ importers:
       '@ai-agent/user-model':
         specifier: workspace:*
         version: link:../user-model
+
+  packages/long-goals:
+    dependencies:
+      '@ai-agent/exec-types':
+        specifier: workspace:*
+        version: link:../exec-types
+      '@ai-agent/shared':
+        specifier: workspace:*
+        version: link:../shared
 
   packages/multi-device:
     dependencies:
@@ -650,6 +884,15 @@ importers:
 
   packages/relationship:
     dependencies:
+      '@ai-agent/shared':
+        specifier: workspace:*
+        version: link:../shared
+
+  packages/resource-manager:
+    dependencies:
+      '@ai-agent/exec-types':
+        specifier: workspace:*
+        version: link:../exec-types
       '@ai-agent/shared':
         specifier: workspace:*
         version: link:../shared
@@ -800,6 +1043,15 @@ importers:
         specifier: workspace:*
         version: link:../shared
 
+  packages/task-graph:
+    dependencies:
+      '@ai-agent/exec-types':
+        specifier: workspace:*
+        version: link:../exec-types
+      '@ai-agent/shared':
+        specifier: workspace:*
+        version: link:../shared
+
   packages/timeline:
     dependencies:
       '@ai-agent/shared':
@@ -819,6 +1071,15 @@ importers:
       '@ai-agent/world-model':
         specifier: workspace:*
         version: link:../world-model
+
+  packages/verification:
+    dependencies:
+      '@ai-agent/exec-types':
+        specifier: workspace:*
+        version: link:../exec-types
+      '@ai-agent/shared':
+        specifier: workspace:*
+        version: link:../shared
 
   packages/vision:
     dependencies:

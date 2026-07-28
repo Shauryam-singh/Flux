@@ -1,0 +1,21 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": { "outDir": "dist", "rootDir": "src", "composite": true, "declaration": true, "declarationMap": false, "emitDeclarationOnly": false, "module": "NodeNext", "moduleResolution": "NodeNext" },
+  "include": ["src"],
+  "references": [
+    { "path": "../../packages/shared" },
+    { "path": "../../packages/exec-types" },
+    { "path": "../../packages/agent-protocol" },
+    { "path": "../../packages/agent-framework" },
+    { "path": "../../packages/agent-registry" },
+    { "path": "../../packages/task-graph" },
+    { "path": "../../packages/executive-planner" },
+    { "path": "../../packages/delegation" },
+    { "path": "../../packages/execution-supervisor" },
+    { "path": "../../packages/resource-manager" },
+    { "path": "../../packages/approval-pipeline" },
+    { "path": "../../packages/verification" },
+    { "path": "../../packages/background-projects" },
+    { "path": "../../packages/long-goals" }
+  ]
+}

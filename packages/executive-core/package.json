@@ -1,0 +1,26 @@
+{
+  "name": "@ai-agent/executive-core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" } },
+  "scripts": { "build": "tsc -b", "typecheck": "tsc --noEmit -p tsconfig.json" },
+  "dependencies": {
+    "@ai-agent/shared": "workspace:*",
+    "@ai-agent/exec-types": "workspace:*",
+    "@ai-agent/agent-protocol": "workspace:*",
+    "@ai-agent/agent-framework": "workspace:*",
+    "@ai-agent/agent-registry": "workspace:*",
+    "@ai-agent/task-graph": "workspace:*",
+    "@ai-agent/executive-planner": "workspace:*",
+    "@ai-agent/delegation": "workspace:*",
+    "@ai-agent/execution-supervisor": "workspace:*",
+    "@ai-agent/resource-manager": "workspace:*",
+    "@ai-agent/approval-pipeline": "workspace:*",
+    "@ai-agent/verification": "workspace:*",
+    "@ai-agent/background-projects": "workspace:*",
+    "@ai-agent/long-goals": "workspace:*"
+  }
+}

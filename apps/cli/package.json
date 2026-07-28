@@ -63,7 +63,21 @@
     "@ai-agent/env-timeline": "workspace:*",
     "@ai-agent/context-fusion": "workspace:*",
     "@ai-agent/prediction": "workspace:*",
-    "@ai-agent/ambient-core": "workspace:*"
+    "@ai-agent/ambient-core": "workspace:*",
+    "@ai-agent/exec-types": "workspace:*",
+    "@ai-agent/agent-protocol": "workspace:*",
+    "@ai-agent/agent-framework": "workspace:*",
+    "@ai-agent/agent-registry": "workspace:*",
+    "@ai-agent/task-graph": "workspace:*",
+    "@ai-agent/executive-planner": "workspace:*",
+    "@ai-agent/delegation": "workspace:*",
+    "@ai-agent/execution-supervisor": "workspace:*",
+    "@ai-agent/resource-manager": "workspace:*",
+    "@ai-agent/approval-pipeline": "workspace:*",
+    "@ai-agent/verification": "workspace:*",
+    "@ai-agent/background-projects": "workspace:*",
+    "@ai-agent/long-goals": "workspace:*",
+    "@ai-agent/executive-core": "workspace:*"
   },
   "devDependencies": {
     "tsx": "^4.23.0"

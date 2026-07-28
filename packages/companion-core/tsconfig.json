@@ -1,0 +1,28 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "dist",
+    "rootDir": "src",
+    "composite": true,
+    "declaration": true,
+    "declarationMap": false,
+    "emitDeclarationOnly": false,
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext"
+  },
+  "include": ["src"],
+  "references": [
+    { "path": "../../packages/shared" },
+    { "path": "../../packages/attention" },
+    { "path": "../../packages/world-model" },
+    { "path": "../../packages/timeline" },
+    { "path": "../../packages/goals" },
+    { "path": "../../packages/personality" },
+    { "path": "../../packages/user-model" },
+    { "path": "../../packages/relationship" },
+    { "path": "../../packages/reflection" },
+    { "path": "../../packages/companion" },
+    { "path": "../../packages/speech" },
+    { "path": "../../packages/learning" }
+  ]
+}

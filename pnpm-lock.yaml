@@ -41,6 +41,12 @@ importers:
       '@ai-agent/cognitive':
         specifier: workspace:*
         version: link:../../packages/cognitive
+      '@ai-agent/companion':
+        specifier: workspace:*
+        version: link:../../packages/companion
+      '@ai-agent/companion-core':
+        specifier: workspace:*
+        version: link:../../packages/companion-core
       '@ai-agent/config':
         specifier: workspace:*
         version: link:../../packages/config
@@ -50,12 +56,24 @@ importers:
       '@ai-agent/goals':
         specifier: workspace:*
         version: link:../../packages/goals
+      '@ai-agent/learning':
+        specifier: workspace:*
+        version: link:../../packages/learning
+      '@ai-agent/personality':
+        specifier: workspace:*
+        version: link:../../packages/personality
       '@ai-agent/providers':
         specifier: workspace:*
         version: link:../../packages/providers
       '@ai-agent/reasoning':
         specifier: workspace:*
         version: link:../../packages/reasoning
+      '@ai-agent/reflection':
+        specifier: workspace:*
+        version: link:../../packages/reflection
+      '@ai-agent/relationship':
+        specifier: workspace:*
+        version: link:../../packages/relationship
       '@ai-agent/services-chat':
         specifier: workspace:*
         version: link:../../packages/services/chat
@@ -77,9 +95,18 @@ importers:
       '@ai-agent/services-system':
         specifier: workspace:*
         version: link:../../packages/services/system
+      '@ai-agent/speech':
+        specifier: workspace:*
+        version: link:../../packages/speech
+      '@ai-agent/timeline':
+        specifier: workspace:*
+        version: link:../../packages/timeline
       '@ai-agent/tools':
         specifier: workspace:*
         version: link:../../packages/tools
+      '@ai-agent/user-model':
+        specifier: workspace:*
+        version: link:../../packages/user-model
       '@ai-agent/voice-stt':
         specifier: workspace:*
         version: link:../../packages/voice/stt
@@ -111,6 +138,12 @@ importers:
       '@ai-agent/cognitive':
         specifier: workspace:*
         version: link:../../packages/cognitive
+      '@ai-agent/companion':
+        specifier: workspace:*
+        version: link:../../packages/companion
+      '@ai-agent/companion-core':
+        specifier: workspace:*
+        version: link:../../packages/companion-core
       '@ai-agent/config':
         specifier: workspace:*
         version: link:../../packages/config
@@ -120,12 +153,24 @@ importers:
       '@ai-agent/goals':
         specifier: workspace:*
         version: link:../../packages/goals
+      '@ai-agent/learning':
+        specifier: workspace:*
+        version: link:../../packages/learning
+      '@ai-agent/personality':
+        specifier: workspace:*
+        version: link:../../packages/personality
       '@ai-agent/providers':
         specifier: workspace:*
         version: link:../../packages/providers
       '@ai-agent/reasoning':
         specifier: workspace:*
         version: link:../../packages/reasoning
+      '@ai-agent/reflection':
+        specifier: workspace:*
+        version: link:../../packages/reflection
+      '@ai-agent/relationship':
+        specifier: workspace:*
+        version: link:../../packages/relationship
       '@ai-agent/services-automations':
         specifier: workspace:*
         version: link:../../packages/services/automations
@@ -162,9 +207,18 @@ importers:
       '@ai-agent/services-system':
         specifier: workspace:*
         version: link:../../packages/services/system
+      '@ai-agent/speech':
+        specifier: workspace:*
+        version: link:../../packages/speech
+      '@ai-agent/timeline':
+        specifier: workspace:*
+        version: link:../../packages/timeline
       '@ai-agent/tools':
         specifier: workspace:*
         version: link:../../packages/tools
+      '@ai-agent/user-model':
+        specifier: workspace:*
+        version: link:../../packages/user-model
       '@ai-agent/working-memory':
         specifier: workspace:*
         version: link:../../packages/working-memory
@@ -243,6 +297,63 @@ importers:
         specifier: workspace:*
         version: link:../shared
 
+  packages/companion:
+    dependencies:
+      '@ai-agent/relationship':
+        specifier: workspace:*
+        version: link:../relationship
+      '@ai-agent/shared':
+        specifier: workspace:*
+        version: link:../shared
+      '@ai-agent/timeline':
+        specifier: workspace:*
+        version: link:../timeline
+      '@ai-agent/user-model':
+        specifier: workspace:*
+        version: link:../user-model
+      '@ai-agent/world-model':
+        specifier: workspace:*
+        version: link:../world-model
+
+  packages/companion-core:
+    dependencies:
+      '@ai-agent/attention':
+        specifier: workspace:*
+        version: link:../attention
+      '@ai-agent/companion':
+        specifier: workspace:*
+        version: link:../companion
+      '@ai-agent/goals':
+        specifier: workspace:*
+        version: link:../goals
+      '@ai-agent/learning':
+        specifier: workspace:*
+        version: link:../learning
+      '@ai-agent/personality':
+        specifier: workspace:*
+        version: link:../personality
+      '@ai-agent/reflection':
+        specifier: workspace:*
+        version: link:../reflection
+      '@ai-agent/relationship':
+        specifier: workspace:*
+        version: link:../relationship
+      '@ai-agent/shared':
+        specifier: workspace:*
+        version: link:../shared
+      '@ai-agent/speech':
+        specifier: workspace:*
+        version: link:../speech
+      '@ai-agent/timeline':
+        specifier: workspace:*
+        version: link:../timeline
+      '@ai-agent/user-model':
+        specifier: workspace:*
+        version: link:../user-model
+      '@ai-agent/world-model':
+        specifier: workspace:*
+        version: link:../world-model
+
   packages/config:
     dependencies:
       '@ai-agent/shared':
@@ -276,6 +387,24 @@ importers:
         specifier: workspace:*
         version: link:../world-model
 
+  packages/learning:
+    dependencies:
+      '@ai-agent/relationship':
+        specifier: workspace:*
+        version: link:../relationship
+      '@ai-agent/shared':
+        specifier: workspace:*
+        version: link:../shared
+      '@ai-agent/user-model':
+        specifier: workspace:*
+        version: link:../user-model
+
+  packages/personality:
+    dependencies:
+      '@ai-agent/shared':
+        specifier: workspace:*
+        version: link:../shared
+
   packages/providers:
     dependencies:
       '@ai-agent/config':
@@ -308,6 +437,24 @@ importers:
       '@ai-agent/world-model':
         specifier: workspace:*
         version: link:../world-model
+
+  packages/reflection:
+    dependencies:
+      '@ai-agent/goals':
+        specifier: workspace:*
+        version: link:../goals
+      '@ai-agent/shared':
+        specifier: workspace:*
+        version: link:../shared
+      '@ai-agent/timeline':
+        specifier: workspace:*
+        version: link:../timeline
+
+  packages/relationship:
+    dependencies:
+      '@ai-agent/shared':
+        specifier: workspace:*
+        version: link:../shared
 
   packages/router:
     dependencies:
@@ -446,7 +593,34 @@ importers:
 
   packages/shared: {}
 
+  packages/speech:
+    dependencies:
+      '@ai-agent/personality':
+        specifier: workspace:*
+        version: link:../personality
+      '@ai-agent/shared':
+        specifier: workspace:*
+        version: link:../shared
+
+  packages/timeline:
+    dependencies:
+      '@ai-agent/shared':
+        specifier: workspace:*
+        version: link:../shared
+
   packages/tools: {}
+
+  packages/user-model:
+    dependencies:
+      '@ai-agent/attention':
+        specifier: workspace:*
+        version: link:../attention
+      '@ai-agent/shared':
+        specifier: workspace:*
+        version: link:../shared
+      '@ai-agent/world-model':
+        specifier: workspace:*
+        version: link:../world-model
 
   packages/voice/pipeline:
     dependencies:

@@ -29,7 +29,16 @@
     "@ai-agent/goals": "workspace:*",
     "@ai-agent/reasoning": "workspace:*",
     "@ai-agent/decisions": "workspace:*",
-    "@ai-agent/cognitive": "workspace:*"
+    "@ai-agent/cognitive": "workspace:*",
+    "@ai-agent/personality": "workspace:*",
+    "@ai-agent/user-model": "workspace:*",
+    "@ai-agent/relationship": "workspace:*",
+    "@ai-agent/timeline": "workspace:*",
+    "@ai-agent/speech": "workspace:*",
+    "@ai-agent/learning": "workspace:*",
+    "@ai-agent/reflection": "workspace:*",
+    "@ai-agent/companion": "workspace:*",
+    "@ai-agent/companion-core": "workspace:*"
   },
   "devDependencies": {
     "tsx": "^4.23.0",

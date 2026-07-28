@@ -24,6 +24,15 @@
     { "path": "../../packages/services/system" },
     { "path": "../../packages/services/reminders" },
     { "path": "../../packages/services/files" },
+    { "path": "../../packages/companion-core" },
+    { "path": "../../packages/personality" },
+    { "path": "../../packages/user-model" },
+    { "path": "../../packages/relationship" },
+    { "path": "../../packages/timeline" },
+    { "path": "../../packages/speech" },
+    { "path": "../../packages/learning" },
+    { "path": "../../packages/reflection" },
+    { "path": "../../packages/companion" },
     { "path": "../cli" }
   ]
 }

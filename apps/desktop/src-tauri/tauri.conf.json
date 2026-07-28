@@ -13,11 +13,13 @@
     "withGlobalTauri": true,
     "windows": [
       {
-        "title": "Flux Assistant",
-        "width": 900,
-        "height": 700,
+        "title": "Flux",
+        "width": 120,
+        "height": 120,
         "resizable": true,
-        "decorations": true
+        "decorations": false,
+        "transparent": true,
+        "alwaysOnTop": true
       }
     ],
     "security": {

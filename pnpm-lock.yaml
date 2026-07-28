@@ -32,6 +32,9 @@ importers:
       '@ai-agent/agent':
         specifier: workspace:*
         version: link:../../packages/agent
+      '@ai-agent/attention':
+        specifier: workspace:*
+        version: link:../../packages/attention
       '@ai-agent/cli':
         specifier: workspace:*
         version: link:../cli
@@ -84,6 +87,9 @@ importers:
       '@ai-agent/agent':
         specifier: workspace:*
         version: link:../../packages/agent
+      '@ai-agent/attention':
+        specifier: workspace:*
+        version: link:../../packages/attention
       '@ai-agent/config':
         specifier: workspace:*
         version: link:../../packages/config
@@ -161,6 +167,12 @@ importers:
       '@ai-agent/tools':
         specifier: workspace:*
         version: link:../tools
+
+  packages/attention:
+    dependencies:
+      '@ai-agent/shared':
+        specifier: workspace:*
+        version: link:../shared
 
   packages/config:
     dependencies:

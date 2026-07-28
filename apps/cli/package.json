@@ -35,7 +35,8 @@
     "@ai-agent/services-monitor": "workspace:*",
     "@ai-agent/services-automations": "workspace:*",
     "@ai-agent/services-context": "workspace:*",
-    "@ai-agent/services-proactive": "workspace:*"
+    "@ai-agent/services-proactive": "workspace:*",
+    "@ai-agent/attention": "workspace:*"
   },
   "devDependencies": {
     "tsx": "^4.23.0"

@@ -230,8 +230,39 @@ const server = createServer(async (req, res) => {
         { name: "reminders", description: "Reminders & notes" },
         { name: "files", description: "File manager" },
         { name: "voice", description: "Voice transcription and speech" },
+        { name: "attention", description: "Event filtering and prioritization" },
       ],
     });
+    return;
+  }
+
+  if (req.method === "POST" && req.url === "/attention/process") {
+    try {
+      const body = await parseBody(req);
+      const event = JSON.parse(body.toString()) as { source: string; title: string; detail: string };
+
+      if (!event.source || !event.title) {
+        sendJson(res, 400, { error: "source and title are required" });
+        return;
+      }
+
+      const result = flux.processEvent({
+        source: event.source as import("@ai-agent/attention").ObservationSource,
+        title: event.title,
+        detail: event.detail ?? "",
+      });
+
+      sendJson(res, 200, result);
+    } catch (err) {
+      const error = err instanceof Error ? err.message : String(err);
+      sendJson(res, 500, { error });
+    }
+    return;
+  }
+
+  if (req.method === "GET" && req.url === "/attention/stats") {
+    const stats = flux.attention.getStats();
+    sendJson(res, 200, stats);
     return;
   }
 
@@ -242,9 +273,11 @@ server.listen(PORT, () => {
   console.log(`Flux API server running on http://localhost:${PORT}`);
   console.log(`Endpoints:`);
   console.log(`  POST /chat              - Send a message`);
-  console.log(`  POST /chat/stream        - Send a message (SSE streaming)`);
+  console.log(`  POST /chat/stream       - Send a message (SSE streaming)`);
   console.log(`  POST /voice/transcribe  - Transcribe audio (base64 WAV)`);
   console.log(`  POST /voice/speak       - Text to speech (returns WAV)`);
+  console.log(`  POST /attention/process - Process an observation event`);
+  console.log(`  GET  /attention/stats   - Get attention system stats`);
   console.log(`  GET  /health            - Health check`);
   console.log(`  GET  /services          - List available services`);
 });

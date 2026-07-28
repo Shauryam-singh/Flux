@@ -22,7 +22,8 @@
     "@ai-agent/services-files": "workspace:*",
     "@ai-agent/cli": "workspace:*",
     "@ai-agent/voice-stt": "workspace:*",
-    "@ai-agent/voice-tts": "workspace:*"
+    "@ai-agent/voice-tts": "workspace:*",
+    "@ai-agent/attention": "workspace:*"
   },
   "devDependencies": {
     "tsx": "^4.23.0",

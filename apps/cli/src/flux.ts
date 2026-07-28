@@ -13,6 +13,7 @@ import { createMonitorService } from "@ai-agent/services-monitor";
 import { createAutomationService } from "@ai-agent/services-automations";
 import { createContextService } from "@ai-agent/services-context";
 import { createProactiveService } from "@ai-agent/services-proactive";
+import { AttentionManager, type ObservationSource } from "@ai-agent/attention";
 
 export interface FluxConfig {
   provider: ProviderName;
@@ -22,9 +23,15 @@ export interface FluxConfig {
 
 export interface FluxInstance {
   process(input: string): Promise<string>;
+  processEvent(event: { source: ObservationSource; title: string; detail: string }): {
+    action: "ignore" | "buffer" | "immediate" | "summarize";
+    observation?: import("@ai-agent/attention").Observation;
+    summary?: import("@ai-agent/attention").ObservationSummary;
+  };
   session: InstanceType<typeof DefaultSession>;
   llmProvider: Provider;
   model: string;
+  attention: AttentionManager;
 }
 
 export function createFlux(config: FluxConfig): FluxInstance {
@@ -78,6 +85,13 @@ export function createFlux(config: FluxConfig): FluxInstance {
   const orchestrator = new Orchestrator(serviceRegistry);
   const session = new DefaultSession("flux-session");
 
+  const attention = new AttentionManager({
+    minBrainScore: 40,
+    onSummary: (summary) => {
+      console.log(`[Attention] Summary: ${summary.summary} (${summary.totalCount} events, ${summary.timeRange.start}-${summary.timeRange.end})`);
+    },
+  });
+
   async function process(input: string): Promise<string> {
     await session.memory.add("user", input);
 
@@ -93,5 +107,9 @@ export function createFlux(config: FluxConfig): FluxInstance {
     return result.text;
   }
 
-  return { process, session, llmProvider: provider, model: config.model };
+  function processEvent(event: { source: ObservationSource; title: string; detail: string }) {
+    return attention.process(event);
+  }
+
+  return { process, session, llmProvider: provider, model: config.model, attention, processEvent };
 }

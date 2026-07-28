@@ -34,6 +34,7 @@
     { "path": "../../packages/confidence-calibration" },
     { "path": "../../packages/knowledge-consolidation" },
     { "path": "../../packages/habit-discovery" },
-    { "path": "../../packages/thought-graph" }
+    { "path": "../../packages/thought-graph" },
+    { "path": "../../packages/sensors" }
   ]
 }

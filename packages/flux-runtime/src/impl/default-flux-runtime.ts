@@ -29,6 +29,7 @@ import { DefaultConfidenceCalibration } from "@ai-agent/confidence-calibration";
 import { DefaultKnowledgeConsolidation } from "@ai-agent/knowledge-consolidation";
 import { DefaultHabitDiscovery } from "@ai-agent/habit-discovery";
 import { DefaultThoughtGraph, type CognitionResult } from "@ai-agent/thought-graph";
+import { DefaultSensorManager, GitSensor, FileSystemSensor, ClipboardSensor, BatterySensor, IdleSensor, NotificationSensor, DockerSensor, SpotifySensor, KubernetesSensor, SSHSensor, AudioSensor } from "@ai-agent/sensors";
 import { CognitionPipeline } from "./cognition-pipeline.js";
 import { execSync } from "node:child_process";
 
@@ -54,6 +55,7 @@ export class DefaultFluxRuntime implements FluxRuntime {
   readonly knowledge: InstanceType<typeof DefaultKnowledgeConsolidation>;
   readonly habits: InstanceType<typeof DefaultHabitDiscovery>;
   readonly thoughtGraph: DefaultThoughtGraph;
+  readonly sensors: DefaultSensorManager;
   private readonly pipeline: CognitionPipeline;
 
   private totalInteractions = 0;
@@ -170,6 +172,40 @@ export class DefaultFluxRuntime implements FluxRuntime {
       this.attention,
     );
 
+    // --- Layer 9: Real-World Sensors ---
+    this.sensors = new DefaultSensorManager();
+
+    // Register all sensors
+    this.sensors.register(new GitSensor(process.cwd()));
+    this.sensors.register(new FileSystemSensor([process.cwd()]));
+    this.sensors.register(new ClipboardSensor());
+    this.sensors.register(new BatterySensor());
+    this.sensors.register(new IdleSensor());
+    this.sensors.register(new NotificationSensor());
+    this.sensors.register(new DockerSensor());
+    this.sensors.register(new SpotifySensor());
+    this.sensors.register(new KubernetesSensor());
+    this.sensors.register(new SSHSensor());
+    this.sensors.register(new AudioSensor());
+
+    // Wire sensor events to attention system
+    this.sensors.onEvent((event) => {
+      if (this.cognitiveReady && this.running) {
+        const observation = {
+          id: `${event.sensorId}_${event.timestamp}`,
+          source: event.source,
+          title: `[${event.sensorId}] ${event.type}`,
+          detail: JSON.stringify(event.data).slice(0, 500),
+          priority: event.priority,
+          score: event.priority === "critical" ? 95 : event.priority === "high" ? 80 : event.priority === "medium" ? 50 : 20,
+          timestamp: event.timestamp,
+          mergeable: true,
+          consumed: false,
+        };
+        this.attention.process(observation);
+      }
+    });
+
     this.cognitiveReady = true;
 
     // Auto-start if configured
@@ -187,6 +223,11 @@ export class DefaultFluxRuntime implements FluxRuntime {
     // Start the cognitive system's internal timers (5s think cycle, 30min reflection)
     this.cognitive.start();
 
+    // Start real-world sensors
+    if (this.config.enableSensors !== false) {
+      void this.sensors.startAll();
+    }
+
     // Start our observation gathering loop
     const tickMs = this.config.backgroundTickMs ?? 5000;
     this.backgroundTimer = setInterval(() => {
@@ -203,6 +244,9 @@ export class DefaultFluxRuntime implements FluxRuntime {
 
     // Stop cognitive system timers
     this.cognitive.stop();
+
+    // Stop sensors
+    void this.sensors.stopAll();
 
     // Stop our background loop
     if (this.backgroundTimer) {
@@ -309,6 +353,48 @@ export class DefaultFluxRuntime implements FluxRuntime {
       detail: `Tick #${this.tickCount}`,
     });
     count++;
+
+    // Source 4: Sensor snapshots (periodic, every 5th tick)
+    if (this.tickCount % 5 === 0) {
+      const sensorObs = this.gatherSensorObservations();
+      count += sensorObs;
+    }
+
+    return count;
+  }
+
+  private gatherSensorObservations(): number {
+    let count = 0;
+
+    // Get git state
+    const gitSensor = this.sensors.get<import("@ai-agent/sensors").GitState>("git");
+    if (gitSensor) {
+      void gitSensor.snapshot().then((state) => {
+        if (state) {
+          this.attention.process({
+            source: "git",
+            title: `branch: ${state.branch}`,
+            detail: `dirty: ${state.isDirty}, staged: ${state.stagedCount}, ahead: ${state.ahead}`,
+          });
+          count++;
+        }
+      });
+    }
+
+    // Get Docker state
+    const dockerSensor = this.sensors.get<import("@ai-agent/sensors").DockerState>("docker");
+    if (dockerSensor) {
+      void dockerSensor.snapshot().then((state) => {
+        if (state) {
+          this.attention.process({
+            source: "process",
+            title: `docker: ${state.runningCount} running`,
+            detail: `${state.totalContainers} total, ${state.stoppedCount} stopped`,
+          });
+          count++;
+        }
+      });
+    }
 
     return count;
   }
@@ -487,6 +573,7 @@ export class DefaultFluxRuntime implements FluxRuntime {
 
   getState(): FluxRuntimeState {
     const graphSnapshot = this.thoughtGraph.snapshot();
+    const sensorState = this.sensors.getState();
     return {
       memorySize: this.workingMemory.snapshot().entries.length,
       activeGoals: this.goalManager.getAll().filter((g) => g.status === "active" || g.status === "in_progress").length,
@@ -502,6 +589,8 @@ export class DefaultFluxRuntime implements FluxRuntime {
       thoughtGraphNodes: graphSnapshot.nodeCount,
       thoughtGraphEdges: graphSnapshot.edgeCount,
       lastPipelineDurationMs: this.lastPipelineDurationMs,
+      sensorsRunning: sensorState.runningSensors,
+      totalSensorEvents: sensorState.totalEvents,
     };
   }
 

@@ -4,6 +4,7 @@ import type { CognitiveOrchestrator } from "@ai-agent/cognitive";
 import type { DefaultSession } from "@ai-agent/agent";
 import type { LlmProvider } from "@ai-agent/services-core";
 import type { DefaultThoughtGraph, CognitionResult } from "@ai-agent/thought-graph";
+import type { SensorManager } from "@ai-agent/sensors";
 
 export interface FluxRuntimeConfig {
   readonly provider: ProviderName;
@@ -14,6 +15,7 @@ export interface FluxRuntimeConfig {
   readonly enableSelfEvolution?: boolean;
   readonly backgroundTickMs?: number;
   readonly autoStart?: boolean;
+  readonly enableSensors?: boolean;
 }
 
 export interface FluxRuntimeMessage {
@@ -48,6 +50,7 @@ export interface FluxRuntime {
   readonly attention: InstanceType<typeof AttentionManager>;
   readonly cognitive: CognitiveOrchestrator;
   readonly thoughtGraph: DefaultThoughtGraph;
+  readonly sensors: SensorManager;
   process(input: string): Promise<FluxRuntimeResult>;
   processEvent(event: { source: ObservationSource; title: string; detail: string }): {
     readonly action: "ignore" | "buffer" | "immediate" | "summarize";
@@ -79,4 +82,6 @@ export interface FluxRuntimeState {
   readonly thoughtGraphNodes: number;
   readonly thoughtGraphEdges: number;
   readonly lastPipelineDurationMs: number | null;
+  readonly sensorsRunning: number;
+  readonly totalSensorEvents: number;
 }

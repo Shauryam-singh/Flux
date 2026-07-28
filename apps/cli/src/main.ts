@@ -306,7 +306,7 @@ import { execSync } from "node:child_process";
 
 const COMMAND_NAMES = [
   "help", "history", "suggest", "models", "mode", "clear", "save", "saveas", "load", "resume", "exit", "quit",
-  "undo", "redo", "scaffold", "commit",
+  "undo", "redo", "scaffold", "commit", "daemon",
 ];
 
 const FOOTER_HEIGHT = 7;
@@ -586,6 +586,41 @@ async function main(): Promise<void> {
             sessionData = resumed;
             currentProvider = resumed.provider;
             currentModel = resumed.model;
+          }
+          redrawFooter();
+          return;
+        }
+        case "daemon": {
+          const daemonArg = args.trim().toLowerCase();
+          switch (daemonArg) {
+            case "start":
+              flux.runtime.start();
+              printToChatArea(paint("Background cognition started", theme.success));
+              break;
+            case "stop":
+              flux.runtime.stop();
+              printToChatArea(paint("Background cognition stopped", theme.success));
+              break;
+            case "status": {
+              const running = flux.runtime.isRunning();
+              const state = flux.runtime.getState();
+              const statusColor = running ? theme.success : theme.dim;
+              printToChatArea(
+                `Daemon: ${paint(running ? "running" : "stopped", statusColor)}\n` +
+                `  Ticks: ${state.tickCount}\n` +
+                `  Uptime: ${Math.floor(state.uptime)}s\n` +
+                `  Memory: ${state.memorySize} entries\n` +
+                `  Goals: ${state.activeGoals}`
+              );
+              break;
+            }
+            default:
+              printToChatArea(
+                `Usage: /daemon <start|stop|status>\n` +
+                `  start  - Start background cognition loop\n` +
+                `  stop   - Stop background cognition loop\n` +
+                `  status - Show loop status and stats`
+              );
           }
           redrawFooter();
           return;

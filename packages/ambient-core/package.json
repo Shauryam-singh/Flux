@@ -1,0 +1,26 @@
+{
+  "name": "@ai-agent/ambient-core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" } },
+  "scripts": { "build": "tsc -b", "typecheck": "tsc --noEmit -p tsconfig.json" },
+  "dependencies": {
+    "@ai-agent/shared": "workspace:*",
+    "@ai-agent/ambient-types": "workspace:*",
+    "@ai-agent/attention": "workspace:*",
+    "@ai-agent/world-model": "workspace:*",
+    "@ai-agent/vision": "workspace:*",
+    "@ai-agent/workspace": "workspace:*",
+    "@ai-agent/calendar": "workspace:*",
+    "@ai-agent/email": "workspace:*",
+    "@ai-agent/notification-intel": "workspace:*",
+    "@ai-agent/presence": "workspace:*",
+    "@ai-agent/multi-device": "workspace:*",
+    "@ai-agent/env-timeline": "workspace:*",
+    "@ai-agent/context-fusion": "workspace:*",
+    "@ai-agent/prediction": "workspace:*"
+  }
+}

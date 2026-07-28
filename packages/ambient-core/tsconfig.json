@@ -1,0 +1,21 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": { "outDir": "dist", "rootDir": "src", "composite": true, "declaration": true, "declarationMap": false, "emitDeclarationOnly": false, "module": "NodeNext", "moduleResolution": "NodeNext" },
+  "include": ["src"],
+  "references": [
+    { "path": "../../packages/shared" },
+    { "path": "../../packages/ambient-types" },
+    { "path": "../../packages/attention" },
+    { "path": "../../packages/world-model" },
+    { "path": "../../packages/vision" },
+    { "path": "../../packages/workspace" },
+    { "path": "../../packages/calendar" },
+    { "path": "../../packages/email" },
+    { "path": "../../packages/notification-intel" },
+    { "path": "../../packages/presence" },
+    { "path": "../../packages/multi-device" },
+    { "path": "../../packages/env-timeline" },
+    { "path": "../../packages/context-fusion" },
+    { "path": "../../packages/prediction" }
+  ]
+}

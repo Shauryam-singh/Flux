@@ -51,7 +51,19 @@
     "@ai-agent/learning": "workspace:*",
     "@ai-agent/reflection": "workspace:*",
     "@ai-agent/companion": "workspace:*",
-    "@ai-agent/companion-core": "workspace:*"
+    "@ai-agent/companion-core": "workspace:*",
+    "@ai-agent/ambient-types": "workspace:*",
+    "@ai-agent/vision": "workspace:*",
+    "@ai-agent/workspace": "workspace:*",
+    "@ai-agent/calendar": "workspace:*",
+    "@ai-agent/email": "workspace:*",
+    "@ai-agent/notification-intel": "workspace:*",
+    "@ai-agent/presence": "workspace:*",
+    "@ai-agent/multi-device": "workspace:*",
+    "@ai-agent/env-timeline": "workspace:*",
+    "@ai-agent/context-fusion": "workspace:*",
+    "@ai-agent/prediction": "workspace:*",
+    "@ai-agent/ambient-core": "workspace:*"
   },
   "devDependencies": {
     "tsx": "^4.23.0"

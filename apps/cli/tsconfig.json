@@ -31,6 +31,18 @@
     { "path": "../../packages/speech" },
     { "path": "../../packages/learning" },
     { "path": "../../packages/reflection" },
-    { "path": "../../packages/companion" }
+    { "path": "../../packages/companion" },
+    { "path": "../../packages/ambient-types" },
+    { "path": "../../packages/vision" },
+    { "path": "../../packages/workspace" },
+    { "path": "../../packages/calendar" },
+    { "path": "../../packages/email" },
+    { "path": "../../packages/notification-intel" },
+    { "path": "../../packages/presence" },
+    { "path": "../../packages/multi-device" },
+    { "path": "../../packages/env-timeline" },
+    { "path": "../../packages/context-fusion" },
+    { "path": "../../packages/prediction" },
+    { "path": "../../packages/ambient-core" }
   ]
 }

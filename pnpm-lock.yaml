@@ -32,9 +32,18 @@ importers:
       '@ai-agent/agent':
         specifier: workspace:*
         version: link:../../packages/agent
+      '@ai-agent/ambient-core':
+        specifier: workspace:*
+        version: link:../../packages/ambient-core
+      '@ai-agent/ambient-types':
+        specifier: workspace:*
+        version: link:../../packages/ambient-types
       '@ai-agent/attention':
         specifier: workspace:*
         version: link:../../packages/attention
+      '@ai-agent/calendar':
+        specifier: workspace:*
+        version: link:../../packages/calendar
       '@ai-agent/cli':
         specifier: workspace:*
         version: link:../cli
@@ -50,18 +59,39 @@ importers:
       '@ai-agent/config':
         specifier: workspace:*
         version: link:../../packages/config
+      '@ai-agent/context-fusion':
+        specifier: workspace:*
+        version: link:../../packages/context-fusion
       '@ai-agent/decisions':
         specifier: workspace:*
         version: link:../../packages/decisions
+      '@ai-agent/email':
+        specifier: workspace:*
+        version: link:../../packages/email
+      '@ai-agent/env-timeline':
+        specifier: workspace:*
+        version: link:../../packages/env-timeline
       '@ai-agent/goals':
         specifier: workspace:*
         version: link:../../packages/goals
       '@ai-agent/learning':
         specifier: workspace:*
         version: link:../../packages/learning
+      '@ai-agent/multi-device':
+        specifier: workspace:*
+        version: link:../../packages/multi-device
+      '@ai-agent/notification-intel':
+        specifier: workspace:*
+        version: link:../../packages/notification-intel
       '@ai-agent/personality':
         specifier: workspace:*
         version: link:../../packages/personality
+      '@ai-agent/prediction':
+        specifier: workspace:*
+        version: link:../../packages/prediction
+      '@ai-agent/presence':
+        specifier: workspace:*
+        version: link:../../packages/presence
       '@ai-agent/providers':
         specifier: workspace:*
         version: link:../../packages/providers
@@ -107,6 +137,9 @@ importers:
       '@ai-agent/user-model':
         specifier: workspace:*
         version: link:../../packages/user-model
+      '@ai-agent/vision':
+        specifier: workspace:*
+        version: link:../../packages/vision
       '@ai-agent/voice-stt':
         specifier: workspace:*
         version: link:../../packages/voice/stt
@@ -116,6 +149,9 @@ importers:
       '@ai-agent/working-memory':
         specifier: workspace:*
         version: link:../../packages/working-memory
+      '@ai-agent/workspace':
+        specifier: workspace:*
+        version: link:../../packages/workspace
       '@ai-agent/world-model':
         specifier: workspace:*
         version: link:../../packages/world-model
@@ -132,9 +168,18 @@ importers:
       '@ai-agent/agent':
         specifier: workspace:*
         version: link:../../packages/agent
+      '@ai-agent/ambient-core':
+        specifier: workspace:*
+        version: link:../../packages/ambient-core
+      '@ai-agent/ambient-types':
+        specifier: workspace:*
+        version: link:../../packages/ambient-types
       '@ai-agent/attention':
         specifier: workspace:*
         version: link:../../packages/attention
+      '@ai-agent/calendar':
+        specifier: workspace:*
+        version: link:../../packages/calendar
       '@ai-agent/cognitive':
         specifier: workspace:*
         version: link:../../packages/cognitive
@@ -147,18 +192,39 @@ importers:
       '@ai-agent/config':
         specifier: workspace:*
         version: link:../../packages/config
+      '@ai-agent/context-fusion':
+        specifier: workspace:*
+        version: link:../../packages/context-fusion
       '@ai-agent/decisions':
         specifier: workspace:*
         version: link:../../packages/decisions
+      '@ai-agent/email':
+        specifier: workspace:*
+        version: link:../../packages/email
+      '@ai-agent/env-timeline':
+        specifier: workspace:*
+        version: link:../../packages/env-timeline
       '@ai-agent/goals':
         specifier: workspace:*
         version: link:../../packages/goals
       '@ai-agent/learning':
         specifier: workspace:*
         version: link:../../packages/learning
+      '@ai-agent/multi-device':
+        specifier: workspace:*
+        version: link:../../packages/multi-device
+      '@ai-agent/notification-intel':
+        specifier: workspace:*
+        version: link:../../packages/notification-intel
       '@ai-agent/personality':
         specifier: workspace:*
         version: link:../../packages/personality
+      '@ai-agent/prediction':
+        specifier: workspace:*
+        version: link:../../packages/prediction
+      '@ai-agent/presence':
+        specifier: workspace:*
+        version: link:../../packages/presence
       '@ai-agent/providers':
         specifier: workspace:*
         version: link:../../packages/providers
@@ -219,9 +285,15 @@ importers:
       '@ai-agent/user-model':
         specifier: workspace:*
         version: link:../../packages/user-model
+      '@ai-agent/vision':
+        specifier: workspace:*
+        version: link:../../packages/vision
       '@ai-agent/working-memory':
         specifier: workspace:*
         version: link:../../packages/working-memory
+      '@ai-agent/workspace':
+        specifier: workspace:*
+        version: link:../../packages/workspace
       '@ai-agent/world-model':
         specifier: workspace:*
         version: link:../../packages/world-model
@@ -258,8 +330,68 @@ importers:
         specifier: workspace:*
         version: link:../tools
 
+  packages/ambient-core:
+    dependencies:
+      '@ai-agent/ambient-types':
+        specifier: workspace:*
+        version: link:../ambient-types
+      '@ai-agent/attention':
+        specifier: workspace:*
+        version: link:../attention
+      '@ai-agent/calendar':
+        specifier: workspace:*
+        version: link:../calendar
+      '@ai-agent/context-fusion':
+        specifier: workspace:*
+        version: link:../context-fusion
+      '@ai-agent/email':
+        specifier: workspace:*
+        version: link:../email
+      '@ai-agent/env-timeline':
+        specifier: workspace:*
+        version: link:../env-timeline
+      '@ai-agent/multi-device':
+        specifier: workspace:*
+        version: link:../multi-device
+      '@ai-agent/notification-intel':
+        specifier: workspace:*
+        version: link:../notification-intel
+      '@ai-agent/prediction':
+        specifier: workspace:*
+        version: link:../prediction
+      '@ai-agent/presence':
+        specifier: workspace:*
+        version: link:../presence
+      '@ai-agent/shared':
+        specifier: workspace:*
+        version: link:../shared
+      '@ai-agent/vision':
+        specifier: workspace:*
+        version: link:../vision
+      '@ai-agent/workspace':
+        specifier: workspace:*
+        version: link:../workspace
+      '@ai-agent/world-model':
+        specifier: workspace:*
+        version: link:../world-model
+
+  packages/ambient-types:
+    dependencies:
+      '@ai-agent/shared':
+        specifier: workspace:*
+        version: link:../shared
+
   packages/attention:
     dependencies:
+      '@ai-agent/shared':
+        specifier: workspace:*
+        version: link:../shared
+
+  packages/calendar:
+    dependencies:
+      '@ai-agent/ambient-types':
+        specifier: workspace:*
+        version: link:../ambient-types
       '@ai-agent/shared':
         specifier: workspace:*
         version: link:../shared
@@ -360,6 +492,18 @@ importers:
         specifier: workspace:*
         version: link:../shared
 
+  packages/context-fusion:
+    dependencies:
+      '@ai-agent/ambient-types':
+        specifier: workspace:*
+        version: link:../ambient-types
+      '@ai-agent/attention':
+        specifier: workspace:*
+        version: link:../attention
+      '@ai-agent/shared':
+        specifier: workspace:*
+        version: link:../shared
+
   packages/decisions:
     dependencies:
       '@ai-agent/cognitive-types':
@@ -377,6 +521,24 @@ importers:
       '@ai-agent/world-model':
         specifier: workspace:*
         version: link:../world-model
+
+  packages/email:
+    dependencies:
+      '@ai-agent/ambient-types':
+        specifier: workspace:*
+        version: link:../ambient-types
+      '@ai-agent/shared':
+        specifier: workspace:*
+        version: link:../shared
+
+  packages/env-timeline:
+    dependencies:
+      '@ai-agent/ambient-types':
+        specifier: workspace:*
+        version: link:../ambient-types
+      '@ai-agent/shared':
+        specifier: workspace:*
+        version: link:../shared
 
   packages/goals:
     dependencies:
@@ -399,8 +561,44 @@ importers:
         specifier: workspace:*
         version: link:../user-model
 
+  packages/multi-device:
+    dependencies:
+      '@ai-agent/ambient-types':
+        specifier: workspace:*
+        version: link:../ambient-types
+      '@ai-agent/shared':
+        specifier: workspace:*
+        version: link:../shared
+
+  packages/notification-intel:
+    dependencies:
+      '@ai-agent/ambient-types':
+        specifier: workspace:*
+        version: link:../ambient-types
+      '@ai-agent/shared':
+        specifier: workspace:*
+        version: link:../shared
+
   packages/personality:
     dependencies:
+      '@ai-agent/shared':
+        specifier: workspace:*
+        version: link:../shared
+
+  packages/prediction:
+    dependencies:
+      '@ai-agent/ambient-types':
+        specifier: workspace:*
+        version: link:../ambient-types
+      '@ai-agent/shared':
+        specifier: workspace:*
+        version: link:../shared
+
+  packages/presence:
+    dependencies:
+      '@ai-agent/ambient-types':
+        specifier: workspace:*
+        version: link:../ambient-types
       '@ai-agent/shared':
         specifier: workspace:*
         version: link:../shared
@@ -622,6 +820,15 @@ importers:
         specifier: workspace:*
         version: link:../world-model
 
+  packages/vision:
+    dependencies:
+      '@ai-agent/ambient-types':
+        specifier: workspace:*
+        version: link:../ambient-types
+      '@ai-agent/shared':
+        specifier: workspace:*
+        version: link:../shared
+
   packages/voice/pipeline:
     dependencies:
       '@ai-agent/shared':
@@ -648,6 +855,15 @@ importers:
 
   packages/working-memory:
     dependencies:
+      '@ai-agent/shared':
+        specifier: workspace:*
+        version: link:../shared
+
+  packages/workspace:
+    dependencies:
+      '@ai-agent/ambient-types':
+        specifier: workspace:*
+        version: link:../ambient-types
       '@ai-agent/shared':
         specifier: workspace:*
         version: link:../shared

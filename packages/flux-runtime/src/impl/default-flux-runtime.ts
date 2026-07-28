@@ -30,6 +30,7 @@ import { DefaultKnowledgeConsolidation } from "@ai-agent/knowledge-consolidation
 import { DefaultHabitDiscovery } from "@ai-agent/habit-discovery";
 import { DefaultThoughtGraph, type CognitionResult } from "@ai-agent/thought-graph";
 import { DefaultSensorManager, GitSensor, FileSystemSensor, ClipboardSensor, BatterySensor, IdleSensor, NotificationSensor, DockerSensor, SpotifySensor, KubernetesSensor, SSHSensor, AudioSensor } from "@ai-agent/sensors";
+import { DefaultMemoryManager } from "@ai-agent/cognitive-memory";
 import { CognitionPipeline } from "./cognition-pipeline.js";
 import { execSync } from "node:child_process";
 
@@ -56,6 +57,7 @@ export class DefaultFluxRuntime implements FluxRuntime {
   readonly habits: InstanceType<typeof DefaultHabitDiscovery>;
   readonly thoughtGraph: DefaultThoughtGraph;
   readonly sensors: DefaultSensorManager;
+  readonly memory: DefaultMemoryManager;
   private readonly pipeline: CognitionPipeline;
 
   private totalInteractions = 0;
@@ -205,6 +207,9 @@ export class DefaultFluxRuntime implements FluxRuntime {
         this.attention.process(observation);
       }
     });
+
+    // --- Layer 10: Cognitive Memory System ---
+    this.memory = new DefaultMemoryManager(2000); // 2000 max memories
 
     this.cognitiveReady = true;
 
@@ -547,6 +552,26 @@ export class DefaultFluxRuntime implements FluxRuntime {
       metadata: { role: "user" },
     });
 
+    // Step 12: Store episodic memory of this interaction
+    this.memory.storeEpisodic({
+      type: "episodic",
+      category: "interaction",
+      event: `User: ${input.slice(0, 100)}`,
+      context: `Assistant responded with ${responseText.length} characters`,
+      participants: ["user", "assistant"],
+      location: null,
+      duration,
+      outcome: responseText.length > 0 ? "responded" : "no response",
+      emotionalValence: responseText.length > 0 ? 0.5 : -0.2,
+      content: `User asked: ${input.slice(0, 200)}`,
+      strength: 0.7,
+      confidence: 0.9,
+      source: "interaction",
+      tags: ["chat", "runtime"],
+      relatedIds: [],
+      relatedEpisodeIds: [],
+    });
+
     return {
       text: responseText,
       confidence: 0.8,
@@ -574,6 +599,7 @@ export class DefaultFluxRuntime implements FluxRuntime {
   getState(): FluxRuntimeState {
     const graphSnapshot = this.thoughtGraph.snapshot();
     const sensorState = this.sensors.getState();
+    const memStats = this.memory.getStats();
     return {
       memorySize: this.workingMemory.snapshot().entries.length,
       activeGoals: this.goalManager.getAll().filter((g) => g.status === "active" || g.status === "in_progress").length,
@@ -591,6 +617,8 @@ export class DefaultFluxRuntime implements FluxRuntime {
       lastPipelineDurationMs: this.lastPipelineDurationMs,
       sensorsRunning: sensorState.runningSensors,
       totalSensorEvents: sensorState.totalEvents,
+      cognitiveMemoryCount: memStats.totalMemories,
+      memoryStats: memStats,
     };
   }
 

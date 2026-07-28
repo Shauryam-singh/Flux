@@ -35,6 +35,7 @@
     { "path": "../../packages/knowledge-consolidation" },
     { "path": "../../packages/habit-discovery" },
     { "path": "../../packages/thought-graph" },
-    { "path": "../../packages/sensors" }
+    { "path": "../../packages/sensors" },
+    { "path": "../../packages/cognitive-memory" }
   ]
 }

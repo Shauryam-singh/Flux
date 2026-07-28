@@ -40,6 +40,7 @@
     "@ai-agent/knowledge-consolidation": "workspace:*",
     "@ai-agent/habit-discovery": "workspace:*",
     "@ai-agent/thought-graph": "workspace:*",
-    "@ai-agent/sensors": "workspace:*"
+    "@ai-agent/sensors": "workspace:*",
+    "@ai-agent/cognitive-memory": "workspace:*"
   }
 }

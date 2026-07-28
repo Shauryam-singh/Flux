@@ -714,6 +714,12 @@ importers:
         specifier: workspace:*
         version: link:../shared
 
+  packages/cognitive-memory:
+    dependencies:
+      '@ai-agent/shared':
+        specifier: workspace:*
+        version: link:../shared
+
   packages/cognitive-types:
     dependencies:
       '@ai-agent/shared':
@@ -962,6 +968,9 @@ importers:
       '@ai-agent/cognitive':
         specifier: workspace:*
         version: link:../cognitive
+      '@ai-agent/cognitive-memory':
+        specifier: workspace:*
+        version: link:../cognitive-memory
       '@ai-agent/confidence-calibration':
         specifier: workspace:*
         version: link:../confidence-calibration

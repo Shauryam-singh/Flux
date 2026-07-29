@@ -20,7 +20,7 @@ fn send_message(message: String, state: tauri::State<ApiState>) -> Result<String
     let api_url = state.api_url.lock().map_err(|e| e.to_string())?;
 
     let client = reqwest::blocking::Client::builder()
-        .timeout(std::time::Duration::from_secs(120))
+        .timeout(std::time::Duration::from_secs(10))
         .build()
         .map_err(|e| e.to_string())?;
 

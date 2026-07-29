@@ -197,13 +197,19 @@ async function stopVoice() {
   isRecording = false;
   UI.setVoiceRecording(false);
 
-  // Try Tauri first
-  const tauriResult = await invokeTauri('stop_recording');
-  if (tauriResult && tauriResult !== null) {
-    UI.showToast(`You said: "${tauriResult}"`, 'success', 3000);
-    // Send as chat and speak reply
-    await sendChatMessageDirect(tauriResult, true);
-    return;
+  // Try Tauri with timeout
+  try {
+    const tauriResult = await Promise.race([
+      invokeTauri('stop_recording'),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 8000)),
+    ]);
+    if (tauriResult && tauriResult !== null) {
+      UI.showToast(`You said: "${tauriResult}"`, 'success', 3000);
+      await sendChatMessageDirect(tauriResult, true);
+      return;
+    }
+  } catch {
+    // Tauri not available or timed out
   }
 
   // Fallback: browser MediaRecorder
@@ -657,28 +663,29 @@ async function sendChatMessageDirect(message, speak = false) {
 
   let reply = null;
 
-  // Try Tauri first
+  // Always call API directly — Tauri send_message is a slow blocking HTTP proxy
   try {
-    const tauriResult = await invokeTauri('send_message', { message });
-    if (tauriResult !== null && tauriResult !== undefined) {
-      reply = tauriResult;
-    }
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15000);
+    const resp = await fetch('http://localhost:3141/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message }),
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+    const data = await resp.json();
+    reply = data.reply || null;
   } catch {
-    // Tauri not available
-  }
-
-  // Fallback: direct API call
-  if (!reply) {
+    // API not running — try Tauri as last resort
     try {
-      const resp = await fetch('http://localhost:3141/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message }),
-      });
-      const data = await resp.json();
-      reply = data.reply || null;
+      const tauriResult = await Promise.race([
+        invokeTauri('send_message', { message }),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 10000)),
+      ]);
+      if (tauriResult) reply = tauriResult;
     } catch {
-      // API not running
+      // Both failed
     }
   }
 

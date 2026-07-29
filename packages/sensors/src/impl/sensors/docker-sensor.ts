@@ -1,12 +1,21 @@
+import type {
+  ObservationPriority,
+  ObservationSource,
+} from "@ai-agent/attention";
+import type { SensorEvent, SensorMetadata } from "../../types/sensor.js";
 import { BaseSensor } from "../base-sensor.js";
-import type { SensorMetadata, SensorEvent } from "../../types/sensor.js";
-import type { ObservationSource, ObservationPriority } from "@ai-agent/attention";
 
 export interface DockerContainer {
   readonly id: string;
   readonly name: string;
   readonly image: string;
-  readonly status: "running" | "stopped" | "exited" | "created" | "paused" | "restarting";
+  readonly status:
+    | "running"
+    | "stopped"
+    | "exited"
+    | "created"
+    | "paused"
+    | "restarting";
   readonly state: string;
   readonly ports: string;
   readonly created: number;
@@ -14,7 +23,14 @@ export interface DockerContainer {
 }
 
 export interface DockerEvent {
-  readonly type: "start" | "stop" | "die" | "create" | "pause" | "unpause" | "restart";
+  readonly type:
+    | "start"
+    | "stop"
+    | "die"
+    | "create"
+    | "pause"
+    | "unpause"
+    | "restart";
   readonly containerId: string;
   readonly containerName: string;
   readonly image: string;
@@ -122,11 +138,15 @@ export class DockerSensor extends BaseSensor<DockerState> {
 
   protected getEventPriority(data: DockerState): ObservationPriority {
     if (data.recentEvents.some((e) => e.type === "die")) return "high";
-    if (data.recentEvents.some((e) => e.type === "start" || e.type === "stop")) return "medium";
+    if (data.recentEvents.some((e) => e.type === "start" || e.type === "stop"))
+      return "medium";
     return "background";
   }
 
-  private addEvent(type: DockerEvent["type"], container: DockerContainer): void {
+  private addEvent(
+    type: DockerEvent["type"],
+    container: DockerContainer,
+  ): void {
     const event: DockerEvent = {
       type,
       containerId: container.id,
@@ -146,12 +166,21 @@ export class DockerSensor extends BaseSensor<DockerState> {
       type,
       data: {
         containers: [...this.lastContainers.values()],
-        runningCount: [...this.lastContainers.values()].filter((c) => c.status === "running").length,
-        stoppedCount: [...this.lastContainers.values()].filter((c) => c.status !== "running").length,
+        runningCount: [...this.lastContainers.values()].filter(
+          (c) => c.status === "running",
+        ).length,
+        stoppedCount: [...this.lastContainers.values()].filter(
+          (c) => c.status !== "running",
+        ).length,
         totalContainers: this.lastContainers.size,
         recentEvents: [...this.recentEvents],
       },
-      priority: type === "die" ? "high" : type === "start" || type === "stop" ? "medium" : "low",
+      priority:
+        type === "die"
+          ? "high"
+          : type === "start" || type === "stop"
+            ? "medium"
+            : "low",
       source: "process",
     });
   }
@@ -162,27 +191,30 @@ export class DockerSensor extends BaseSensor<DockerState> {
     );
     if (!output) return [];
 
-    return output.split("\n").filter(Boolean).map((line) => {
-      const [id, name, image, status, ports, created] = line.split("|");
-      const statusParts = (status ?? "").split(" ");
-      const statusKey = statusParts[0]?.toLowerCase() ?? "unknown";
+    return output
+      .split("\n")
+      .filter(Boolean)
+      .map((line) => {
+        const [id, name, image, status, ports, created] = line.split("|");
+        const statusParts = (status ?? "").split(" ");
+        const statusKey = statusParts[0]?.toLowerCase() ?? "unknown";
 
-      let containerStatus: DockerContainer["status"] = "created";
-      if (statusKey === "up") containerStatus = "running";
-      else if (statusKey === "exited") containerStatus = "exited";
-      else if (statusKey === "created") containerStatus = "created";
-      else if (statusKey === "restarting") containerStatus = "restarting";
+        let containerStatus: DockerContainer["status"] = "created";
+        if (statusKey === "up") containerStatus = "running";
+        else if (statusKey === "exited") containerStatus = "exited";
+        else if (statusKey === "created") containerStatus = "created";
+        else if (statusKey === "restarting") containerStatus = "restarting";
 
-      return {
-        id: id ?? "",
-        name: name ?? "",
-        image: image ?? "",
-        status: containerStatus,
-        state: status ?? "",
-        ports: ports ?? "",
-        created: Date.parse(created ?? "") || Date.now(),
-        startedAt: statusKey === "up" ? Date.now() : null,
-      };
-    });
+        return {
+          id: id ?? "",
+          name: name ?? "",
+          image: image ?? "",
+          status: containerStatus,
+          state: status ?? "",
+          ports: ports ?? "",
+          created: Date.parse(created ?? "") || Date.now(),
+          startedAt: statusKey === "up" ? Date.now() : null,
+        };
+      });
   }
 }

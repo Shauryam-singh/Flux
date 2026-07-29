@@ -18,22 +18,21 @@
  * 14. Sleep         - Wait for next tick
  */
 
-import type { DefaultThoughtGraph } from "@ai-agent/thought-graph";
-import type {
-  ThoughtNode,
-  ThoughtEdge,
-  MergedObservations,
-  GoalEvaluation,
-  UserIntentPrediction,
-  Opportunity,
-  CognitionResult,
-  ThoughtExplanation,
-} from "@ai-agent/thought-graph";
-import type { WorldModel, WorldState } from "@ai-agent/world-model";
-import type { WorkingMemory, MemorySnapshot } from "@ai-agent/working-memory";
-import type { GoalManager } from "@ai-agent/goals";
-import type { Goal, Blocker } from "@ai-agent/goals";
 import type { AttentionManager, Observation } from "@ai-agent/attention";
+import type { Blocker, Goal, GoalManager } from "@ai-agent/goals";
+import type {
+  CognitionResult,
+  DefaultThoughtGraph,
+  GoalEvaluation,
+  MergedObservations,
+  Opportunity,
+  ThoughtEdge,
+  ThoughtExplanation,
+  ThoughtNode,
+  UserIntentPrediction,
+} from "@ai-agent/thought-graph";
+import type { MemorySnapshot, WorkingMemory } from "@ai-agent/working-memory";
+import type { WorldModel, WorldState } from "@ai-agent/world-model";
 
 export interface PipelineContext {
   readonly tickNumber: number;
@@ -50,7 +49,13 @@ export class CognitionPipeline {
   private worldModel: WorldModel;
   private workingMemory: WorkingMemory;
   private goalManager: GoalManager;
-  private llmProvider: { complete(req: { model: string; prompt: string; temperature?: number }): Promise<{ text: string }> };
+  private llmProvider: {
+    complete(req: {
+      model: string;
+      prompt: string;
+      temperature?: number;
+    }): Promise<{ text: string }>;
+  };
   private attention: AttentionManager;
   private pendingObservations: Observation[] = [];
   private lastTickTime = 0;
@@ -61,7 +66,13 @@ export class CognitionPipeline {
     worldModel: WorldModel,
     workingMemory: WorkingMemory,
     goalManager: GoalManager,
-    llmProvider: { complete(req: { model: string; prompt: string; temperature?: number }): Promise<{ text: string }> },
+    llmProvider: {
+      complete(req: {
+        model: string;
+        prompt: string;
+        temperature?: number;
+      }): Promise<{ text: string }>;
+    },
     attention: AttentionManager,
   ) {
     this.thoughtGraph = thoughtGraph;
@@ -79,9 +90,13 @@ export class CognitionPipeline {
   async runTick(): Promise<CognitionResult> {
     const tickStart = Date.now();
     this.tickCount++;
-    const stages: Array<{ name: string; durationMs: number; result: unknown }> = [];
+    const stages: Array<{ name: string; durationMs: number; result: unknown }> =
+      [];
 
-    const runStage = async <T>(name: string, fn: () => Promise<T> | T): Promise<T> => {
+    const runStage = async <T>(
+      name: string,
+      fn: () => Promise<T> | T,
+    ): Promise<T> => {
       const start = Date.now();
       const result = await fn();
       stages.push({ name, durationMs: Date.now() - start, result });
@@ -90,67 +105,75 @@ export class CognitionPipeline {
 
     // Stage 1: Observe - gather raw observations
     const observations = await runStage("observe", () =>
-      Promise.resolve(this.stageObserve())
+      Promise.resolve(this.stageObserve()),
     );
 
     // Stage 2: Merge - deduplicate and compress
     const merged = await runStage("merge", () =>
-      Promise.resolve(this.stageMerge(observations))
+      Promise.resolve(this.stageMerge(observations)),
     );
 
     // Stage 3: World Model - update with merged observations
     const worldState = await runStage("world_model", () =>
-      Promise.resolve(this.stageWorldModel(merged))
+      Promise.resolve(this.stageWorldModel(merged)),
     );
 
     // Stage 4: Working Memory - store relevant observations
     await runStage("working_memory", () =>
-      Promise.resolve(this.stageWorkingMemory(merged))
+      Promise.resolve(this.stageWorkingMemory(merged)),
     );
 
     // Stage 5: Goal Eval - evaluate goals against current state
     const goalEval = await runStage("goal_eval", () =>
-      Promise.resolve(this.stageGoalEval(worldState))
+      Promise.resolve(this.stageGoalEval(worldState)),
     );
 
     // Stage 6: Intent Predict - predict user intent
     const userIntent = await runStage("intent_predict", () =>
-      this.stageIntentPredict(merged, goalEval, worldState)
+      this.stageIntentPredict(merged, goalEval, worldState),
     );
 
     // Stage 7: Generate - generate rich thoughts
     const newThoughts = await runStage("generate", () =>
-      this.stageGenerate(merged, goalEval, userIntent, worldState)
+      this.stageGenerate(merged, goalEval, userIntent, worldState),
     );
 
     // Stage 8: Compare - compare with existing thoughts
     const comparedThoughts = await runStage("compare", () =>
-      Promise.resolve(this.stageCompare(newThoughts))
+      Promise.resolve(this.stageCompare(newThoughts)),
     );
 
     // Stage 9: Opportunities - detect proactive actions
     const opportunities = await runStage("opportunities", () =>
-      Promise.resolve(this.stageOpportunities(comparedThoughts, worldState, goalEval))
+      Promise.resolve(
+        this.stageOpportunities(comparedThoughts, worldState, goalEval),
+      ),
     );
 
     // Stage 10: Interrupt Eval - evaluate interrupt policy
     const interruptResult = await runStage("interrupt_eval", () =>
-      Promise.resolve(this.stageInterruptEval(comparedThoughts, worldState))
+      Promise.resolve(this.stageInterruptEval(comparedThoughts, worldState)),
     );
 
     // Stage 11: Choose Action - select best action
     const selectedAction = await runStage("choose_action", () =>
-      Promise.resolve(this.stageChooseAction(comparedThoughts, opportunities, interruptResult))
+      Promise.resolve(
+        this.stageChooseAction(
+          comparedThoughts,
+          opportunities,
+          interruptResult,
+        ),
+      ),
     );
 
     // Stage 12: Store - store thoughts and edges in graph
     await runStage("store", () =>
-      Promise.resolve(this.stageStore(comparedThoughts, selectedAction))
+      Promise.resolve(this.stageStore(comparedThoughts, selectedAction)),
     );
 
     // Stage 13: Explain - generate explanation chain
     const explanation = await runStage("explain", () =>
-      Promise.resolve(this.stageExplain(selectedAction))
+      Promise.resolve(this.stageExplain(selectedAction)),
     );
 
     // Stage 14: Sleep - brief pause (handled by caller)
@@ -194,7 +217,11 @@ export class CognitionPipeline {
 
   private stageMerge(observations: Observation[]): MergedObservations {
     const merged = new Map<string, Observation>();
-    const patterns: Array<{ type: string; description: string; count: number }> = [];
+    const patterns: Array<{
+      type: string;
+      description: string;
+      count: number;
+    }> = [];
 
     for (const obs of observations) {
       const key = `${obs.source}:${obs.title}`;
@@ -391,7 +418,11 @@ export class CognitionPipeline {
     // Try LLM prediction if available and we have enough context
     if (merged.observations.length >= 3 && confidence < 0.7) {
       try {
-        const llmPrediction = await this.llmPredictIntent(merged, goalEval, worldState);
+        const llmPrediction = await this.llmPredictIntent(
+          merged,
+          goalEval,
+          worldState,
+        );
         if (llmPrediction.confidence > confidence) {
           return llmPrediction;
         }
@@ -443,7 +474,12 @@ Reply with a JSON object:
 }`,
     });
 
-    const parsed = JSON.parse(response.text.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim());
+    const parsed = JSON.parse(
+      response.text
+        .replace(/```json\n?/g, "")
+        .replace(/```\n?/g, "")
+        .trim(),
+    );
     return {
       primaryIntent: parsed.intent,
       confidence: Math.max(0, Math.min(1, parsed.confidence)),
@@ -468,131 +504,267 @@ Reply with a JSON object:
 
     // Error thoughts
     for (const error of worldState.system.openErrors) {
-      thoughts.push(this.thoughtGraph.addNode({
-        type: "concern",
-        content: `Error: ${error.message}`,
-        reasoning: `Open error from ${error.source}`,
-        confidence: { value: 0.9, reason: "Direct error observation", timestamp: now },
-        evidence: [{
-          id: `ev_${now}`,
-          observationId: error.source,
-          source: error.source,
-          content: error.message,
-          strength: 0.9,
-          timestamp: now,
-        }],
-        counterarguments: [],
-        relatedThoughtIds: [],
-        observationIds: [],
-        goalId: goalEval.activeGoals[0]?.id ?? null,
-        expiresAt: now + 3600000, // 1 hour
-        metadata: { errorSource: error.source },
-      }));
+      thoughts.push(
+        this.thoughtGraph.addNode({
+          type: "concern",
+          content: `Error: ${error.message}`,
+          reasoning: `Open error from ${error.source}`,
+          confidence: {
+            value: 0.9,
+            reason: "Direct error observation",
+            timestamp: now,
+          },
+          evidence: [
+            {
+              id: `ev_${now}`,
+              observationId: error.source,
+              source: error.source,
+              content: error.message,
+              strength: 0.9,
+              timestamp: now,
+            },
+          ],
+          counterarguments: [],
+          relatedThoughtIds: [],
+          observationIds: [],
+          goalId: goalEval.activeGoals[0]?.id ?? null,
+          expiresAt: now + 3600000, // 1 hour
+          metadata: { errorSource: error.source },
+        }),
+      );
     }
 
     // Goal progress thoughts
     for (const goal of goalEval.activeGoals) {
       if (goal.progress > 0 && goal.progress < 100) {
-        thoughts.push(this.thoughtGraph.addNode({
-          type: "goal_evaluation",
-          content: `Goal "${goal.title}" at ${goal.progress}% — ${goal.nextStep ?? "continue"}`,
-          reasoning: `Progress tracking for active goal`,
-          confidence: { value: 0.8, reason: "Goal progress data", timestamp: now },
-          evidence: [],
-          counterarguments: goal.blockers.map((b) => ({
-            id: `ca_${now}_${b}`,
-            content: `Blocker: ${b}`,
-            strength: 0.6,
-            relatedEvidenceId: null,
-          })),
-          relatedThoughtIds: [],
-          observationIds: [],
-          goalId: goal.id,
-          expiresAt: now + 86400000, // 24 hours
-          metadata: { progress: goal.progress },
-        }));
+        thoughts.push(
+          this.thoughtGraph.addNode({
+            type: "goal_evaluation",
+            content: `Goal "${goal.title}" at ${goal.progress}% — ${goal.nextStep ?? "continue"}`,
+            reasoning: `Progress tracking for active goal`,
+            confidence: {
+              value: 0.8,
+              reason: "Goal progress data",
+              timestamp: now,
+            },
+            evidence: [],
+            counterarguments: goal.blockers.map((b) => ({
+              id: `ca_${now}_${b}`,
+              content: `Blocker: ${b}`,
+              strength: 0.6,
+              relatedEvidenceId: null,
+            })),
+            relatedThoughtIds: [],
+            observationIds: [],
+            goalId: goal.id,
+            expiresAt: now + 86400000, // 24 hours
+            metadata: { progress: goal.progress },
+          }),
+        );
       }
 
       // Stalled goal thoughts
       if (goalEval.stalledGoals.includes(goal.id)) {
-        thoughts.push(this.thoughtGraph.addNode({
-          type: "concern",
-          content: `Goal "${goal.title}" appears stalled`,
-          reasoning: "No progress in 30+ minutes",
-          confidence: { value: 0.7, reason: "Time-based stall detection", timestamp: now },
-          evidence: [],
-          counterarguments: [],
-          relatedThoughtIds: [],
-          observationIds: [],
-          goalId: goal.id,
-          expiresAt: now + 7200000, // 2 hours
-          metadata: {},
-        }));
+        thoughts.push(
+          this.thoughtGraph.addNode({
+            type: "concern",
+            content: `Goal "${goal.title}" appears stalled`,
+            reasoning: "No progress in 30+ minutes",
+            confidence: {
+              value: 0.7,
+              reason: "Time-based stall detection",
+              timestamp: now,
+            },
+            evidence: [],
+            counterarguments: [],
+            relatedThoughtIds: [],
+            observationIds: [],
+            goalId: goal.id,
+            expiresAt: now + 7200000, // 2 hours
+            metadata: {},
+          }),
+        );
       }
     }
 
     // Pattern recognition from merged observations
     for (const pattern of merged.patterns) {
-      thoughts.push(this.thoughtGraph.addNode({
-        type: "pattern_recognition",
-        content: pattern.description,
-        reasoning: `Detected pattern: ${pattern.type} (count: ${pattern.count})`,
-        confidence: { value: 0.6, reason: "Pattern detection", timestamp: now },
-        evidence: merged.observations
-          .filter((o) => o.source === pattern.description.split(" from ")[1])
-          .map((o) => ({
-            id: `ev_${now}_${o.id}`,
-            observationId: o.id,
-            source: o.source,
-            content: o.title,
-            strength: 0.5,
-            timestamp: o.timestamp,
-          })),
-        counterarguments: [],
-        relatedThoughtIds: [],
-        observationIds: merged.observations.map((o) => o.id),
-        goalId: null,
-        expiresAt: now + 1800000, // 30 minutes
-        metadata: { patternType: pattern.type },
-      }));
+      thoughts.push(
+        this.thoughtGraph.addNode({
+          type: "pattern_recognition",
+          content: pattern.description,
+          reasoning: `Detected pattern: ${pattern.type} (count: ${pattern.count})`,
+          confidence: {
+            value: 0.6,
+            reason: "Pattern detection",
+            timestamp: now,
+          },
+          evidence: merged.observations
+            .filter((o) => o.source === pattern.description.split(" from ")[1])
+            .map((o) => ({
+              id: `ev_${now}_${o.id}`,
+              observationId: o.id,
+              source: o.source,
+              content: o.title,
+              strength: 0.5,
+              timestamp: o.timestamp,
+            })),
+          counterarguments: [],
+          relatedThoughtIds: [],
+          observationIds: merged.observations.map((o) => o.id),
+          goalId: null,
+          expiresAt: now + 1800000, // 30 minutes
+          metadata: { patternType: pattern.type },
+        }),
+      );
     }
 
     // User intent thought
     if (userIntent.confidence > 0.6) {
-      thoughts.push(this.thoughtGraph.addNode({
-        type: "user_intent",
-        content: `User likely wants to: ${userIntent.primaryIntent}`,
-        reasoning: userIntent.reasoning,
-        confidence: {
-          value: userIntent.confidence,
-          reason: "Intent prediction",
-          timestamp: now,
-        },
-        evidence: [],
-        counterarguments: [],
-        relatedThoughtIds: [],
-        observationIds: [],
-        goalId: null,
-        expiresAt: now + 600000, // 10 minutes
-        metadata: { urgency: userIntent.urgency },
-      }));
+      thoughts.push(
+        this.thoughtGraph.addNode({
+          type: "user_intent",
+          content: `User likely wants to: ${userIntent.primaryIntent}`,
+          reasoning: userIntent.reasoning,
+          confidence: {
+            value: userIntent.confidence,
+            reason: "Intent prediction",
+            timestamp: now,
+          },
+          evidence: [],
+          counterarguments: [],
+          relatedThoughtIds: [],
+          observationIds: [],
+          goalId: null,
+          expiresAt: now + 600000, // 10 minutes
+          metadata: { urgency: userIntent.urgency },
+        }),
+      );
     }
 
     // System health thoughts
     if (worldState.system.cpuUsage > 80) {
-      thoughts.push(this.thoughtGraph.addNode({
-        type: "concern",
-        content: `High CPU usage: ${worldState.system.cpuUsage}%`,
-        reasoning: "System load is elevated",
-        confidence: { value: 0.7, reason: "System metric", timestamp: now },
-        evidence: [],
-        counterarguments: [],
-        relatedThoughtIds: [],
-        observationIds: [],
-        goalId: null,
-        expiresAt: now + 300000, // 5 minutes
-        metadata: { cpuUsage: worldState.system.cpuUsage },
-      }));
+      thoughts.push(
+        this.thoughtGraph.addNode({
+          type: "concern",
+          content: `High CPU usage: ${worldState.system.cpuUsage}%`,
+          reasoning: "System load is elevated",
+          confidence: { value: 0.7, reason: "System metric", timestamp: now },
+          evidence: [],
+          counterarguments: [],
+          relatedThoughtIds: [],
+          observationIds: [],
+          goalId: null,
+          expiresAt: now + 300000, // 5 minutes
+          metadata: { cpuUsage: worldState.system.cpuUsage },
+        }),
+      );
+    }
+
+    // Base-level observation thoughts — always generate from sensor data
+    for (const obs of merged.observations) {
+      if (obs.source === "git") {
+        thoughts.push(
+          this.thoughtGraph.addNode({
+            type: "observation_interpretation",
+            content: `Git: ${obs.title}`,
+            reasoning: obs.detail,
+            confidence: {
+              value: 0.5,
+              reason: "Sensor observation",
+              timestamp: now,
+            },
+            evidence: [
+              {
+                id: `ev_${now}_${obs.id}`,
+                observationId: obs.id,
+                source: obs.source,
+                content: obs.title,
+                strength: 0.5,
+                timestamp: obs.timestamp,
+              },
+            ],
+            counterarguments: [],
+            relatedThoughtIds: [],
+            observationIds: [obs.id],
+            goalId: null,
+            expiresAt: now + 600000, // 10 minutes
+            metadata: { sensorSource: obs.source },
+          }),
+        );
+      }
+      if (obs.source === "file" && obs.title.includes("changes")) {
+        thoughts.push(
+          this.thoughtGraph.addNode({
+            type: "observation_interpretation",
+            content: `Filesystem: ${obs.title}`,
+            reasoning: obs.detail,
+            confidence: {
+              value: 0.5,
+              reason: "Sensor observation",
+              timestamp: now,
+            },
+            evidence: [
+              {
+                id: `ev_${now}_${obs.id}`,
+                observationId: obs.id,
+                source: obs.source,
+                content: obs.title,
+                strength: 0.5,
+                timestamp: obs.timestamp,
+              },
+            ],
+            counterarguments: [],
+            relatedThoughtIds: [],
+            observationIds: [obs.id],
+            goalId: null,
+            expiresAt: now + 600000,
+            metadata: { sensorSource: obs.source },
+          }),
+        );
+      }
+      if (obs.source === "screen") {
+        thoughts.push(
+          this.thoughtGraph.addNode({
+            type: "observation_interpretation",
+            content: `Screen: ${obs.title}`,
+            reasoning: obs.detail,
+            confidence: {
+              value: 0.4,
+              reason: "Screen observation",
+              timestamp: now,
+            },
+            evidence: [],
+            counterarguments: [],
+            relatedThoughtIds: [],
+            observationIds: [obs.id],
+            goalId: null,
+            expiresAt: now + 300000,
+            metadata: { sensorSource: obs.source },
+          }),
+        );
+      }
+      if (obs.source === "system" && obs.title.includes("idle")) {
+        thoughts.push(
+          this.thoughtGraph.addNode({
+            type: "observation_interpretation",
+            content: `User: ${obs.title}`,
+            reasoning: obs.detail,
+            confidence: {
+              value: 0.4,
+              reason: "Activity observation",
+              timestamp: now,
+            },
+            evidence: [],
+            counterarguments: [],
+            relatedThoughtIds: [],
+            observationIds: [obs.id],
+            goalId: null,
+            expiresAt: now + 300000,
+            metadata: { sensorSource: obs.source },
+          }),
+        );
+      }
     }
 
     return thoughts;
@@ -606,10 +778,11 @@ Reply with a JSON object:
 
     for (const newThought of newThoughts) {
       // Check for similar existing thoughts
-      const similar = recentThoughts.find((existing) =>
-        existing.id !== newThought.id &&
-        existing.type === newThought.type &&
-        this.thoughtsSimilar(existing, newThought)
+      const similar = recentThoughts.find(
+        (existing) =>
+          existing.id !== newThought.id &&
+          existing.type === newThought.type &&
+          this.thoughtsSimilar(existing, newThought),
       );
 
       if (similar) {
@@ -622,7 +795,10 @@ Reply with a JSON object:
         });
 
         // Boost confidence if the same observation keeps appearing
-        const boostedConfidence = Math.min(1, newThought.confidence.value + 0.1);
+        const boostedConfidence = Math.min(
+          1,
+          newThought.confidence.value + 0.1,
+        );
         this.thoughtGraph.updateNode(newThought.id, {
           confidence: {
             ...newThought.confidence,
@@ -633,10 +809,11 @@ Reply with a JSON object:
       }
 
       // Check for contradictions
-      const contradicting = recentThoughts.find((existing) =>
-        existing.id !== newThought.id &&
-        existing.type === newThought.type &&
-        this.thoughtsContradict(existing, newThought)
+      const contradicting = recentThoughts.find(
+        (existing) =>
+          existing.id !== newThought.id &&
+          existing.type === newThought.type &&
+          this.thoughtsContradict(existing, newThought),
       );
 
       if (contradicting) {
@@ -668,7 +845,16 @@ Reply with a JSON object:
 
   private thoughtsContradict(a: ThoughtNode, b: ThoughtNode): boolean {
     // Check for negation patterns
-    const negations = ["not", "no", "never", "failed", "broken", "fixed", "working", "success"];
+    const negations = [
+      "not",
+      "no",
+      "never",
+      "failed",
+      "broken",
+      "fixed",
+      "working",
+      "success",
+    ];
     const wordsA = a.content.toLowerCase().split(/\s+/);
     const wordsB = b.content.toLowerCase().split(/\s+/);
 
@@ -802,10 +988,16 @@ Reply with a JSON object:
   private stageChooseAction(
     thoughts: ThoughtNode[],
     opportunities: Opportunity[],
-    interruptResult: { shouldInterrupt: boolean; priority: number; reason: string },
+    interruptResult: {
+      shouldInterrupt: boolean;
+      priority: number;
+      reason: string;
+    },
   ): { type: string; reasoning: string; confidence: number } | null {
     // Priority 1: Fix errors
-    const errorThoughts = thoughts.filter((t) => t.type === "concern" && t.content.includes("Error"));
+    const errorThoughts = thoughts.filter(
+      (t) => t.type === "concern" && t.content.includes("Error"),
+    );
     if (errorThoughts.length > 0) {
       const highest = errorThoughts.reduce((a, b) =>
         a.confidence.value > b.confidence.value ? a : b,
@@ -818,7 +1010,9 @@ Reply with a JSON object:
     }
 
     // Priority 2: Help with stalled goals
-    const stalledThoughts = thoughts.filter((t) => t.type === "concern" && t.content.includes("stalled"));
+    const stalledThoughts = thoughts.filter(
+      (t) => t.type === "concern" && t.content.includes("stalled"),
+    );
     if (stalledThoughts.length > 0) {
       return {
         type: "speak",
@@ -861,7 +1055,11 @@ Reply with a JSON object:
 
   private stageStore(
     thoughts: ThoughtNode[],
-    selectedAction: { type: string; reasoning: string; confidence: number } | null,
+    selectedAction: {
+      type: string;
+      reasoning: string;
+      confidence: number;
+    } | null,
   ): void {
     // All thoughts are already added to graph in Stage 7
     // Now we add edges between related thoughts
@@ -909,13 +1107,22 @@ Reply with a JSON object:
   // ─── Stage 13: Explain ─────────────────────────────────────────
 
   private stageExplain(
-    selectedAction: { type: string; reasoning: string; confidence: number } | null,
+    selectedAction: {
+      type: string;
+      reasoning: string;
+      confidence: number;
+    } | null,
   ): ThoughtExplanation | null {
     if (!selectedAction) return null;
 
     // Find the thought that led to this action
-    const actionThoughts = this.thoughtGraph.getRecentThoughts(10)
-      .filter((t) => selectedAction.reasoning.includes(t.content) || t.content.includes(selectedAction.reasoning));
+    const actionThoughts = this.thoughtGraph
+      .getRecentThoughts(10)
+      .filter(
+        (t) =>
+          selectedAction.reasoning.includes(t.content) ||
+          t.content.includes(selectedAction.reasoning),
+      );
 
     if (actionThoughts.length === 0) {
       return {

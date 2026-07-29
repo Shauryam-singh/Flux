@@ -1,6 +1,6 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { createMonitorService } from "../impl/monitor-service.js";
 import type { ServiceContext } from "@ai-agent/services-core";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { createMonitorService } from "../impl/monitor-service.js";
 
 vi.mock("node:fs", () => {
   const store = new Map<string, string>();
@@ -43,7 +43,10 @@ describe("monitor service", () => {
   });
 
   it("should add a monitor rule", async () => {
-    const result = await service.execute("add monitor CPU above 80 alert High CPU", ctx);
+    const result = await service.execute(
+      "add monitor CPU above 80 alert High CPU",
+      ctx,
+    );
     expect(result.text).toContain("Monitor rule created");
     expect(result.text).toContain("CPU");
   });

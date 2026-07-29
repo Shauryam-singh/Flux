@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import type { FluxRuntimeConfig } from "../interfaces/flux-runtime.js";
 
 describe("FluxRuntime", () => {
@@ -11,7 +11,11 @@ describe("FluxRuntime", () => {
     enableSelfEvolution: true,
   };
 
-  let runtime: InstanceType<typeof import("../impl/default-flux-runtime.js").DefaultFluxRuntime> | undefined;
+  let runtime:
+    | InstanceType<
+        typeof import("../impl/default-flux-runtime.js").DefaultFluxRuntime
+      >
+    | undefined;
 
   afterEach(async () => {
     if (runtime) {
@@ -21,7 +25,9 @@ describe("FluxRuntime", () => {
   });
 
   it("should export DefaultFluxRuntime", async () => {
-    const { DefaultFluxRuntime } = await import("../impl/default-flux-runtime.js");
+    const { DefaultFluxRuntime } = await import(
+      "../impl/default-flux-runtime.js"
+    );
     expect(DefaultFluxRuntime).toBeDefined();
     runtime = new DefaultFluxRuntime(testConfig);
     expect(runtime).toBeDefined();
@@ -36,7 +42,9 @@ describe("FluxRuntime", () => {
   });
 
   it("should initialize all subsystems", async () => {
-    const { DefaultFluxRuntime } = await import("../impl/default-flux-runtime.js");
+    const { DefaultFluxRuntime } = await import(
+      "../impl/default-flux-runtime.js"
+    );
     runtime = new DefaultFluxRuntime(testConfig);
     expect(runtime.session).toBeDefined();
     expect(runtime.provider).toBeDefined();
@@ -57,7 +65,9 @@ describe("FluxRuntime", () => {
   });
 
   it("should return initial state when not running", async () => {
-    const { DefaultFluxRuntime } = await import("../impl/default-flux-runtime.js");
+    const { DefaultFluxRuntime } = await import(
+      "../impl/default-flux-runtime.js"
+    );
     runtime = new DefaultFluxRuntime(testConfig);
     const state = runtime.getState();
     expect(state.memorySize).toBe(0);
@@ -74,7 +84,9 @@ describe("FluxRuntime", () => {
   });
 
   it("should start and stop background loop", async () => {
-    const { DefaultFluxRuntime } = await import("../impl/default-flux-runtime.js");
+    const { DefaultFluxRuntime } = await import(
+      "../impl/default-flux-runtime.js"
+    );
     runtime = new DefaultFluxRuntime(testConfig);
     expect(runtime.isRunning()).toBe(false);
 
@@ -89,7 +101,9 @@ describe("FluxRuntime", () => {
   });
 
   it("should not double-start", async () => {
-    const { DefaultFluxRuntime } = await import("../impl/default-flux-runtime.js");
+    const { DefaultFluxRuntime } = await import(
+      "../impl/default-flux-runtime.js"
+    );
     runtime = new DefaultFluxRuntime(testConfig);
     runtime.start();
     runtime.start(); // Should be no-op
@@ -98,7 +112,9 @@ describe("FluxRuntime", () => {
   });
 
   it("should process events through attention", async () => {
-    const { DefaultFluxRuntime } = await import("../impl/default-flux-runtime.js");
+    const { DefaultFluxRuntime } = await import(
+      "../impl/default-flux-runtime.js"
+    );
     runtime = new DefaultFluxRuntime(testConfig);
     const result = runtime.processEvent({
       source: "screen",
@@ -106,27 +122,37 @@ describe("FluxRuntime", () => {
       detail: "Something happened",
     });
     expect(result).toBeDefined();
-    expect(["ignore", "buffer", "immediate", "summarize"]).toContain(result.action);
+    expect(["ignore", "buffer", "immediate", "summarize"]).toContain(
+      result.action,
+    );
   });
 
   it("should start with empty history", async () => {
-    const { DefaultFluxRuntime } = await import("../impl/default-flux-runtime.js");
+    const { DefaultFluxRuntime } = await import(
+      "../impl/default-flux-runtime.js"
+    );
     runtime = new DefaultFluxRuntime(testConfig);
     expect(runtime.getHistory()).toHaveLength(0);
   });
 
   it("should register and unregister tick handlers", async () => {
-    const { DefaultFluxRuntime } = await import("../impl/default-flux-runtime.js");
+    const { DefaultFluxRuntime } = await import(
+      "../impl/default-flux-runtime.js"
+    );
     runtime = new DefaultFluxRuntime(testConfig);
     let called = false;
-    const unsub = runtime.onTick(() => { called = true; });
+    const unsub = runtime.onTick(() => {
+      called = true;
+    });
     expect(typeof unsub).toBe("function");
     unsub();
     // Handler should not be called after unsubscribe
   });
 
   it("should manage thought graph", async () => {
-    const { DefaultFluxRuntime } = await import("../impl/default-flux-runtime.js");
+    const { DefaultFluxRuntime } = await import(
+      "../impl/default-flux-runtime.js"
+    );
     runtime = new DefaultFluxRuntime(testConfig);
 
     // Add thoughts manually
@@ -161,7 +187,9 @@ describe("FluxRuntime", () => {
   });
 
   it("should shutdown cleanly", async () => {
-    const { DefaultFluxRuntime } = await import("../impl/default-flux-runtime.js");
+    const { DefaultFluxRuntime } = await import(
+      "../impl/default-flux-runtime.js"
+    );
     runtime = new DefaultFluxRuntime(testConfig);
     runtime.start();
     await expect(runtime.shutdown()).resolves.toBeUndefined();

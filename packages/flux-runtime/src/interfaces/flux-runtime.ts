@@ -1,25 +1,30 @@
-import type { Provider, ProviderName } from "@ai-agent/providers";
-import type { ObservationSource, AttentionManager } from "@ai-agent/attention";
-import type { CognitiveOrchestrator } from "@ai-agent/cognitive";
 import type { DefaultSession } from "@ai-agent/agent";
-import type { LlmProvider } from "@ai-agent/services-core";
-import type { DefaultThoughtGraph, CognitionResult } from "@ai-agent/thought-graph";
-import type { SensorManager } from "@ai-agent/sensors";
+import type { AttentionManager, ObservationSource } from "@ai-agent/attention";
+import type { CognitiveOrchestrator } from "@ai-agent/cognitive";
 import type { MemoryManager } from "@ai-agent/cognitive-memory";
-import type { DefaultGoalManager } from "@ai-agent/goals";
-import type { DefaultWorldModel } from "@ai-agent/world-model";
-import type { DefaultWorkingMemory } from "@ai-agent/working-memory";
-import type { DefaultExperienceDatabase } from "@ai-agent/experience-db";
-import type { DefaultMetaCognitionEngine } from "@ai-agent/meta-cognition";
-import type { DefaultStrategyLibrary } from "@ai-agent/strategy-library";
 import type { DefaultConfidenceCalibration } from "@ai-agent/confidence-calibration";
-import type { DefaultKnowledgeConsolidation } from "@ai-agent/knowledge-consolidation";
+import type { DefaultExperienceDatabase } from "@ai-agent/experience-db";
+import type { DefaultGoalManager } from "@ai-agent/goals";
 import type { DefaultHabitDiscovery } from "@ai-agent/habit-discovery";
+import type { DefaultKnowledgeConsolidation } from "@ai-agent/knowledge-consolidation";
+import type { DefaultMetaCognitionEngine } from "@ai-agent/meta-cognition";
+import type { Provider, ProviderName } from "@ai-agent/providers";
+import type { SensorManager } from "@ai-agent/sensors";
+import type { LlmProvider } from "@ai-agent/services-core";
+import type { DefaultStrategyLibrary } from "@ai-agent/strategy-library";
+import type {
+  CognitionResult,
+  DefaultThoughtGraph,
+} from "@ai-agent/thought-graph";
+import type { DefaultWorkingMemory } from "@ai-agent/working-memory";
+import type { DefaultWorldModel } from "@ai-agent/world-model";
 
 export interface FluxRuntimeConfig {
   readonly provider: ProviderName;
   readonly model: string;
-  readonly providerConfigs: Partial<Record<ProviderName, { apiKey?: string; baseUrl?: string }>>;
+  readonly providerConfigs: Partial<
+    Record<ProviderName, { apiKey?: string; baseUrl?: string }>
+  >;
   readonly maxMemoryCapacity?: number;
   readonly attentionMinBrainScore?: number;
   readonly enableSelfEvolution?: boolean;
@@ -72,7 +77,11 @@ export interface FluxRuntime {
   readonly knowledge: DefaultKnowledgeConsolidation;
   readonly habits: DefaultHabitDiscovery;
   process(input: string): Promise<FluxRuntimeResult>;
-  processEvent(event: { source: ObservationSource; title: string; detail: string }): {
+  processEvent(event: {
+    source: ObservationSource;
+    title: string;
+    detail: string;
+  }): {
     readonly action: "ignore" | "buffer" | "immediate" | "summarize";
   };
   start(): void;
@@ -83,17 +92,43 @@ export interface FluxRuntime {
   getState(): FluxRuntimeState;
   getStreamingSnapshot(): Promise<{
     readonly state: FluxRuntimeState;
-    readonly pipelineResult: import("@ai-agent/thought-graph").CognitionResult | null;
-    readonly recentThoughts: ReadonlyArray<{ type: string; content: string; confidence: number; timestamp: number }>;
-    readonly recentActions: ReadonlyArray<{ type: string; reasoning: string; confidence: number; timestamp: number }>;
-    readonly recentSensorEvents: ReadonlyArray<{ sensorId: string; type: string; timestamp: number; priority: string }>;
-    readonly goals: ReadonlyArray<{ id: string; title: string; status: string; progress: number }>;
+    readonly pipelineResult:
+      | import("@ai-agent/thought-graph").CognitionResult
+      | null;
+    readonly recentThoughts: ReadonlyArray<{
+      type: string;
+      content: string;
+      confidence: number;
+      timestamp: number;
+    }>;
+    readonly recentActions: ReadonlyArray<{
+      type: string;
+      reasoning: string;
+      confidence: number;
+      timestamp: number;
+    }>;
+    readonly recentSensorEvents: ReadonlyArray<{
+      sensorId: string;
+      type: string;
+      timestamp: number;
+      priority: string;
+    }>;
+    readonly goals: ReadonlyArray<{
+      id: string;
+      title: string;
+      status: string;
+      progress: number;
+    }>;
     readonly worldState: import("@ai-agent/world-model").WorldState;
     readonly sensorSnapshots: Record<string, unknown>;
   }>;
   explainThought(thoughtId: string): ReturnType<DefaultThoughtGraph["explain"]>;
-  getRecentThoughts(limit?: number): ReturnType<DefaultThoughtGraph["getRecentThoughts"]>;
-  getStrongestThoughts(limit?: number): ReturnType<DefaultThoughtGraph["getStrongestThoughts"]>;
+  getRecentThoughts(
+    limit?: number,
+  ): ReturnType<DefaultThoughtGraph["getRecentThoughts"]>;
+  getStrongestThoughts(
+    limit?: number,
+  ): ReturnType<DefaultThoughtGraph["getStrongestThoughts"]>;
   shutdown(): Promise<void>;
 }
 

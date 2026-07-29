@@ -89,7 +89,9 @@ export class LlmPlanner implements Planner {
               toolCall: parsed,
             });
           },
-          ...(callbacks.onError !== undefined && { onError: callbacks.onError }),
+          ...(callbacks.onError !== undefined && {
+            onError: callbacks.onError,
+          }),
         },
       );
     } else {
@@ -177,9 +179,7 @@ User says "Set up a Node.js project":
 
     // Extract just the message text from input
     const input = request.input as { message?: string } | string;
-    const userMessage = typeof input === "string" 
-      ? input 
-      : input.message || "";
+    const userMessage = typeof input === "string" ? input : input.message || "";
     contextParts.push(`User: ${userMessage}`);
 
     return contextParts.join("\n\n");

@@ -1,9 +1,17 @@
-import type { ReasoningEngine, ReasoningContext, ReasoningState } from "../interfaces/reasoning-engine.js";
-import type { ThoughtGenerator } from "../interfaces/thought-generator.js";
-import type { Thought, ReasoningCycleResult, ReasoningTrigger } from "@ai-agent/cognitive-types";
-import type { WorldState } from "@ai-agent/world-model";
-import type { MemorySnapshot } from "@ai-agent/working-memory";
+import type {
+  ReasoningCycleResult,
+  ReasoningTrigger,
+  Thought,
+} from "@ai-agent/cognitive-types";
 import type { Goal } from "@ai-agent/goals";
+import type { MemorySnapshot } from "@ai-agent/working-memory";
+import type { WorldState } from "@ai-agent/world-model";
+import type {
+  ReasoningContext,
+  ReasoningEngine,
+  ReasoningState,
+} from "../interfaces/reasoning-engine.js";
+import type { ThoughtGenerator } from "../interfaces/thought-generator.js";
 
 export class DefaultReasoningEngine implements ReasoningEngine {
   private state: ReasoningState = "idle";
@@ -12,12 +20,19 @@ export class DefaultReasoningEngine implements ReasoningEngine {
   private readonly maxHistory: number;
   private thoughtGenerator: ThoughtGenerator;
 
-  constructor(thoughtGenerator: ThoughtGenerator, options?: { maxHistory?: number }) {
+  constructor(
+    thoughtGenerator: ThoughtGenerator,
+    options?: { maxHistory?: number },
+  ) {
     this.thoughtGenerator = thoughtGenerator;
     this.maxHistory = options?.maxHistory ?? 100;
   }
 
-  shouldReason(worldState: WorldState, _memory: MemorySnapshot, goals: ReadonlyArray<Goal>): boolean {
+  shouldReason(
+    worldState: WorldState,
+    _memory: MemorySnapshot,
+    goals: ReadonlyArray<Goal>,
+  ): boolean {
     if (worldState.system.openErrors.length > 0) return true;
     if (goals.some((g) => g.status === "blocked")) return true;
     if (goals.some((g) => g.status === "created")) return true;
@@ -55,9 +70,10 @@ export class DefaultReasoningEngine implements ReasoningEngine {
     this.state = "deciding";
     const recommendedAction = this.selectBestAction(thoughts);
 
-    const confidence = thoughts.length > 0
-      ? thoughts.reduce((sum, t) => sum + t.confidence, 0) / thoughts.length
-      : 0;
+    const confidence =
+      thoughts.length > 0
+        ? thoughts.reduce((sum, t) => sum + t.confidence, 0) / thoughts.length
+        : 0;
 
     this.state = "idle";
 
@@ -96,11 +112,14 @@ export class DefaultReasoningEngine implements ReasoningEngine {
         confidence: 0.9,
         reasoning: `Open error in system from ${err.source}`,
         timestamp: now,
-        relatedGoalId: context.goals.find((g) => g.status === "in_progress")?.id ?? null,
+        relatedGoalId:
+          context.goals.find((g) => g.status === "in_progress")?.id ?? null,
         relatedObservationIds: [],
         suggestedAction: {
           type: "speak",
-          payload: { text: `Error detected: ${err.message}. Want me to look at it?` },
+          payload: {
+            text: `Error detected: ${err.message}. Want me to look at it?`,
+          },
           confidence: 0.85,
           reasoning: "Error needs attention",
         },
@@ -120,7 +139,9 @@ export class DefaultReasoningEngine implements ReasoningEngine {
           relatedObservationIds: [],
           suggestedAction: {
             type: "speak",
-            payload: { text: `Goal "${goal.title}" is blocked. Want me to help resolve it?` },
+            payload: {
+              text: `Goal "${goal.title}" is blocked. Want me to help resolve it?`,
+            },
             confidence: 0.8,
             reasoning: "Blocked goal needs user input",
           },
@@ -149,7 +170,9 @@ export class DefaultReasoningEngine implements ReasoningEngine {
     return thoughts;
   }
 
-  private selectBestAction(thoughts: Thought[]): import("@ai-agent/cognitive-types").Action | null {
+  private selectBestAction(
+    thoughts: Thought[],
+  ): import("@ai-agent/cognitive-types").Action | null {
     let best: import("@ai-agent/cognitive-types").Action | null = null;
     let bestScore = 0;
 
@@ -165,8 +188,14 @@ export class DefaultReasoningEngine implements ReasoningEngine {
 
   private classifyTrigger(context: ReasoningContext): ReasoningTrigger {
     if (context.worldState.system.openErrors.length > 0) return "error";
-    if (context.goals.some((g) => g.status === "blocked" || g.status === "created")) return "goal_change";
-    if (context.recentObservations.some((o) => o.source === "user")) return "user_message";
+    if (
+      context.goals.some(
+        (g) => g.status === "blocked" || g.status === "created",
+      )
+    )
+      return "goal_change";
+    if (context.recentObservations.some((o) => o.source === "user"))
+      return "user_message";
     return "observation";
   }
 }

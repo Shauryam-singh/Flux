@@ -3,123 +3,148 @@
 // Each component updates only its own DOM elements
 // ═══════════════════════════════════════════════════════════════
 
+const API = "http://localhost:3141";
+
 // ─── HUD Components ───
 
 export function updateTime(time) {
-  const el = document.getElementById('hud-time');
+  const el = document.getElementById("hud-time");
   if (el) el.textContent = time;
 }
 
 export function updateCpu(cpu) {
-  const el = document.getElementById('hud-cpu');
-  if (el) el.textContent = cpu + '%';
+  const el = document.getElementById("hud-cpu");
+  if (el) el.textContent = cpu + "%";
 }
 
 export function updateCognition(text) {
-  const el = document.getElementById('cognition-text');
+  const el = document.getElementById("cognition-text");
   if (el) el.innerHTML = text + '<span class="cognition-cursor"></span>';
 }
 
 export function updateGoal(goal) {
-  const nameEl = document.getElementById('goal-name');
-  const progressEl = document.getElementById('goal-progress');
-  const percentEl = document.getElementById('goal-percent');
-  const blockerEl = document.getElementById('goal-blocker');
+  const nameEl = document.getElementById("goal-name");
+  const progressEl = document.getElementById("goal-progress");
+  const percentEl = document.getElementById("goal-percent");
+  const blockerEl = document.getElementById("goal-blocker");
 
   if (nameEl) nameEl.textContent = goal.name;
-  if (progressEl) progressEl.style.width = goal.progress + '%';
-  if (percentEl) percentEl.textContent = goal.progress + '%';
-  if (blockerEl) blockerEl.textContent = goal.blocker ? '\u26A0 ' + goal.blocker : '';
+  if (progressEl) progressEl.style.width = goal.progress + "%";
+  if (percentEl) percentEl.textContent = goal.progress + "%";
+  if (blockerEl)
+    blockerEl.textContent = goal.blocker ? "\u26A0 " + goal.blocker : "";
 }
 
 export function updatePrediction(pred) {
-  const textEl = document.getElementById('prediction-text');
-  const fillEl = document.getElementById('prediction-fill');
-  const confEl = document.getElementById('prediction-confidence');
+  const textEl = document.getElementById("prediction-text");
+  const fillEl = document.getElementById("prediction-fill");
+  const confEl = document.getElementById("prediction-confidence");
 
   if (textEl) textEl.textContent = pred.text;
-  if (fillEl) fillEl.style.width = pred.confidence + '%';
-  if (confEl) confEl.textContent = pred.confidence + '%';
+  if (fillEl) fillEl.style.width = pred.confidence + "%";
+  if (confEl) confEl.textContent = pred.confidence + "%";
 }
 
 export function updateFocus(focus) {
-  const el = document.getElementById('focus-tags');
+  const el = document.getElementById("focus-tags");
   if (el) {
-    el.innerHTML = focus.map(f =>
-      `<span class="focus-tag">${escapeHtml(f)}</span>`
-    ).join('');
+    el.innerHTML = focus
+      .map((f) => `<span class="focus-tag">${escapeHtml(f)}</span>`)
+      .join("");
   }
 }
 
 export function updateTasks(tasks) {
-  const el = document.getElementById('tasks-list');
+  const el = document.getElementById("tasks-list");
   if (!el) return;
 
-  el.innerHTML = tasks.map(t => {
-    const iconClass = t.status === 'done' ? 'done' : t.status === 'active' ? 'active' : 'pending';
-    const icon = t.status === 'done' ? '\u2713' : t.status === 'active' ? '\u25CF' : '\u25CB';
-    return `<li class="task-item"><span class="task-icon ${iconClass}">${icon}</span> ${escapeHtml(t.text)}</li>`;
-  }).join('');
+  el.innerHTML = tasks
+    .map((t) => {
+      const iconClass =
+        t.status === "done"
+          ? "done"
+          : t.status === "active"
+            ? "active"
+            : "pending";
+      const icon =
+        t.status === "done"
+          ? "\u2713"
+          : t.status === "active"
+            ? "\u25CF"
+            : "\u25CB";
+      return `<li class="task-item"><span class="task-icon ${iconClass}">${icon}</span> ${escapeHtml(t.name || t.text || "")}</li>`;
+    })
+    .join("");
 }
 
 export function updateMemories(memories) {
-  const el = document.getElementById('memory-list');
+  const el = document.getElementById("memory-list");
   if (!el) return;
 
-  el.innerHTML = memories.map(m =>
-    `<li class="memory-item"><span class="memory-badge ${m.badge}">${capitalize(m.badge === 'remember' ? 'Remembered' : m.badge === 'reflection' ? 'Reflection' : 'Insight')}</span> ${escapeHtml(m.text)}</li>`
-  ).join('');
+  el.innerHTML = memories
+    .map(
+      (m) =>
+        `<li class="memory-item"><span class="memory-badge ${m.badge}">${capitalize(m.badge === "remember" ? "Remembered" : m.badge === "reflection" ? "Reflection" : "Insight")}</span> ${escapeHtml(m.text)}</li>`,
+    )
+    .join("");
 }
 
 export function updateSensors(sensors) {
   const grids = [
-    document.getElementById('sensors-grid'),
-    document.getElementById('dash-sensors'),
+    document.getElementById("sensors-grid"),
+    document.getElementById("dash-sensors"),
   ];
 
-  grids.forEach(el => {
+  grids.forEach((el) => {
     if (!el) return;
-    el.innerHTML = sensors.slice(0, 11).map(s => {
-      const activeClass = s.status === 'healthy' || s.status === 'busy' ? 'active' : '';
-      return `<div class="sensor-item ${activeClass}" title="${escapeHtml(s.name)}"><span class="sensor-icon">${s.icon}</span><span class="sensor-label">${escapeHtml(s.name)}</span></div>`;
-    }).join('');
+    el.innerHTML = sensors
+      .slice(0, 11)
+      .map((s) => {
+        const activeClass =
+          s.status === "healthy" || s.status === "busy" ? "active" : "";
+        return `<div class="sensor-item ${activeClass}" title="${escapeHtml(s.name)}"><span class="sensor-icon">${s.icon}</span><span class="sensor-label">${escapeHtml(s.name)}</span></div>`;
+      })
+      .join("");
   });
 }
 
-export function updateThought(thought) {
-  const el = document.getElementById('dash-thought-stream');
+export function updateThought(thoughts) {
+  const el = document.getElementById("dash-thought-stream");
   if (!el) return;
 
-  const entry = document.createElement('div');
-  entry.className = 'thought-entry';
-  entry.innerHTML = `<span class="thought-type ${thought.type}">${capitalize(thought.type)}</span><span class="thought-text">${escapeHtml(thought.text)}</span>`;
+  const list = Array.isArray(thoughts) ? thoughts : [thoughts];
 
-  el.insertBefore(entry, el.firstChild);
-
-  // Keep max 20 entries
-  while (el.children.length > 20) {
-    el.removeChild(el.lastChild);
-  }
+  // Replace entire content with latest thoughts
+  el.innerHTML = list
+    .slice(0, 10)
+    .map(
+      (t) =>
+        `<div class="thought-entry"><span class="thought-type ${escapeHtml(t.type || "thought")}">${escapeHtml(capitalize(t.type || "thought"))}</span><span class="thought-text">${escapeHtml(t.text || t.content || "")}</span></div>`,
+    )
+    .join("");
 }
 
 export function updateWorldModel(nodes) {
-  const el = document.getElementById('dash-world-model');
+  const el = document.getElementById("dash-world-model");
   if (!el) return;
 
-  el.innerHTML = nodes.map(n =>
-    `<div class="world-node"><span class="world-node-name">${escapeHtml(n.name)}</span><span class="world-node-status ${n.status}">${capitalize(n.status)}</span></div>`
-  ).join('');
+  el.innerHTML = nodes
+    .map(
+      (n) =>
+        `<div class="world-node"><span class="world-node-name">${escapeHtml(n.name)}</span><span class="world-node-status ${n.status}">${capitalize(n.status)}</span></div>`,
+    )
+    .join("");
 }
 
 export function updateMood(mood) {
-  const el = document.getElementById('dash-mood');
+  const el = document.getElementById("dash-mood");
   if (!el) return;
 
   el.innerHTML = `<span class="mood-icon">${mood.icon}</span><div><div class="mood-label">${escapeHtml(mood.label)}</div><div class="mood-sub">${escapeHtml(mood.sub)}</div></div>`;
 }
 
 export function updateConfidence(conf) {
-  const el = document.getElementById('dash-confidence');
+  const el = document.getElementById("dash-confidence");
   if (!el) return;
 
   el.innerHTML = `
@@ -130,123 +155,301 @@ export function updateConfidence(conf) {
   `;
 }
 
-export function updateDashboardCognition(text, stage) {
-  const textEl = document.getElementById('dash-cog-text');
-  const stageEl = document.getElementById('dash-cog-stage');
-  if (textEl) textEl.textContent = text;
-  if (stageEl) stageEl.textContent = `Stage ${stage}/14: ${getStageName(stage)}`;
+export function updateDashboardCognition(text, stage, stageName) {
+  const textEl = document.getElementById("dash-cog-text");
+  const stageEl = document.getElementById("dash-cog-stage");
+  if (textEl) textEl.textContent = text || "Waiting for data...";
+  if (stageEl) {
+    const name = stageName || (stage ? getStageName(stage) : "");
+    stageEl.textContent = stage ? `Stage ${stage}/14: ${name}` : "";
+  }
+}
+
+export function updateStatusText(connected) {
+  const el = document.getElementById("status-text");
+  const dot = document.getElementById("status-dot");
+  if (el) el.textContent = connected ? "Connected" : "Disconnected";
+  if (dot) dot.className = "status-dot" + (connected ? " online" : "");
+}
+
+export function updateModel(model) {
+  const el = document.getElementById("hud-model");
+  if (el) el.textContent = model || "";
+}
+
+export function updateTimeline(events) {
+  const el = document.getElementById("dash-timeline");
+  if (!el) return;
+  if (!events || events.length === 0) {
+    el.innerHTML =
+      '<div class="timeline-item" style="opacity:0.5">No events yet</div>';
+    return;
+  }
+  el.innerHTML = events
+    .slice(0, 8)
+    .map((e) => {
+      const status = e.status || "pending";
+      const iconClass =
+        status === "completed" || status === "done"
+          ? "done"
+          : status === "active" || status === "in_progress"
+            ? "active"
+            : "pending";
+      const icon =
+        iconClass === "done"
+          ? "\u2713"
+          : iconClass === "active"
+            ? "\u25CF"
+            : "\u25CB";
+      return `<div class="timeline-item"><span class="timeline-icon ${iconClass}">${icon}</span><span class="timeline-text ${iconClass}">${escapeHtml(e.title || e.event || e.name || "")}</span></div>`;
+    })
+    .join("");
+}
+
+export function updateDashMemory(stats) {
+  const el = document.getElementById("dash-memory");
+  if (!el || !stats) return;
+  const items = [];
+  if (stats.byType) {
+    if (stats.byType.semantic)
+      items.push({
+        badge: "remember",
+        label: "Semantic",
+        count: stats.byType.semantic,
+      });
+    if (stats.byType.episodic)
+      items.push({
+        badge: "reflection",
+        label: "Episodic",
+        count: stats.byType.episodic,
+      });
+    if (stats.byType.procedural)
+      items.push({
+        badge: "insight",
+        label: "Procedural",
+        count: stats.byType.procedural,
+      });
+  }
+  if (items.length === 0 && stats.totalMemories) {
+    items.push({
+      badge: "remember",
+      label: "Total",
+      count: stats.totalMemories,
+    });
+  }
+  el.innerHTML =
+    items.length > 0
+      ? `<div class="memory-list">${items.map((i) => `<div class="memory-item"><span class="memory-badge ${i.badge}">${i.label}</span> ${i.count} stored</div>`).join("")}</div>`
+      : '<div class="memory-list"><div class="memory-item" style="opacity:0.5">No memories yet</div></div>';
 }
 
 // ─── Dashboard Sensors Detail ───
 
 export function renderSensorsDetail(sensors) {
-  const el = document.getElementById('sensors-detail');
+  const el = document.getElementById("sensors-detail");
   if (!el) return;
 
-  el.innerHTML = sensors.map(s => {
-    const statusClass = s.status === 'healthy' ? 'healthy' : s.status === 'busy' ? 'busy' : s.status === 'error' ? 'error' : 'offline';
-    return `<div class="sensor-detail-card"><div class="sensor-detail-header"><span class="sensor-detail-name">${s.icon} ${escapeHtml(s.name)}</span><span class="sensor-detail-status ${statusClass}">${capitalize(s.status)}</span></div><div class="sensor-detail-event">Last: ${escapeHtml(s.lastEvent)}</div></div>`;
-  }).join('');
+  el.innerHTML = sensors
+    .map((s) => {
+      const statusClass =
+        s.status === "healthy"
+          ? "healthy"
+          : s.status === "busy"
+            ? "busy"
+            : s.status === "error"
+              ? "error"
+              : "offline";
+      return `<div class="sensor-detail-card"><div class="sensor-detail-header"><span class="sensor-detail-name">${s.icon} ${escapeHtml(s.name)}</span><span class="sensor-detail-status ${statusClass}">${capitalize(s.status)}</span></div><div class="sensor-detail-event">Last: ${escapeHtml(s.lastEvent)}</div></div>`;
+    })
+    .join("");
 }
 
 // ─── Dashboard Memory Page ───
 
-export function renderMemoryPage() {
-  const sections = {
-    'mem-working': [
-      'Current goal: Executive Intelligence',
-      'Active pipeline stage: 7/14',
-      'User idle for 2 minutes',
-    ],
-    'mem-semantic': [
-      'User prefers TypeScript over JavaScript',
-      'Project uses Result<T,E> pattern',
-      'Docker compose file at project root',
-      'Piper TTS installed at /usr/bin/piper',
-      'Default model: qwen2.5-coder:7b',
-    ],
-    'mem-episodic': [
-      'Yesterday: Fixed circular import in runtime',
-      'Today: Implemented 14-stage cognition pipeline',
-      'Last week: Added 11 real-world sensors',
-      'Earlier: Built cognitive memory system',
-    ],
-    'mem-project': [
-      'Flux has 80+ packages in monorepo',
-      'Tauri v2 for desktop app',
-      'Vite for frontend bundling',
-      'pnpm workspaces + Turborepo',
-    ],
-    'mem-relationship': [
-      'User likes concise responses',
-      'Prefers dark theme',
-      'Uses Linux (Ubuntu)',
-      'Working on AI operating system',
-    ],
-    'mem-timeline': [
-      'Phase 1: Sensory Layer completed',
-      'Phase 2: Cognitive Layer completed',
-      'Phase 3: Companion Layer completed',
-      'Phase 4: Ambient Intelligence completed',
-      'Phase 5: Executive Intelligence completed',
-      'Phase 6: Self-Evolution completed',
-    ],
-    'mem-reflection': [
-      'Should consolidate similar memories more aggressively',
-      'Sensor polling interval could be adaptive',
-      'Confidence calibration needs more data points',
-    ],
-  };
-
-  Object.entries(sections).forEach(([id, items]) => {
+export async function renderMemoryPage() {
+  // Show loading state
+  const sections = [
+    "mem-working",
+    "mem-semantic",
+    "mem-episodic",
+    "mem-project",
+    "mem-relationship",
+    "mem-timeline",
+    "mem-reflection",
+  ];
+  sections.forEach((id) => {
     const el = document.getElementById(id);
-    if (!el) return;
-    el.innerHTML = items.map(text =>
-      `<div class="memory-card">${escapeHtml(text)}<div class="memory-card-time">Recent</div></div>`
-    ).join('');
+    if (el)
+      el.innerHTML =
+        '<div class="memory-card" style="opacity:0.5">Loading...</div>';
   });
+
+  let data;
+  try {
+    const resp = await fetch(`${API}/memory/all`);
+    if (!resp.ok) throw new Error("API error");
+    data = await resp.json();
+  } catch {
+    // API not running — show fallback
+    sections.forEach((id) => {
+      const el = document.getElementById(id);
+      if (el)
+        el.innerHTML =
+          '<div class="memory-card" style="opacity:0.5">API not running</div>';
+    });
+    return;
+  }
+
+  const { memories = {}, chatHistory = [] } = data;
+
+  // Render each memory type
+  renderMemorySection(
+    "mem-semantic",
+    memories.semantic,
+    (m) => m.content || m.description || JSON.stringify(m).slice(0, 100),
+  );
+  renderMemorySection("mem-episodic", memories.episodic, (m) => {
+    if (m.content) return m.content.split("\n")[0]; // First line of Q&A
+    return m.event || m.context || "";
+  });
+  renderMemorySection(
+    "mem-procedural",
+    memories.procedural,
+    (m) => m.content || m.description || "",
+  );
+  renderMemorySection(
+    "mem-project",
+    memories.project,
+    (m) => m.content || m.projectName || "",
+  );
+  renderMemorySection(
+    "mem-relationship",
+    memories.relationship,
+    (m) => m.content || `${m.entityName}: ${m.interactionSummary || ""}`,
+  );
+  renderMemorySection(
+    "mem-timeline",
+    memories.timeline,
+    (m) => m.content || m.event || "",
+  );
+  renderMemorySection(
+    "mem-reflection",
+    memories.reflection,
+    (m) => m.content || m.insight || "",
+  );
+
+  // Working memory — show recent chat as working context
+  const workingEl = document.getElementById("mem-working");
+  if (workingEl && chatHistory.length > 0) {
+    // Deduplicate consecutive identical messages
+    const deduped = [];
+    for (const m of chatHistory) {
+      const prev = deduped[deduped.length - 1];
+      if (prev && prev.role === m.role && prev.content === m.content) continue;
+      deduped.push(m);
+    }
+    const recent = deduped.slice(-8);
+    workingEl.innerHTML = recent
+      .map((m) => {
+        const icon = m.role === "user" ? "\u{1F464}" : "\u{1F916}";
+        const text =
+          m.content.length > 120 ? m.content.slice(0, 120) + "..." : m.content;
+        return `<div class="memory-card">${escapeHtml(icon + " " + text)}<div class="memory-card-time">${m.role}</div></div>`;
+      })
+      .join("");
+  } else if (workingEl) {
+    workingEl.innerHTML =
+      '<div class="memory-card" style="opacity:0.5">No recent conversations</div>';
+  }
+
+  // Update stats
+  const statsEl = document.getElementById("memory-stats");
+  if (statsEl && data.stats) {
+    const s = data.stats;
+    statsEl.textContent = `${s.totalMemories || 0} memories | ${s.consolidationEvents || 0} consolidations`;
+  }
+}
+
+function renderMemorySection(elementId, memories, formatFn) {
+  const el = document.getElementById(elementId);
+  if (!el) return;
+
+  if (!memories || memories.length === 0) {
+    el.innerHTML =
+      '<div class="memory-card" style="opacity:0.5">No memories yet</div>';
+    return;
+  }
+
+  el.innerHTML = memories
+    .slice(0, 10)
+    .map((m) => {
+      const text = formatFn(m);
+      if (!text) return "";
+      const timeAgo = m.timestamp ? getTimeAgo(m.timestamp) : "";
+      return `<div class="memory-card">${escapeHtml(text)}<div class="memory-card-time">${escapeHtml(timeAgo)}</div></div>`;
+    })
+    .filter(Boolean)
+    .join("");
+}
+
+function getTimeAgo(timestamp) {
+  const diff = Date.now() - timestamp;
+  if (diff < 60000) return "just now";
+  if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
+  if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
+  return `${Math.floor(diff / 86400000)}d ago`;
 }
 
 // ─── Dashboard Goals Detail ───
 
 export function renderGoalsDetail(goals) {
-  const el = document.getElementById('goals-detail');
+  const el = document.getElementById("goals-detail");
   if (!el) return;
 
   if (!goals || goals.length === 0) {
-    el.innerHTML = '<div class="empty-state">No goals yet. Flux will create goals as it observes your work.</div>';
+    el.innerHTML =
+      '<div class="empty-state">No goals yet. Flux will create goals as it observes your work.</div>';
     return;
   }
 
-  el.innerHTML = goals.map(g => {
-    const statusClass = g.status === 'completed' ? 'success' : g.status === 'blocked' ? 'error' : g.status === 'active' || g.status === 'in_progress' ? 'accent' : 'muted';
-    const progress = g.progress || 0;
-    const blockers = (g.blockers || []).filter(b => !b.resolvedAt);
-    return `
+  el.innerHTML = goals
+    .map((g) => {
+      const statusClass =
+        g.status === "completed"
+          ? "success"
+          : g.status === "blocked"
+            ? "error"
+            : g.status === "active" || g.status === "in_progress"
+              ? "accent"
+              : "muted";
+      const progress = g.progress || 0;
+      const blockers = (g.blockers || []).filter((b) => !b.resolvedAt);
+      return `
       <div class="goal-card">
         <div class="goal-card-header">
-          <span class="goal-card-title">${escapeHtml(g.title || g.name || 'Untitled')}</span>
+          <span class="goal-card-title">${escapeHtml(g.title || g.name || "Untitled")}</span>
           <span class="goal-card-status ${statusClass}">${escapeHtml(g.status)}</span>
         </div>
-        ${g.description ? `<div class="goal-card-desc">${escapeHtml(g.description)}</div>` : ''}
+        ${g.description ? `<div class="goal-card-desc">${escapeHtml(g.description)}</div>` : ""}
         <div class="goal-card-progress">
           <div class="progress-track"><div class="progress-fill" style="width:${progress}%"></div></div>
           <span class="goal-card-percent">${progress}%</span>
         </div>
-        ${blockers.length > 0 ? `<div class="goal-card-blockers">${blockers.map(b => `<span class="blocker-tag">\u26A0 ${escapeHtml(b.description)}</span>`).join('')}</div>` : ''}
+        ${blockers.length > 0 ? `<div class="goal-card-blockers">${blockers.map((b) => `<span class="blocker-tag">\u26A0 ${escapeHtml(b.description)}</span>`).join("")}</div>` : ""}
         <div class="goal-card-meta">
-          <span>Priority: ${g.priority || 'normal'}</span>
-          <span>Source: ${escapeHtml(g.source || 'unknown')}</span>
+          <span>Priority: ${g.priority || "normal"}</span>
+          <span>Source: ${escapeHtml(g.source || "unknown")}</span>
         </div>
       </div>
     `;
-  }).join('');
+    })
+    .join("");
 }
 
 // ─── Dashboard Projects Detail ───
 
 export function renderProjectsDetail(projects) {
-  const el = document.getElementById('projects-detail');
+  const el = document.getElementById("projects-detail");
   if (!el) return;
 
   if (!projects || projects.length === 0) {
@@ -254,25 +457,29 @@ export function renderProjectsDetail(projects) {
     return;
   }
 
-  el.innerHTML = projects.map(p => `
+  el.innerHTML = projects
+    .map(
+      (p) => `
     <div class="project-card">
       <div class="project-card-header">
         <span class="project-card-name">${escapeHtml(p.name)}</span>
-        <span class="project-card-status ${p.status === 'active' ? 'accent' : 'muted'}">${escapeHtml(p.status)}</span>
+        <span class="project-card-status ${p.status === "active" ? "accent" : "muted"}">${escapeHtml(p.status)}</span>
       </div>
-      <div class="project-card-desc">${escapeHtml(p.description || '')}</div>
+      <div class="project-card-desc">${escapeHtml(p.description || "")}</div>
       <div class="project-card-meta">
-        ${p.packages ? `<span>${p.packages} packages</span>` : ''}
+        ${p.packages ? `<span>${p.packages} packages</span>` : ""}
         <span>Last: ${timeAgo(p.lastActivity)}</span>
       </div>
     </div>
-  `).join('');
+  `,
+    )
+    .join("");
 }
 
 // ─── Dashboard Agents Detail ───
 
 export function renderAgentsDetail(agents) {
-  const el = document.getElementById('agents-detail');
+  const el = document.getElementById("agents-detail");
   if (!el) return;
 
   if (!agents || agents.length === 0) {
@@ -280,55 +487,65 @@ export function renderAgentsDetail(agents) {
     return;
   }
 
-  el.innerHTML = agents.map(a => {
-    const statusClass = a.status === 'active' ? 'success' : a.status === 'idle' ? 'accent' : 'muted';
-    return `
+  el.innerHTML = agents
+    .map((a) => {
+      const statusClass =
+        a.status === "active"
+          ? "success"
+          : a.status === "idle"
+            ? "accent"
+            : "muted";
+      return `
       <div class="agent-card">
         <div class="agent-card-header">
           <span class="agent-card-name">${escapeHtml(a.name)}</span>
           <span class="agent-card-status ${statusClass}">${escapeHtml(a.status)}</span>
         </div>
-        <div class="agent-card-caps">${(a.capabilities || []).map(c => `<span class="cap-tag">${escapeHtml(c)}</span>`).join('')}</div>
+        <div class="agent-card-caps">${(a.capabilities || []).map((c) => `<span class="cap-tag">${escapeHtml(c)}</span>`).join("")}</div>
         <div class="agent-card-meta">
           <span>Tasks: ${a.tasks || 0}/${a.maxTasks || 1}</span>
           <span>Success: ${Math.round((a.successRate || 0) * 100)}%</span>
-          <span>Priority: ${a.priority || '-'}</span>
+          <span>Priority: ${a.priority || "-"}</span>
         </div>
       </div>
     `;
-  }).join('');
+    })
+    .join("");
 }
 
 // ─── Dashboard Timeline Detail ───
 
 export function renderTimelineDetail(events) {
-  const el = document.getElementById('timeline-detail');
+  const el = document.getElementById("timeline-detail");
   if (!el) return;
 
   if (!events || events.length === 0) {
-    el.innerHTML = '<div class="empty-state">No timeline events yet. Flux will record events as it runs.</div>';
+    el.innerHTML =
+      '<div class="empty-state">No timeline events yet. Flux will record events as it runs.</div>';
     return;
   }
 
-  el.innerHTML = `<div class="timeline-list">${events.map(e => {
-    const icon = getTimelineIcon(e.type || e.category);
-    return `
+  el.innerHTML = `<div class="timeline-list">${events
+    .map((e) => {
+      const icon = getTimelineIcon(e.type || e.category);
+      return `
       <div class="timeline-entry">
         <div class="timeline-dot"></div>
         <div class="timeline-content">
-          <div class="timeline-title">${icon} ${escapeHtml(e.event || e.content || e.title || '')}</div>
-          <div class="timeline-detail">${escapeHtml(e.context || e.detail || '')}</div>
+          <div class="timeline-title">${icon} ${escapeHtml(e.event || e.content || e.title || "")}</div>
+          <div class="timeline-detail">${escapeHtml(e.context || e.detail || "")}</div>
           <div class="timeline-time">${timeAgo(e.timestamp)}</div>
         </div>
       </div>
     `;
-  }).join('')}</div>`;
+    })
+    .join("")}</div>`;
 }
 
 // ─── Dashboard Settings Detail ───
 
 export function renderSettingsDetail() {
-  const el = document.getElementById('settings-detail');
+  const el = document.getElementById("settings-detail");
   if (!el) return;
 
   const settings = getStoredSettings();
@@ -340,21 +557,21 @@ export function renderSettingsDetail() {
         <div class="settings-row">
           <label class="settings-label">Auto-speak replies</label>
           <label class="settings-toggle">
-            <input type="checkbox" id="setting-voice-autospeak" ${settings.autoSpeak ? 'checked' : ''}>
+            <input type="checkbox" id="setting-voice-autospeak" ${settings.autoSpeak ? "checked" : ""}>
             <span class="settings-toggle-slider"></span>
           </label>
         </div>
         <div class="settings-row">
           <label class="settings-label">Voice</label>
           <select id="setting-voice" class="settings-select">
-            <option value="en-us+m3" ${settings.voice === 'en-us+m3' ? 'selected' : ''}>Male 1 (Default)</option>
-            <option value="en-us+f2" ${settings.voice === 'en-us+f2' ? 'selected' : ''}>Female 1</option>
-            <option value="en-us+f3" ${settings.voice === 'en-us+f3' ? 'selected' : ''}>Female 2</option>
-            <option value="en-us+f4" ${settings.voice === 'en-us+f4' ? 'selected' : ''}>Female 3</option>
-            <option value="en-us+m7" ${settings.voice === 'en-us+m7' ? 'selected' : ''}>Male 2</option>
-            <option value="en-gb+x-rp" ${settings.voice === 'en-gb+x-rp' ? 'selected' : ''}>British RP</option>
-            <option value="en-gb-scotland" ${settings.voice === 'en-gb-scotland' ? 'selected' : ''}>Scottish</option>
-            <option value="en-us+nrc" ${settings.voice === 'en-us+nrc' ? 'selected' : ''}>Whispery</option>
+            <option value="en-us+m3" ${settings.voice === "en-us+m3" ? "selected" : ""}>Male 1 (Default)</option>
+            <option value="en-us+f2" ${settings.voice === "en-us+f2" ? "selected" : ""}>Female 1</option>
+            <option value="en-us+f3" ${settings.voice === "en-us+f3" ? "selected" : ""}>Female 2</option>
+            <option value="en-us+f4" ${settings.voice === "en-us+f4" ? "selected" : ""}>Female 3</option>
+            <option value="en-us+m7" ${settings.voice === "en-us+m7" ? "selected" : ""}>Male 2</option>
+            <option value="en-gb+x-rp" ${settings.voice === "en-gb+x-rp" ? "selected" : ""}>British RP</option>
+            <option value="en-gb-scotland" ${settings.voice === "en-gb-scotland" ? "selected" : ""}>Scottish</option>
+            <option value="en-us+nrc" ${settings.voice === "en-us+nrc" ? "selected" : ""}>Whispery</option>
           </select>
         </div>
         <div class="settings-row">
@@ -382,12 +599,12 @@ export function renderSettingsDetail() {
         <div class="settings-row">
           <label class="settings-label">LLM Model</label>
           <select id="setting-model" class="settings-select">
-            <option value="qwen2.5-coder:7b" ${settings.model === 'qwen2.5-coder:7b' ? 'selected' : ''}>qwen2.5-coder:7b</option>
-            <option value="qwen2.5-coder:14b" ${settings.model === 'qwen2.5-coder:14b' ? 'selected' : ''}>qwen2.5-coder:14b</option>
-            <option value="qwen2.5-coder:32b" ${settings.model === 'qwen2.5-coder:32b' ? 'selected' : ''}>qwen2.5-coder:32b</option>
-            <option value="llama3.1:8b" ${settings.model === 'llama3.1:8b' ? 'selected' : ''}>llama3.1:8b</option>
-            <option value="llama3.1:70b" ${settings.model === 'llama3.1:70b' ? 'selected' : ''}>llama3.1:70b</option>
-            <option value="deepseek-coder:6.7b" ${settings.model === 'deepseek-coder:6.7b' ? 'selected' : ''}>deepseek-coder:6.7b</option>
+            <option value="qwen2.5-coder:7b" ${settings.model === "qwen2.5-coder:7b" ? "selected" : ""}>qwen2.5-coder:7b</option>
+            <option value="qwen2.5-coder:14b" ${settings.model === "qwen2.5-coder:14b" ? "selected" : ""}>qwen2.5-coder:14b</option>
+            <option value="qwen2.5-coder:32b" ${settings.model === "qwen2.5-coder:32b" ? "selected" : ""}>qwen2.5-coder:32b</option>
+            <option value="llama3.1:8b" ${settings.model === "llama3.1:8b" ? "selected" : ""}>llama3.1:8b</option>
+            <option value="llama3.1:70b" ${settings.model === "llama3.1:70b" ? "selected" : ""}>llama3.1:70b</option>
+            <option value="deepseek-coder:6.7b" ${settings.model === "deepseek-coder:6.7b" ? "selected" : ""}>deepseek-coder:6.7b</option>
           </select>
         </div>
         <div class="settings-row">
@@ -401,10 +618,10 @@ export function renderSettingsDetail() {
         <div class="settings-row">
           <label class="settings-label">Background tick interval</label>
           <select id="setting-tick-interval" class="settings-select">
-            <option value="2000" ${settings.tickInterval === '2000' ? 'selected' : ''}>2s (fast)</option>
-            <option value="5000" ${settings.tickInterval === '5000' ? 'selected' : ''}>5s (normal)</option>
-            <option value="10000" ${settings.tickInterval === '10000' ? 'selected' : ''}>10s (slow)</option>
-            <option value="30000" ${settings.tickInterval === '30000' ? 'selected' : ''}>30s (minimal)</option>
+            <option value="2000" ${settings.tickInterval === "2000" ? "selected" : ""}>2s (fast)</option>
+            <option value="5000" ${settings.tickInterval === "5000" ? "selected" : ""}>5s (normal)</option>
+            <option value="10000" ${settings.tickInterval === "10000" ? "selected" : ""}>10s (slow)</option>
+            <option value="30000" ${settings.tickInterval === "30000" ? "selected" : ""}>30s (minimal)</option>
           </select>
         </div>
       </div>
@@ -412,26 +629,36 @@ export function renderSettingsDetail() {
       <div class="settings-section">
         <h3 class="settings-section-title">Sensors</h3>
         ${[
-          ['Git', 'sensor-git'], ['Filesystem', 'sensor-fs'], ['Clipboard', 'sensor-clipboard'],
-          ['Docker', 'sensor-docker'], ['Battery', 'sensor-battery'], ['Audio', 'sensor-audio'],
-          ['Notifications', 'sensor-notif'], ['Spotify', 'sensor-spotify'], ['Idle', 'sensor-idle'],
-        ].map(([name, id]) => `
+          ["Git", "sensor-git"],
+          ["Filesystem", "sensor-fs"],
+          ["Clipboard", "sensor-clipboard"],
+          ["Docker", "sensor-docker"],
+          ["Battery", "sensor-battery"],
+          ["Audio", "sensor-audio"],
+          ["Notifications", "sensor-notif"],
+          ["Spotify", "sensor-spotify"],
+          ["Idle", "sensor-idle"],
+        ]
+          .map(
+            ([name, id]) => `
           <div class="settings-row">
             <label class="settings-label">${name}</label>
-            <label class="settings-toggle"><input type="checkbox" id="${id}" ${(settings.sensors || {})[id] !== false ? 'checked' : ''}><span class="settings-toggle-slider"></span></label>
+            <label class="settings-toggle"><input type="checkbox" id="${id}" ${(settings.sensors || {})[id] !== false ? "checked" : ""}><span class="settings-toggle-slider"></span></label>
           </div>
-        `).join('')}
+        `,
+          )
+          .join("")}
       </div>
 
       <div class="settings-section">
         <h3 class="settings-section-title">Appearance</h3>
         <div class="settings-row">
           <label class="settings-label">Particle effects</label>
-          <label class="settings-toggle"><input type="checkbox" id="setting-particles" ${settings.particles ? 'checked' : ''}><span class="settings-toggle-slider"></span></label>
+          <label class="settings-toggle"><input type="checkbox" id="setting-particles" ${settings.particles ? "checked" : ""}><span class="settings-toggle-slider"></span></label>
         </div>
         <div class="settings-row">
           <label class="settings-label">Always on top</label>
-          <label class="settings-toggle"><input type="checkbox" id="setting-always-top" ${settings.alwaysOnTop ? 'checked' : ''}><span class="settings-toggle-slider"></span></label>
+          <label class="settings-toggle"><input type="checkbox" id="setting-always-top" ${settings.alwaysOnTop ? "checked" : ""}><span class="settings-toggle-slider"></span></label>
         </div>
       </div>
     </div>
@@ -442,95 +669,149 @@ export function renderSettingsDetail() {
   `;
 
   // Wire up range sliders
-  const rateSlider = document.getElementById('setting-speech-rate');
-  const rateVal = document.getElementById('setting-speech-rate-val');
-  if (rateSlider && rateVal) rateSlider.addEventListener('input', () => { rateVal.textContent = parseFloat(rateSlider.value).toFixed(1) + 'x'; });
+  const rateSlider = document.getElementById("setting-speech-rate");
+  const rateVal = document.getElementById("setting-speech-rate-val");
+  if (rateSlider && rateVal)
+    rateSlider.addEventListener("input", () => {
+      rateVal.textContent = parseFloat(rateSlider.value).toFixed(1) + "x";
+    });
 
-  const pitchSlider = document.getElementById('setting-speech-pitch');
-  const pitchVal = document.getElementById('setting-speech-pitch-val');
-  if (pitchSlider && pitchVal) pitchSlider.addEventListener('input', () => { pitchVal.textContent = parseFloat(pitchSlider.value).toFixed(1); });
+  const pitchSlider = document.getElementById("setting-speech-pitch");
+  const pitchVal = document.getElementById("setting-speech-pitch-val");
+  if (pitchSlider && pitchVal)
+    pitchSlider.addEventListener("input", () => {
+      pitchVal.textContent = parseFloat(pitchSlider.value).toFixed(1);
+    });
 
-  const volSlider = document.getElementById('setting-speech-volume');
-  const volVal = document.getElementById('setting-speech-volume-val');
-  if (volSlider && volVal) volSlider.addEventListener('input', () => { volVal.textContent = Math.round(parseFloat(volSlider.value) * 100) + '%'; });
+  const volSlider = document.getElementById("setting-speech-volume");
+  const volVal = document.getElementById("setting-speech-volume-val");
+  if (volSlider && volVal)
+    volSlider.addEventListener("input", () => {
+      volVal.textContent = Math.round(parseFloat(volSlider.value) * 100) + "%";
+    });
 
   // Voice test button
-  const testBtn = document.getElementById('settings-voice-test');
+  const testBtn = document.getElementById("settings-voice-test");
   if (testBtn) {
-    testBtn.addEventListener('click', () => {
-      const voice = document.getElementById('setting-voice')?.value || 'en-us+m3';
-      const speed = parseFloat(document.getElementById('setting-speech-rate')?.value || '1');
-      const pitch = parseFloat(document.getElementById('setting-speech-pitch')?.value || '0.9');
-      const volume = parseFloat(document.getElementById('setting-speech-volume')?.value || '1');
-      const testText = 'Hello! I am Flux, your AI assistant. How can I help you today?';
-      fetch('http://localhost:3141/voice/speak', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+    testBtn.addEventListener("click", () => {
+      const voice =
+        document.getElementById("setting-voice")?.value || "en-us+m3";
+      const speed = parseFloat(
+        document.getElementById("setting-speech-rate")?.value || "1",
+      );
+      const pitch = parseFloat(
+        document.getElementById("setting-speech-pitch")?.value || "0.9",
+      );
+      const volume = parseFloat(
+        document.getElementById("setting-speech-volume")?.value || "1",
+      );
+      const testText =
+        "Hello! I am Flux, your AI assistant. How can I help you today?";
+      fetch(`${API}/voice/speak`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text: testText, voice, speed, pitch, volume }),
-      }).then(r => r.blob()).then(blob => {
-        if (blob.size > 100) {
-          const url = URL.createObjectURL(blob);
-          const audio = new Audio(url);
-          audio.volume = volume;
-          audio.onended = () => URL.revokeObjectURL(url);
-          audio.play();
-        }
-      }).catch(() => {});
+      })
+        .then((r) => r.blob())
+        .then((blob) => {
+          if (blob.size > 100) {
+            const url = URL.createObjectURL(blob);
+            const audio = new Audio(url);
+            audio.volume = volume;
+            audio.onended = () => URL.revokeObjectURL(url);
+            audio.play();
+          }
+        })
+        .catch(() => {});
     });
   }
 
   // Save button
-  const saveBtn = document.getElementById('settings-save');
+  const saveBtn = document.getElementById("settings-save");
   if (saveBtn) {
-    saveBtn.addEventListener('click', () => {
+    saveBtn.addEventListener("click", () => {
       const newSettings = {
-        autoSpeak: document.getElementById('setting-voice-autospeak')?.checked ?? true,
-        voice: document.getElementById('setting-voice')?.value || 'en-us+m3',
-        speed: parseFloat(document.getElementById('setting-speech-rate')?.value || '1'),
-        pitch: parseFloat(document.getElementById('setting-speech-pitch')?.value || '0.9'),
-        volume: parseFloat(document.getElementById('setting-speech-volume')?.value || '1'),
-        model: document.getElementById('setting-model')?.value || 'qwen2.5-coder:7b',
-        ollamaUrl: document.getElementById('setting-ollama-url')?.value || 'http://localhost:11434',
-        tickInterval: document.getElementById('setting-tick-interval')?.value || '5000',
-        particles: document.getElementById('setting-particles')?.checked ?? true,
-        alwaysOnTop: document.getElementById('setting-always-top')?.checked ?? true,
+        autoSpeak:
+          document.getElementById("setting-voice-autospeak")?.checked ?? true,
+        voice: document.getElementById("setting-voice")?.value || "en-us+m3",
+        speed: parseFloat(
+          document.getElementById("setting-speech-rate")?.value || "1",
+        ),
+        pitch: parseFloat(
+          document.getElementById("setting-speech-pitch")?.value || "0.9",
+        ),
+        volume: parseFloat(
+          document.getElementById("setting-speech-volume")?.value || "1",
+        ),
+        model:
+          document.getElementById("setting-model")?.value || "qwen2.5-coder:7b",
+        ollamaUrl:
+          document.getElementById("setting-ollama-url")?.value ||
+          "http://localhost:11434",
+        tickInterval:
+          document.getElementById("setting-tick-interval")?.value || "5000",
+        particles:
+          document.getElementById("setting-particles")?.checked ?? true,
+        alwaysOnTop:
+          document.getElementById("setting-always-top")?.checked ?? true,
         sensors: {},
       };
-      ['sensor-git', 'sensor-fs', 'sensor-clipboard', 'sensor-docker', 'sensor-battery', 'sensor-audio', 'sensor-notif', 'sensor-spotify', 'sensor-idle'].forEach(id => {
+      [
+        "sensor-git",
+        "sensor-fs",
+        "sensor-clipboard",
+        "sensor-docker",
+        "sensor-battery",
+        "sensor-audio",
+        "sensor-notif",
+        "sensor-spotify",
+        "sensor-idle",
+      ].forEach((id) => {
         newSettings.sensors[id] = document.getElementById(id)?.checked ?? true;
       });
-      localStorage.setItem('flux-settings', JSON.stringify(newSettings));
+      localStorage.setItem("flux-settings", JSON.stringify(newSettings));
       // Also sync voice settings for speakText
-      localStorage.setItem('flux-voice-settings', JSON.stringify({
-        voice: newSettings.voice,
-        speed: newSettings.speed,
-        pitch: newSettings.pitch,
-        volume: newSettings.volume,
-      }));
-      showToast('Settings saved', 'success', 2000);
+      localStorage.setItem(
+        "flux-voice-settings",
+        JSON.stringify({
+          voice: newSettings.voice,
+          speed: newSettings.speed,
+          pitch: newSettings.pitch,
+          volume: newSettings.volume,
+        }),
+      );
+      showToast("Settings saved", "success", 2000);
     });
   }
 
   // Reset button
-  const resetBtn = document.getElementById('settings-reset');
+  const resetBtn = document.getElementById("settings-reset");
   if (resetBtn) {
-    resetBtn.addEventListener('click', () => {
-      localStorage.removeItem('flux-settings');
-      localStorage.removeItem('flux-voice-settings');
+    resetBtn.addEventListener("click", () => {
+      localStorage.removeItem("flux-settings");
+      localStorage.removeItem("flux-voice-settings");
       renderSettingsDetail();
-      showToast('Settings reset to defaults', 'info', 2000);
+      showToast("Settings reset to defaults", "info", 2000);
     });
   }
 }
 
 function getStoredSettings() {
   const defaults = {
-    autoSpeak: true, voice: 'en-us+m3', speed: 1.0, pitch: 0.9, volume: 1.0,
-    model: 'qwen2.5-coder:7b', ollamaUrl: 'http://localhost:11434',
-    tickInterval: '5000', particles: true, alwaysOnTop: true, sensors: {},
+    autoSpeak: true,
+    voice: "en-us+m3",
+    speed: 1.0,
+    pitch: 0.9,
+    volume: 1.0,
+    model: "qwen2.5-coder:7b",
+    ollamaUrl: "http://localhost:11434",
+    tickInterval: "5000",
+    particles: true,
+    alwaysOnTop: true,
+    sensors: {},
   };
   try {
-    const saved = JSON.parse(localStorage.getItem('flux-settings') || '{}');
+    const saved = JSON.parse(localStorage.getItem("flux-settings") || "{}");
     return { ...defaults, ...saved };
   } catch {
     return defaults;
@@ -544,45 +825,46 @@ export function setVoiceRecording(recording) {
   const voiceBtn = document.querySelector('.action-btn[data-action="voice"]');
   if (voiceBtn) {
     if (recording) {
-      voiceBtn.classList.add('recording');
-      voiceBtn.textContent = 'Stop';
+      voiceBtn.classList.add("recording");
+      voiceBtn.textContent = "Stop";
     } else {
-      voiceBtn.classList.remove('recording');
-      voiceBtn.textContent = 'Voice';
+      voiceBtn.classList.remove("recording");
+      voiceBtn.textContent = "Voice";
     }
   }
 
   // Update status indicator
-  const statusDot = document.getElementById('status-dot');
-  const statusText = document.getElementById('status-text');
+  const statusDot = document.getElementById("status-dot");
+  const statusText = document.getElementById("status-text");
   if (recording) {
-    if (statusDot) statusDot.style.background = 'var(--error)';
-    if (statusText) statusText.textContent = 'Recording';
+    if (statusDot) statusDot.style.background = "var(--error)";
+    if (statusText) statusText.textContent = "Recording";
   } else {
-    if (statusDot) statusDot.style.background = '';
-    if (statusText) statusText.textContent = 'Watching';
+    if (statusDot) statusDot.style.background = "";
+    if (statusText) statusText.textContent = "Watching";
   }
 }
 
 // ─── Toast Notifications ───
 
-export function showToast(message, type = 'info', duration = 3000) {
-  let container = document.getElementById('toast-container');
+export function showToast(message, type = "info", duration = 3000) {
+  let container = document.getElementById("toast-container");
   if (!container) {
-    container = document.createElement('div');
-    container.id = 'toast-container';
-    container.style.cssText = 'position:fixed;top:12px;right:12px;z-index:9999;display:flex;flex-direction:column;gap:6px;pointer-events:none;';
+    container = document.createElement("div");
+    container.id = "toast-container";
+    container.style.cssText =
+      "position:fixed;top:12px;right:12px;z-index:9999;display:flex;flex-direction:column;gap:6px;pointer-events:none;";
     document.body.appendChild(container);
   }
 
   const colors = {
-    info: 'var(--accent)',
-    success: 'var(--success)',
-    warning: 'var(--warning)',
-    error: 'var(--error)',
+    info: "var(--accent)",
+    success: "var(--success)",
+    warning: "var(--warning)",
+    error: "var(--error)",
   };
 
-  const toast = document.createElement('div');
+  const toast = document.createElement("div");
   toast.style.cssText = `
     padding: 8px 14px;
     border-radius: 8px;
@@ -602,7 +884,7 @@ export function showToast(message, type = 'info', duration = 3000) {
   container.appendChild(toast);
 
   setTimeout(() => {
-    toast.style.animation = 'fade-out 0.2s ease forwards';
+    toast.style.animation = "fade-out 0.2s ease forwards";
     setTimeout(() => toast.remove(), 200);
   }, duration);
 }
@@ -610,8 +892,12 @@ export function showToast(message, type = 'info', duration = 3000) {
 // ─── Helpers ───
 
 function escapeHtml(str) {
-  if (!str) return '';
-  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  if (!str) return "";
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
 }
 
 function capitalize(str) {
@@ -620,18 +906,28 @@ function capitalize(str) {
 
 function getStageName(stage) {
   const stages = [
-    'Observe', 'Merge', 'World Model', 'Working Memory',
-    'Goal Eval', 'Intent Predict', 'Generate', 'Compare',
-    'Opportunities', 'Interrupt Eval', 'Choose Action',
-    'Store', 'Explain', 'Sleep',
+    "Observe",
+    "Merge",
+    "World Model",
+    "Working Memory",
+    "Goal Eval",
+    "Intent Predict",
+    "Generate",
+    "Compare",
+    "Opportunities",
+    "Interrupt Eval",
+    "Choose Action",
+    "Store",
+    "Explain",
+    "Sleep",
   ];
-  return stages[stage - 1] || 'Unknown';
+  return stages[stage - 1] || "Unknown";
 }
 
 function timeAgo(ts) {
-  if (!ts) return 'Unknown';
+  if (!ts) return "Unknown";
   const diff = Date.now() - ts;
-  if (diff < 60000) return 'Just now';
+  if (diff < 60000) return "Just now";
   if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
   if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
   return `${Math.floor(diff / 86400000)}d ago`;
@@ -639,17 +935,17 @@ function timeAgo(ts) {
 
 function getTimelineIcon(type) {
   const icons = {
-    interaction: '\u{1F4AC}',
-    observation: '\u{1F441}',
-    reflection: '\u{1F914}',
-    milestone: '\u{1F3C6}',
-    suggestion: '\u{1F4A1}',
-    error: '\u{26A0}',
-    commit: '\u{1F4DD}',
-    goal: '\u{1F3AF}',
-    conversation: '\u{1F5E3}',
-    build: '\u{1F527}',
-    test: '\u{2705}',
+    interaction: "\u{1F4AC}",
+    observation: "\u{1F441}",
+    reflection: "\u{1F914}",
+    milestone: "\u{1F3C6}",
+    suggestion: "\u{1F4A1}",
+    error: "\u{26A0}",
+    commit: "\u{1F4DD}",
+    goal: "\u{1F3AF}",
+    conversation: "\u{1F5E3}",
+    build: "\u{1F527}",
+    test: "\u{2705}",
   };
-  return icons[type] || '\u{2022}';
+  return icons[type] || "\u{2022}";
 }

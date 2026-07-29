@@ -1,6 +1,9 @@
+import type {
+  ObservationPriority,
+  ObservationSource,
+} from "@ai-agent/attention";
+import type { SensorEvent, SensorMetadata } from "../../types/sensor.js";
 import { BaseSensor } from "../base-sensor.js";
-import type { SensorMetadata, SensorEvent } from "../../types/sensor.js";
-import type { ObservationSource, ObservationPriority } from "@ai-agent/attention";
 
 export interface SSHSession {
   readonly pid: number;

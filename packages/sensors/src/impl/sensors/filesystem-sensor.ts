@@ -1,8 +1,11 @@
-import { BaseSensor } from "../base-sensor.js";
-import type { SensorMetadata, SensorEvent } from "../../types/sensor.js";
-import type { ObservationSource, ObservationPriority } from "@ai-agent/attention";
 import * as fs from "node:fs";
 import * as path from "node:path";
+import type {
+  ObservationPriority,
+  ObservationSource,
+} from "@ai-agent/attention";
+import type { SensorEvent, SensorMetadata } from "../../types/sensor.js";
+import { BaseSensor } from "../base-sensor.js";
 
 export interface FileChangeEvent {
   readonly type: "created" | "modified" | "deleted" | "renamed";
@@ -92,10 +95,17 @@ export class FileSystemSensor extends BaseSensor<FileSystemState> {
     if (!latest) return "ignore";
 
     // Source files are more important than config files
-    if (latest.path.endsWith(".ts") || latest.path.endsWith(".js") || latest.path.endsWith(".py")) {
+    if (
+      latest.path.endsWith(".ts") ||
+      latest.path.endsWith(".js") ||
+      latest.path.endsWith(".py")
+    ) {
       return "medium";
     }
-    if (latest.path.includes("package.json") || latest.path.includes("tsconfig")) {
+    if (
+      latest.path.includes("package.json") ||
+      latest.path.includes("tsconfig")
+    ) {
       return "medium";
     }
     return "low";
@@ -125,7 +135,11 @@ export class FileSystemSensor extends BaseSensor<FileSystemState> {
     }
   }
 
-  private handleFileEvent(dirPath: string, eventType: string, filename: string): void {
+  private handleFileEvent(
+    dirPath: string,
+    eventType: string,
+    filename: string,
+  ): void {
     const fullPath = path.join(dirPath, filename);
     const key = `${eventType}:${fullPath}`;
 
@@ -144,7 +158,11 @@ export class FileSystemSensor extends BaseSensor<FileSystemState> {
     );
   }
 
-  private processFileEvent(dirPath: string, eventType: string, filename: string): void {
+  private processFileEvent(
+    dirPath: string,
+    eventType: string,
+    filename: string,
+  ): void {
     const fullPath = path.join(dirPath, filename);
     let changeType: FileChangeEvent["type"] = "modified";
 

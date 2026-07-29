@@ -1,6 +1,9 @@
+import type {
+  ObservationPriority,
+  ObservationSource,
+} from "@ai-agent/attention";
+import type { SensorEvent, SensorMetadata } from "../../types/sensor.js";
 import { BaseSensor } from "../base-sensor.js";
-import type { SensorMetadata, SensorEvent } from "../../types/sensor.js";
-import type { ObservationSource, ObservationPriority } from "@ai-agent/attention";
 
 export interface BatteryState {
   readonly level: number; // 0-100
@@ -67,8 +70,12 @@ export class BatterySensor extends BaseSensor<BatteryState> {
   }
 
   private async readLinuxBattery(): Promise<BatteryState | null> {
-    const capacity = this.execCommand("cat /sys/class/power_supply/BAT*/capacity 2>/dev/null");
-    const status = this.execCommand("cat /sys/class/power_supply/BAT*/status 2>/dev/null");
+    const capacity = this.execCommand(
+      "cat /sys/class/power_supply/BAT*/capacity 2>/dev/null",
+    );
+    const status = this.execCommand(
+      "cat /sys/class/power_supply/BAT*/status 2>/dev/null",
+    );
 
     if (capacity === null) return null;
 
@@ -90,14 +97,13 @@ export class BatterySensor extends BaseSensor<BatteryState> {
   }
 
   private async readMacBattery(): Promise<BatteryState | null> {
-    const output = this.execCommand(
-      "pmset -g batt 2>/dev/null | head -2",
-    );
+    const output = this.execCommand("pmset -g batt 2>/dev/null | head -2");
     if (!output) return null;
 
     const levelMatch = output.match(/(\d+)%/);
     const level = levelMatch ? parseInt(levelMatch[1]!, 10) : 0;
-    const isCharging = output.includes("charging") || output.includes("AC attached");
+    const isCharging =
+      output.includes("charging") || output.includes("AC attached");
 
     return {
       level,

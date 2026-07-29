@@ -1,11 +1,14 @@
-import { describe, it, expect } from "vitest";
-import { DefaultSensorManager } from "../impl/sensor-manager.js";
-import { GitSensor } from "../impl/sensors/git-sensor.js";
-import { FileSystemSensor } from "../impl/sensors/filesystem-sensor.js";
-import { DockerSensor } from "../impl/sensors/docker-sensor.js";
+import type {
+  ObservationPriority,
+  ObservationSource,
+} from "@ai-agent/attention";
+import { describe, expect, it } from "vitest";
 import { BaseSensor } from "../impl/base-sensor.js";
+import { DefaultSensorManager } from "../impl/sensor-manager.js";
+import { DockerSensor } from "../impl/sensors/docker-sensor.js";
+import { FileSystemSensor } from "../impl/sensors/filesystem-sensor.js";
+import { GitSensor } from "../impl/sensors/git-sensor.js";
 import type { SensorMetadata } from "../types/sensor.js";
-import type { ObservationSource, ObservationPriority } from "@ai-agent/attention";
 
 class TestSensor extends BaseSensor<string> {
   private testData = "test";
@@ -23,10 +26,18 @@ class TestSensor extends BaseSensor<string> {
 
   protected async onStart(): Promise<void> {}
   protected async onStop(): Promise<void> {}
-  protected async onSnapshot(): Promise<string> { return this.testData; }
-  protected async onRefresh(): Promise<string | null> { return this.testData; }
-  protected getEventSource(): ObservationSource { return "system"; }
-  protected getEventPriority(): ObservationPriority { return "low"; }
+  protected async onSnapshot(): Promise<string> {
+    return this.testData;
+  }
+  protected async onRefresh(): Promise<string | null> {
+    return this.testData;
+  }
+  protected getEventSource(): ObservationSource {
+    return "system";
+  }
+  protected getEventPriority(): ObservationPriority {
+    return "low";
+  }
 }
 
 describe("SensorManager", () => {
@@ -64,7 +75,9 @@ describe("SensorManager", () => {
   it("should subscribe to events", () => {
     const manager = new DefaultSensorManager();
     let eventReceived = false;
-    manager.onEvent(() => { eventReceived = true; });
+    manager.onEvent(() => {
+      eventReceived = true;
+    });
     expect(eventReceived).toBe(false);
   });
 });

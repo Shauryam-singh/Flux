@@ -1,6 +1,9 @@
+import type {
+  ObservationPriority,
+  ObservationSource,
+} from "@ai-agent/attention";
+import type { SensorEvent, SensorMetadata } from "../../types/sensor.js";
 import { BaseSensor } from "../base-sensor.js";
-import type { SensorMetadata, SensorEvent } from "../../types/sensor.js";
-import type { ObservationSource, ObservationPriority } from "@ai-agent/attention";
 
 export interface AudioState {
   readonly outputVolume: number; // 0-100
@@ -59,19 +62,31 @@ export class AudioSensor extends BaseSensor<AudioState> {
   }
 
   private async readPipeWireState(): Promise<AudioState | null> {
-    const output = this.execCommand("wpctl get-volume @DEFAULT_AUDIO_SINK@ 2>/dev/null");
+    const output = this.execCommand(
+      "wpctl get-volume @DEFAULT_AUDIO_SINK@ 2>/dev/null",
+    );
     if (!output) return null;
 
     const volumeMatch = output.match(/Volume:\s+(\d+\.?\d*)/);
-    const volume = volumeMatch ? Math.round(parseFloat(volumeMatch[1]!) * 100) : 0;
+    const volume = volumeMatch
+      ? Math.round(parseFloat(volumeMatch[1]!) * 100)
+      : 0;
     const isMuted = output.includes("[MUTED]");
 
-    const sourceOutput = this.execCommand("wpctl get-volume @DEFAULT_AUDIO_SOURCE@ 2>/dev/null");
+    const sourceOutput = this.execCommand(
+      "wpctl get-volume @DEFAULT_AUDIO_SOURCE@ 2>/dev/null",
+    );
     const sourceVolumeMatch = sourceOutput?.match(/Volume:\s+(\d+\.?\d*)/);
-    const inputVolume = sourceVolumeMatch ? Math.round(parseFloat(sourceVolumeMatch[1]!) * 100) : 0;
+    const inputVolume = sourceVolumeMatch
+      ? Math.round(parseFloat(sourceVolumeMatch[1]!) * 100)
+      : 0;
 
-    const activeSink = this.execCommand("wpctl status 2>/dev/null | grep 'Sinks:' -A 100 | grep '*' | head -1 | awk '{print $2}'");
-    const activeSource = this.execCommand("wpctl status 2>/dev/null | grep 'Sources:' -A 100 | grep '*' | head -1 | awk '{print $2}'");
+    const activeSink = this.execCommand(
+      "wpctl status 2>/dev/null | grep 'Sinks:' -A 100 | grep '*' | head -1 | awk '{print $2}'",
+    );
+    const activeSource = this.execCommand(
+      "wpctl status 2>/dev/null | grep 'Sources:' -A 100 | grep '*' | head -1 | awk '{print $2}'",
+    );
 
     return {
       outputVolume: volume,
@@ -84,21 +99,33 @@ export class AudioSensor extends BaseSensor<AudioState> {
   }
 
   private async readPulseAudioState(): Promise<AudioState | null> {
-    const output = this.execCommand("pactl get-sink-volume @DEFAULT_SINK@ 2>/dev/null");
+    const output = this.execCommand(
+      "pactl get-sink-volume @DEFAULT_SINK@ 2>/dev/null",
+    );
     if (!output) return null;
 
     const volumeMatch = output.match(/(\d+)%/);
     const volume = volumeMatch ? parseInt(volumeMatch[1]!, 10) : 0;
 
-    const muteOutput = this.execCommand("pactl get-sink-mute @DEFAULT_SINK@ 2>/dev/null");
+    const muteOutput = this.execCommand(
+      "pactl get-sink-mute @DEFAULT_SINK@ 2>/dev/null",
+    );
     const isMuted = muteOutput?.includes("yes") ?? false;
 
-    const sourceOutput = this.execCommand("pactl get-source-volume @DEFAULT_SOURCE@ 2>/dev/null");
+    const sourceOutput = this.execCommand(
+      "pactl get-source-volume @DEFAULT_SOURCE@ 2>/dev/null",
+    );
     const sourceVolumeMatch = sourceOutput?.match(/(\d+)%/);
-    const inputVolume = sourceVolumeMatch ? parseInt(sourceVolumeMatch[1]!, 10) : 0;
+    const inputVolume = sourceVolumeMatch
+      ? parseInt(sourceVolumeMatch[1]!, 10)
+      : 0;
 
-    const activeSink = this.execCommand("pactl info 2>/dev/null | grep 'Default Sink' | cut -d: -f2");
-    const activeSource = this.execCommand("pactl info 2>/dev/null | grep 'Default Source' | cut -d: -f2");
+    const activeSink = this.execCommand(
+      "pactl info 2>/dev/null | grep 'Default Sink' | cut -d: -f2",
+    );
+    const activeSource = this.execCommand(
+      "pactl info 2>/dev/null | grep 'Default Source' | cut -d: -f2",
+    );
 
     return {
       outputVolume: volume,

@@ -1,11 +1,15 @@
+import { execSync } from "node:child_process";
+import type {
+  ObservationPriority,
+  ObservationSource,
+} from "@ai-agent/attention";
 import type {
   Sensor,
+  SensorEvent,
   SensorMetadata,
   SensorState,
-  SensorEvent,
   SensorStatus,
 } from "../types/sensor.js";
-import type { ObservationSource, ObservationPriority } from "@ai-agent/attention";
 
 export abstract class BaseSensor<TData = unknown> implements Sensor<TData> {
   readonly metadata: SensorMetadata;
@@ -50,7 +54,10 @@ export abstract class BaseSensor<TData = unknown> implements Sensor<TData> {
         }, this.pollIntervalMs);
       }
     } catch (e) {
-      this.updateState("error", e instanceof Error ? e.message : "Unknown error");
+      this.updateState(
+        "error",
+        e instanceof Error ? e.message : "Unknown error",
+      );
     }
   }
 
@@ -128,14 +135,18 @@ export abstract class BaseSensor<TData = unknown> implements Sensor<TData> {
       ...this.state,
       status,
       lastError: error ?? (status === "error" ? this.state.lastError : null),
-      errorCount: status === "error" ? this.state.errorCount + 1 : this.state.errorCount,
+      errorCount:
+        status === "error" ? this.state.errorCount + 1 : this.state.errorCount,
     };
   }
 
   protected execCommand(cmd: string, timeout = 5000): string | null {
     try {
-      const { execSync } = require("node:child_process") as typeof import("node:child_process");
-      return execSync(cmd, { encoding: "utf-8", timeout }).trim();
+      return execSync(cmd, {
+        encoding: "utf-8",
+        timeout,
+        stdio: ["pipe", "pipe", "pipe"],
+      }).trim();
     } catch {
       return null;
     }

@@ -1,18 +1,21 @@
-import type { ObservationSource, ObservationPriority } from "@ai-agent/attention";
+import type {
+  ObservationPriority,
+  ObservationSource,
+} from "@ai-agent/attention";
 
 // ─── Sensor Identity ──────────────────────────────────────────────
 
 export type SensorCategory =
-  | "filesystem"    // File system changes (inotify/fsevents)
-  | "git"           // Git state changes
-  | "linux"         // Linux desktop (D-Bus, systemd, clipboard, etc.)
-  | "process"       // Process monitoring (Docker, SSH, K8s)
-  | "service"       // External services (Spotify, Discord, Slack)
-  | "browser"       // Browser integration (Chrome DevTools)
-  | "vscode"        // VS Code extension
-  | "calendar"      // Calendar events
-  | "email"         // Email notifications
-  | "hardware";     // Hardware sensors (battery, audio, webcam)
+  | "filesystem" // File system changes (inotify/fsevents)
+  | "git" // Git state changes
+  | "linux" // Linux desktop (D-Bus, systemd, clipboard, etc.)
+  | "process" // Process monitoring (Docker, SSH, K8s)
+  | "service" // External services (Spotify, Discord, Slack)
+  | "browser" // Browser integration (Chrome DevTools)
+  | "vscode" // VS Code extension
+  | "calendar" // Calendar events
+  | "email" // Email notifications
+  | "hardware"; // Hardware sensors (battery, audio, webcam)
 
 export type SensorId = string;
 
@@ -28,10 +31,10 @@ export interface SensorMetadata {
 // ─── Sensor State ─────────────────────────────────────────────────
 
 export type SensorStatus =
-  | "idle"        // Not monitoring
-  | "starting"    // Initializing
-  | "running"     // Actively monitoring
-  | "error"       // Error state
+  | "idle" // Not monitoring
+  | "starting" // Initializing
+  | "running" // Actively monitoring
+  | "error" // Error state
   | "unavailable"; // Not available on this platform
 
 export interface SensorState {

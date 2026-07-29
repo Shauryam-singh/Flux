@@ -46,12 +46,12 @@
           <span class="flux-logo">FLUX</span>
           <div class="status-indicator">
             <span class="status-dot" id="status-dot"></span>
-            <span id="status-text">Watching</span>
+            <span id="status-text"></span>
           </div>
         </div>
         <div class="topbar-stats">
-          <span class="topbar-time" id="hud-time">12:00</span>
-          <span class="topbar-meta"><span id="hud-model">qwen2.5-coder</span> &middot; CPU <span id="hud-cpu">7%</span></span>
+          <span class="topbar-time" id="hud-time"></span>
+          <span class="topbar-meta"><span id="hud-model"></span> &middot; CPU <span id="hud-cpu"></span></span>
         </div>
       </header>
 
@@ -61,20 +61,18 @@
         <!-- Live Cognition -->
         <section class="hud-card">
           <div class="card-label">Cognition</div>
-          <div class="cognition-text" id="cognition-text">
-            Thinking<span class="cognition-cursor"></span>
-          </div>
+          <div class="cognition-text" id="cognition-text"></div>
         </section>
 
         <!-- Current Goal -->
         <section class="hud-card">
           <div class="card-label">Current Goal</div>
-          <div class="goal-name" id="goal-name">Executive Intelligence</div>
+          <div class="goal-name" id="goal-name"></div>
           <div class="progress-track">
-            <div class="progress-fill" id="goal-progress" style="width: 72%"></div>
+            <div class="progress-fill" id="goal-progress" style="width: 0%"></div>
           </div>
           <div class="goal-meta">
-            <span id="goal-percent">72%</span>
+            <span id="goal-percent"></span>
             <span class="goal-blocker" id="goal-blocker"></span>
           </div>
         </section>
@@ -82,106 +80,37 @@
         <!-- Current Focus -->
         <section class="hud-card">
           <div class="card-label">Focus</div>
-          <div class="focus-tags" id="focus-tags">
-            <span class="focus-tag">packages/runtime</span>
-            <span class="focus-tag">Docker</span>
-            <span class="focus-tag">Git</span>
-          </div>
+          <div class="focus-tags" id="focus-tags"></div>
         </section>
 
         <!-- Prediction -->
         <section class="hud-card">
           <div class="card-label">Prediction</div>
-          <div class="prediction-text" id="prediction-text">Likely preparing commit</div>
+          <div class="prediction-text" id="prediction-text"></div>
           <div class="prediction-bar">
             <div class="confidence-track">
-              <div class="confidence-fill" id="prediction-fill" style="width: 87%"></div>
+              <div class="confidence-fill" id="prediction-fill" style="width: 0%"></div>
             </div>
-            <span class="confidence-value" id="prediction-confidence">87%</span>
+            <span class="confidence-value" id="prediction-confidence"></span>
           </div>
         </section>
 
         <!-- Background Tasks -->
         <section class="hud-card">
           <div class="card-label">Background Tasks</div>
-          <ul class="tasks-list" id="tasks-list">
-            <li class="task-item"><span class="task-icon done">&#10003;</span> Repository indexed</li>
-            <li class="task-item"><span class="task-icon active">&#9679;</span> Monitoring Git</li>
-            <li class="task-item"><span class="task-icon active">&#9679;</span> Docker healthy</li>
-            <li class="task-item"><span class="task-icon active">&#9679;</span> Watching filesystem</li>
-            <li class="task-item"><span class="task-icon pending">&#9675;</span> Building embeddings</li>
-            <li class="task-item"><span class="task-icon pending">&#9675;</span> Consolidating memories</li>
-          </ul>
+          <ul class="tasks-list" id="tasks-list"></ul>
         </section>
 
         <!-- Memory Activity -->
         <section class="hud-card">
           <div class="card-label">Memory</div>
-          <ul class="memory-list" id="memory-list">
-            <li class="memory-item">
-              <span class="memory-badge remember">Remembered</span>
-              User prefers TypeScript
-            </li>
-            <li class="memory-item">
-              <span class="memory-badge remember">Remembered</span>
-              Project uses Result&lt;T,E&gt;
-            </li>
-            <li class="memory-item">
-              <span class="memory-badge reflection">Reflection</span>
-              Working on Executive layer
-            </li>
-          </ul>
+          <ul class="memory-list" id="memory-list"></ul>
         </section>
 
         <!-- Live Sensors -->
         <section class="hud-card">
           <div class="card-label">Sensors</div>
-          <div class="sensors-grid" id="sensors-grid">
-            <div class="sensor-item active" title="Git">
-              <span class="sensor-icon">&#128204;</span>
-              <span class="sensor-label">Git</span>
-            </div>
-            <div class="sensor-item active" title="Filesystem">
-              <span class="sensor-icon">&#128193;</span>
-              <span class="sensor-label">Files</span>
-            </div>
-            <div class="sensor-item active" title="Clipboard">
-              <span class="sensor-icon">&#128203;</span>
-              <span class="sensor-label">Clip</span>
-            </div>
-            <div class="sensor-item active" title="Docker">
-              <span class="sensor-icon">&#128051;</span>
-              <span class="sensor-label">Docker</span>
-            </div>
-            <div class="sensor-item" title="Battery">
-              <span class="sensor-icon">&#128267;</span>
-              <span class="sensor-label">Batt</span>
-            </div>
-            <div class="sensor-item active" title="Audio">
-              <span class="sensor-icon">&#128264;</span>
-              <span class="sensor-label">Audio</span>
-            </div>
-            <div class="sensor-item" title="Notifications">
-              <span class="sensor-icon">&#128276;</span>
-              <span class="sensor-label">Alerts</span>
-            </div>
-            <div class="sensor-item" title="Calendar">
-              <span class="sensor-icon">&#128197;</span>
-              <span class="sensor-label">Cal</span>
-            </div>
-            <div class="sensor-item" title="SSH">
-              <span class="sensor-icon">&#128187;</span>
-              <span class="sensor-label">SSH</span>
-            </div>
-            <div class="sensor-item" title="Spotify">
-              <span class="sensor-icon">&#127925;</span>
-              <span class="sensor-label">Music</span>
-            </div>
-            <div class="sensor-item" title="Idle">
-              <span class="sensor-icon">&#9201;</span>
-              <span class="sensor-label">Idle</span>
-            </div>
-          </div>
+          <div class="sensors-grid" id="sensors-grid"></div>
         </section>
 
       </main>
@@ -240,60 +169,18 @@
                 <h3>Cognition</h3>
                 <div id="dash-cognition">
                   <div class="dash-cognition-state">
-                    <span id="dash-cog-text">Analysing build errors</span>
+                    <span id="dash-cog-text"></span>
                   </div>
-                  <div class="dash-cognition-stage" id="dash-cog-stage">Stage 7/14: Generate</div>
+                  <div class="dash-cognition-stage" id="dash-cog-stage"></div>
                 </div>
               </div>
               <div class="dash-card">
                 <h3>World Model</h3>
-                <div class="world-tree" id="dash-world-model">
-                  <div class="world-node">
-                    <span class="world-node-name">Runtime</span>
-                    <span class="world-node-status healthy">Healthy</span>
-                  </div>
-                  <div class="world-node">
-                    <span class="world-node-name">Memory</span>
-                    <span class="world-node-status busy">Busy</span>
-                  </div>
-                  <div class="world-node">
-                    <span class="world-node-name">Executive</span>
-                    <span class="world-node-status blocked">Blocked</span>
-                  </div>
-                  <div class="world-node">
-                    <span class="world-node-name">API</span>
-                    <span class="world-node-status running">Running</span>
-                  </div>
-                  <div class="world-node">
-                    <span class="world-node-name">Voice</span>
-                    <span class="world-node-status idle">Idle</span>
-                  </div>
-                </div>
+                <div class="world-tree" id="dash-world-model"></div>
               </div>
               <div class="dash-card">
                 <h3>Goal Timeline</h3>
-                <div class="timeline" id="dash-timeline">
-                  <div class="timeline-item">
-                    <span class="timeline-icon done">&#10003;</span>
-                    <span class="timeline-text done">Runtime completed</span>
-                  </div>
-                  <div class="timeline-item">
-                    <span class="timeline-icon done">&#10003;</span>
-                    <span class="timeline-text done">Memory updated</span>
-                  </div>
-                  <div class="timeline-item">
-                    <span class="timeline-icon active">&#9679;</span>
-                    <span class="timeline-text active">Executive Planner</span>
-                  </div>
-                  <div class="timeline-item">
-                    <span class="timeline-icon pending">&#9675;</span>
-                    <span class="timeline-text">Automation Builder</span>
-                  </div>
-                  <div class="timeline-item">
-                    <span class="timeline-icon pending">&#9675;</span>
-                    <span class="timeline-text">Voice Improvements</span>
-                  </div>
-                </div>
+                <div class="timeline" id="dash-timeline"></div>
               </div>
             </div>
 
@@ -301,38 +188,11 @@
             <div class="overview-col">
               <div class="dash-card">
                 <h3>Thought Stream</h3>
-                <div class="thought-stream" id="dash-thought-stream">
-                  <div class="thought-entry">
-                    <span class="thought-type observed">Observed</span>
-                    <span class="thought-text">Modified runtime.ts</span>
-                  </div>
-                  <div class="thought-entry">
-                    <span class="thought-type thought">Thought</span>
-                    <span class="thought-text">Dependency graph becoming complex</span>
-                  </div>
-                  <div class="thought-entry">
-                    <span class="thought-type evidence">Evidence</span>
-                    <span class="thought-text">18 imports detected</span>
-                  </div>
-                  <div class="thought-entry">
-                    <span class="thought-type decision">Decision</span>
-                    <span class="thought-text">Wait until user finishes typing</span>
-                  </div>
-                  <div class="thought-entry">
-                    <span class="thought-type confidence">Confidence</span>
-                    <span class="thought-text">91%</span>
-                  </div>
-                </div>
+                <div class="thought-stream" id="dash-thought-stream"></div>
               </div>
               <div class="dash-card">
                 <h3>AI Mood</h3>
-                <div class="mood-display" id="dash-mood">
-                  <span class="mood-icon">&#129504;</span>
-                  <div>
-                    <div class="mood-label">Focused</div>
-                    <div class="mood-sub">Deep analysis in progress</div>
-                  </div>
-                </div>
+                <div class="mood-display" id="dash-mood"></div>
               </div>
             </div>
 
@@ -340,38 +200,15 @@
             <div class="overview-col">
               <div class="dash-card">
                 <h3>Confidence</h3>
-                <div class="confidence-gauge" id="dash-confidence">
-                  <div class="gauge-belief">Build failure caused by circular dependency</div>
-                  <div class="gauge-bar">
-                    <div class="gauge-fill" style="width: 91%"></div>
-                  </div>
-                  <div class="gauge-label">
-                    <span>Primary</span>
-                    <span>91%</span>
-                  </div>
-                  <div class="gauge-alt">Alternative: Environment issue &mdash; 18%</div>
-                </div>
+                <div class="confidence-gauge" id="dash-confidence"></div>
               </div>
               <div class="dash-card">
                 <h3>Sensors</h3>
-                <div class="sensors-grid" id="dash-sensors">
-                  <div class="sensor-item active" title="Git"><span class="sensor-icon">&#128204;</span><span class="sensor-label">Git</span></div>
-                  <div class="sensor-item active" title="Filesystem"><span class="sensor-icon">&#128193;</span><span class="sensor-label">Files</span></div>
-                  <div class="sensor-item active" title="Docker"><span class="sensor-icon">&#128051;</span><span class="sensor-label">Docker</span></div>
-                  <div class="sensor-item" title="Clipboard"><span class="sensor-icon">&#128203;</span><span class="sensor-label">Clip</span></div>
-                  <div class="sensor-item active" title="Audio"><span class="sensor-icon">&#128264;</span><span class="sensor-label">Audio</span></div>
-                  <div class="sensor-item" title="Battery"><span class="sensor-icon">&#128267;</span><span class="sensor-label">Batt</span></div>
-                </div>
+                <div class="sensors-grid" id="dash-sensors"></div>
               </div>
               <div class="dash-card">
                 <h3>Memory</h3>
-                <div id="dash-memory">
-                  <div class="memory-list">
-                    <div class="memory-item"><span class="memory-badge remember">Semantic</span> 47 facts stored</div>
-                    <div class="memory-item"><span class="memory-badge reflection">Episodic</span> 23 experiences</div>
-                    <div class="memory-item"><span class="memory-badge insight">Procedural</span> 12 workflows</div>
-                  </div>
-                </div>
+                <div id="dash-memory"></div>
               </div>
             </div>
 
@@ -380,13 +217,12 @@
 
         <!-- Thought Graph Tab -->
         <div class="tab-panel" id="panel-graph">
-          <div class="graph-container">
-            <canvas id="graph-canvas"></canvas>
-          </div>
+          <canvas id="graph-canvas" width="800" height="500"></canvas>
         </div>
 
         <!-- Memory Tab -->
         <div class="tab-panel" id="panel-memory">
+          <div id="memory-stats" style="font-size:11px;color:var(--muted);margin-bottom:12px;"></div>
           <div class="memory-sections" id="memory-sections">
             <div class="memory-section">
               <h3>Working Memory</h3>
@@ -426,7 +262,7 @@
 
         <!-- Sensors Tab -->
         <div class="tab-panel" id="panel-sensors">
-          <div class="sensors-detail-grid" id="sensors-detail"></div>
+          <div id="sensors-detail"></div>
         </div>
 
         <!-- Projects Tab -->
@@ -450,11 +286,12 @@
         </div>
 
       </main>
+
     </div>
   </div>
 
   <!-- ═══════════════════════════════════════════
-       COMMAND PALETTE
+       COMMAND PALETTE (Ctrl+K)
        ═══════════════════════════════════════════ -->
   <div id="command-palette" class="hidden">
     <div class="palette-backdrop" id="palette-backdrop"></div>

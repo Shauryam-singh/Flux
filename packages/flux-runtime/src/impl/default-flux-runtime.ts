@@ -1,38 +1,96 @@
-import type { FluxRuntime, FluxRuntimeConfig, FluxRuntimeMessage, FluxRuntimeResult, FluxRuntimeState, TickEvent } from "../interfaces/flux-runtime.js";
-
-import { DefaultToolRegistry, echoTool, createReadFileTool, createWriteFileTool, createEditFileTool, createListDirectoryTool, createRunCommandTool, createGitStatusTool, createGitDiffTool, createGitLogTool, createGitAddTool, createGitCommitTool, createGitBranchTool, createGitCheckoutTool, createGitPushTool, createGitPullTool, createHttpRequestTool, createProcessMonitorTool, createCronTool, createSystemInfoTool, createDockerTool, createScreenMonitorTool } from "@ai-agent/tools";
-import { DefaultProviderFactory, type Provider } from "@ai-agent/providers";
+import { execSync } from "node:child_process";
 import { DefaultSession } from "@ai-agent/agent";
-import { DefaultServiceRegistry, Orchestrator, type LlmProvider } from "@ai-agent/services-core";
+import { AttentionManager, type ObservationSource } from "@ai-agent/attention";
+import {
+  type CognitiveOrchestrator,
+  DefaultCognitiveOrchestrator,
+} from "@ai-agent/cognitive";
+import { DefaultMemoryManager } from "@ai-agent/cognitive-memory";
+import { DefaultConfidenceCalibration } from "@ai-agent/confidence-calibration";
+import {
+  DefaultDecisionEngine,
+  DefaultInterruptController,
+} from "@ai-agent/decisions";
+import { DefaultExperienceDatabase } from "@ai-agent/experience-db";
+import { DefaultGoalManager } from "@ai-agent/goals";
+import { DefaultHabitDiscovery } from "@ai-agent/habit-discovery";
+import { DefaultKnowledgeConsolidation } from "@ai-agent/knowledge-consolidation";
+import { DefaultMetaCognitionEngine } from "@ai-agent/meta-cognition";
+import { DefaultProviderFactory, type Provider } from "@ai-agent/providers";
+import {
+  DefaultReasoningEngine,
+  LlmThoughtGenerator,
+} from "@ai-agent/reasoning";
+import {
+  AudioSensor,
+  BatterySensor,
+  ClipboardSensor,
+  DefaultSensorManager,
+  DockerSensor,
+  FileSystemSensor,
+  GitSensor,
+  IdleSensor,
+  KubernetesSensor,
+  NotificationSensor,
+  SpotifySensor,
+  SSHSensor,
+} from "@ai-agent/sensors";
+import { createAutomationService } from "@ai-agent/services-automations";
 import { createChatService } from "@ai-agent/services-chat";
 import { createCodingService } from "@ai-agent/services-coding";
+import { createContextService } from "@ai-agent/services-context";
+import {
+  DefaultServiceRegistry,
+  type LlmProvider,
+  Orchestrator,
+} from "@ai-agent/services-core";
+import { createFilesService } from "@ai-agent/services-files";
+import { createMonitorService } from "@ai-agent/services-monitor";
+import { createNotificationService } from "@ai-agent/services-notifications";
+import { createProactiveService } from "@ai-agent/services-proactive";
+import { createRemindersService } from "@ai-agent/services-reminders";
 import { createSearchService } from "@ai-agent/services-search";
 import { createSystemService } from "@ai-agent/services-system";
-import { createRemindersService } from "@ai-agent/services-reminders";
-import { createFilesService } from "@ai-agent/services-files";
-import { createNotificationService } from "@ai-agent/services-notifications";
-import { createMonitorService } from "@ai-agent/services-monitor";
-import { createAutomationService } from "@ai-agent/services-automations";
-import { createContextService } from "@ai-agent/services-context";
-import { createProactiveService } from "@ai-agent/services-proactive";
-import { AttentionManager, type ObservationSource } from "@ai-agent/attention";
-import { DefaultWorldModel } from "@ai-agent/world-model";
-import { DefaultWorkingMemory } from "@ai-agent/working-memory";
-import { DefaultGoalManager } from "@ai-agent/goals";
-import { DefaultReasoningEngine, LlmThoughtGenerator } from "@ai-agent/reasoning";
-import { DefaultDecisionEngine, DefaultInterruptController } from "@ai-agent/decisions";
-import { DefaultCognitiveOrchestrator, type CognitiveOrchestrator } from "@ai-agent/cognitive";
-import { DefaultExperienceDatabase } from "@ai-agent/experience-db";
-import { DefaultMetaCognitionEngine } from "@ai-agent/meta-cognition";
 import { DefaultStrategyLibrary } from "@ai-agent/strategy-library";
-import { DefaultConfidenceCalibration } from "@ai-agent/confidence-calibration";
-import { DefaultKnowledgeConsolidation } from "@ai-agent/knowledge-consolidation";
-import { DefaultHabitDiscovery } from "@ai-agent/habit-discovery";
-import { DefaultThoughtGraph, type CognitionResult } from "@ai-agent/thought-graph";
-import { DefaultSensorManager, GitSensor, FileSystemSensor, ClipboardSensor, BatterySensor, IdleSensor, NotificationSensor, DockerSensor, SpotifySensor, KubernetesSensor, SSHSensor, AudioSensor } from "@ai-agent/sensors";
-import { DefaultMemoryManager } from "@ai-agent/cognitive-memory";
+import {
+  type CognitionResult,
+  DefaultThoughtGraph,
+} from "@ai-agent/thought-graph";
+import {
+  createCronTool,
+  createDockerTool,
+  createEditFileTool,
+  createGitAddTool,
+  createGitBranchTool,
+  createGitCheckoutTool,
+  createGitCommitTool,
+  createGitDiffTool,
+  createGitLogTool,
+  createGitPullTool,
+  createGitPushTool,
+  createGitStatusTool,
+  createHttpRequestTool,
+  createListDirectoryTool,
+  createProcessMonitorTool,
+  createReadFileTool,
+  createRunCommandTool,
+  createScreenMonitorTool,
+  createSystemInfoTool,
+  createWriteFileTool,
+  DefaultToolRegistry,
+  echoTool,
+} from "@ai-agent/tools";
+import { DefaultWorkingMemory } from "@ai-agent/working-memory";
+import { DefaultWorldModel } from "@ai-agent/world-model";
+import type {
+  FluxRuntime,
+  FluxRuntimeConfig,
+  FluxRuntimeMessage,
+  FluxRuntimeResult,
+  FluxRuntimeState,
+  TickEvent,
+} from "../interfaces/flux-runtime.js";
 import { CognitionPipeline } from "./cognition-pipeline.js";
-import { execSync } from "node:child_process";
 
 export class DefaultFluxRuntime implements FluxRuntime {
   private readonly config: FluxRuntimeConfig;
@@ -52,7 +110,9 @@ export class DefaultFluxRuntime implements FluxRuntime {
   readonly experienceDb: InstanceType<typeof DefaultExperienceDatabase>;
   readonly metaCognition: InstanceType<typeof DefaultMetaCognitionEngine>;
   readonly strategyLibrary: InstanceType<typeof DefaultStrategyLibrary>;
-  readonly confidenceCalibration: InstanceType<typeof DefaultConfidenceCalibration>;
+  readonly confidenceCalibration: InstanceType<
+    typeof DefaultConfidenceCalibration
+  >;
   readonly knowledge: InstanceType<typeof DefaultKnowledgeConsolidation>;
   readonly habits: InstanceType<typeof DefaultHabitDiscovery>;
   readonly thoughtGraph: DefaultThoughtGraph;
@@ -70,9 +130,24 @@ export class DefaultFluxRuntime implements FluxRuntime {
   private lastScreenTitle = "";
   private lastPipelineDurationMs: number | null = null;
   private lastPipelineResult: CognitionResult | null = null;
-  private recentThoughts: Array<{ type: string; content: string; confidence: number; timestamp: number }> = [];
-  private recentActions: Array<{ type: string; reasoning: string; confidence: number; timestamp: number }> = [];
-  private recentSensorEvents: Array<{ sensorId: string; type: string; timestamp: number; priority: string }> = [];
+  private recentThoughts: Array<{
+    type: string;
+    content: string;
+    confidence: number;
+    timestamp: number;
+  }> = [];
+  private recentActions: Array<{
+    type: string;
+    reasoning: string;
+    confidence: number;
+    timestamp: number;
+  }> = [];
+  private recentSensorEvents: Array<{
+    sensorId: string;
+    type: string;
+    timestamp: number;
+    priority: string;
+  }> = [];
 
   constructor(config: FluxRuntimeConfig) {
     this.config = config;
@@ -81,12 +156,27 @@ export class DefaultFluxRuntime implements FluxRuntime {
     // --- Layer 1: Tools ---
     const toolRegistry = new DefaultToolRegistry();
     const tools = [
-      echoTool, createReadFileTool(), createWriteFileTool(), createEditFileTool(),
-      createListDirectoryTool(), createRunCommandTool(), createGitStatusTool(),
-      createGitDiffTool(), createGitLogTool(), createGitAddTool(), createGitCommitTool(),
-      createGitBranchTool(), createGitCheckoutTool(), createGitPushTool(), createGitPullTool(),
-      createHttpRequestTool(), createProcessMonitorTool(), createCronTool(),
-      createSystemInfoTool(), createDockerTool(), createScreenMonitorTool(),
+      echoTool,
+      createReadFileTool(),
+      createWriteFileTool(),
+      createEditFileTool(),
+      createListDirectoryTool(),
+      createRunCommandTool(),
+      createGitStatusTool(),
+      createGitDiffTool(),
+      createGitLogTool(),
+      createGitAddTool(),
+      createGitCommitTool(),
+      createGitBranchTool(),
+      createGitCheckoutTool(),
+      createGitPushTool(),
+      createGitPullTool(),
+      createHttpRequestTool(),
+      createProcessMonitorTool(),
+      createCronTool(),
+      createSystemInfoTool(),
+      createDockerTool(),
+      createScreenMonitorTool(),
     ];
     for (const tool of tools) {
       toolRegistry.register(tool);
@@ -97,11 +187,12 @@ export class DefaultFluxRuntime implements FluxRuntime {
     this.provider = factory.create(config.provider);
 
     this.llmProvider = {
-      complete: (req) => this.provider.complete({
-        model: req.model === "default" ? config.model : req.model,
-        prompt: req.prompt,
-        temperature: req.temperature ?? 0.7,
-      }),
+      complete: (req) =>
+        this.provider.complete({
+          model: req.model === "default" ? config.model : req.model,
+          prompt: req.prompt,
+          temperature: req.temperature ?? 0.7,
+        }),
     };
 
     // --- Layer 3: Services ---
@@ -125,7 +216,9 @@ export class DefaultFluxRuntime implements FluxRuntime {
 
     // --- Layer 5: Cognitive System (Phase 2) ---
     this.worldModel = new DefaultWorldModel();
-    this.workingMemory = new DefaultWorkingMemory({ capacity: config.maxMemoryCapacity ?? 50 });
+    this.workingMemory = new DefaultWorkingMemory({
+      capacity: config.maxMemoryCapacity ?? 50,
+    });
     this.goalManager = new DefaultGoalManager();
     const thoughtGenerator = new LlmThoughtGenerator(this.llmProvider);
     const reasoningEngine = new DefaultReasoningEngine(thoughtGenerator);
@@ -228,7 +321,14 @@ export class DefaultFluxRuntime implements FluxRuntime {
           title: `[${event.sensorId}] ${event.type}`,
           detail: JSON.stringify(event.data).slice(0, 500),
           priority: event.priority,
-          score: event.priority === "critical" ? 95 : event.priority === "high" ? 80 : event.priority === "medium" ? 50 : 20,
+          score:
+            event.priority === "critical"
+              ? 95
+              : event.priority === "high"
+                ? 80
+                : event.priority === "medium"
+                  ? 50
+                  : 20,
           timestamp: event.timestamp,
           mergeable: true,
           consumed: false,
@@ -322,7 +422,7 @@ export class DefaultFluxRuntime implements FluxRuntime {
 
     try {
       // Gather observations from available sources
-      observationsGathered = this.gatherObservations();
+      observationsGathered = await this.gatherObservations();
     } catch {
       // Observation gathering is best-effort
     }
@@ -382,7 +482,7 @@ export class DefaultFluxRuntime implements FluxRuntime {
     }
   }
 
-  private gatherObservations(): number {
+  private async gatherObservations(): Promise<number> {
     let count = 0;
 
     // Source 1: Screen activity (if xdotool/osascript available)
@@ -409,22 +509,62 @@ export class DefaultFluxRuntime implements FluxRuntime {
     });
     count++;
 
-    // Source 4: Sensor snapshots (periodic, every 5th tick)
+    // Source 4: Cheap sensors every tick (idle, filesystem)
+    const idleSensor =
+      this.sensors.get<import("@ai-agent/sensors").IdleState>("idle");
+    if (idleSensor) {
+      try {
+        const state = await idleSensor.snapshot();
+        if (state) {
+          this.attention.process({
+            source: "system",
+            title: state.isIdle ? `idle: ${state.idleSeconds}s` : "user_active",
+            detail: `idle: ${state.isIdle}, seconds: ${state.idleSeconds}`,
+          });
+          count++;
+        }
+      } catch {
+        /* best-effort */
+      }
+    }
+
+    const fsSensor =
+      this.sensors.get<import("@ai-agent/sensors").FileSystemState>(
+        "filesystem",
+      );
+    if (fsSensor) {
+      try {
+        const state = await fsSensor.snapshot();
+        if (state) {
+          this.attention.process({
+            source: "file",
+            title: `files: ${state.recentChanges?.length ?? 0} changes`,
+            detail: `watched: ${state.watchedPaths?.length ?? 0} paths, total: ${state.totalChanges ?? 0}`,
+          });
+          count++;
+        }
+      } catch {
+        /* best-effort */
+      }
+    }
+
+    // Source 5: Heavier sensors every 5th tick (git, docker, battery, clipboard)
     if (this.tickCount % 5 === 0) {
-      const sensorObs = this.gatherSensorObservations();
-      count += sensorObs;
+      count += await this.gatherSensorObservations();
     }
 
     return count;
   }
 
-  private gatherSensorObservations(): number {
+  private async gatherSensorObservations(): Promise<number> {
     let count = 0;
 
     // Get git state
-    const gitSensor = this.sensors.get<import("@ai-agent/sensors").GitState>("git");
+    const gitSensor =
+      this.sensors.get<import("@ai-agent/sensors").GitState>("git");
     if (gitSensor) {
-      void gitSensor.snapshot().then((state) => {
+      try {
+        const state = await gitSensor.snapshot();
         if (state) {
           this.attention.process({
             source: "git",
@@ -433,13 +573,17 @@ export class DefaultFluxRuntime implements FluxRuntime {
           });
           count++;
         }
-      });
+      } catch {
+        /* best-effort */
+      }
     }
 
     // Get Docker state
-    const dockerSensor = this.sensors.get<import("@ai-agent/sensors").DockerState>("docker");
+    const dockerSensor =
+      this.sensors.get<import("@ai-agent/sensors").DockerState>("docker");
     if (dockerSensor) {
-      void dockerSensor.snapshot().then((state) => {
+      try {
+        const state = await dockerSensor.snapshot();
         if (state) {
           this.attention.process({
             source: "process",
@@ -448,26 +592,115 @@ export class DefaultFluxRuntime implements FluxRuntime {
           });
           count++;
         }
-      });
+      } catch {
+        /* best-effort */
+      }
+    }
+
+    // Get battery state
+    const batterySensor =
+      this.sensors.get<import("@ai-agent/sensors").BatteryState>("battery");
+    if (batterySensor) {
+      try {
+        const state = await batterySensor.snapshot();
+        if (state) {
+          this.attention.process({
+            source: "system",
+            title: `battery: ${state.level}%`,
+            detail: `charging: ${state.isCharging}, status: ${state.status}`,
+          });
+          count++;
+        }
+      } catch {
+        /* best-effort */
+      }
+    }
+
+    // Get clipboard state
+    const clipSensor =
+      this.sensors.get<import("@ai-agent/sensors").ClipboardState>("clipboard");
+    if (clipSensor) {
+      try {
+        const state = await clipSensor.snapshot();
+        if (state && state.text) {
+          this.attention.process({
+            source: "system",
+            title: `clipboard: ${state.text.slice(0, 50)}`,
+            detail: `length: ${state.text.length}`,
+          });
+          count++;
+        }
+      } catch {
+        /* best-effort */
+      }
     }
 
     return count;
   }
 
-  private gatherScreenObservation(): { source: ObservationSource; title: string; detail: string } | null {
+  private gatherScreenObservation(): {
+    source: ObservationSource;
+    title: string;
+    detail: string;
+  } | null {
     try {
       const platform = process.platform;
       let app = "";
       let title = "";
 
       if (platform === "linux") {
-        const activeWindow = execSync("xdotool getactivewindow getwindowname 2>/dev/null", { encoding: "utf-8", timeout: 2000 }).trim();
-        const parts = activeWindow.split(" — ");
-        app = parts[0]?.trim() ?? activeWindow;
-        title = parts.slice(1).join(" — ").trim();
+        // Try Hyprland first (Wayland)
+        try {
+          const hyprOutput = execSync("hyprctl activewindow -j 2>/dev/null", {
+            encoding: "utf-8",
+            timeout: 2000,
+          }).trim();
+          if (hyprOutput) {
+            const data = JSON.parse(hyprOutput) as {
+              title?: string;
+              class?: string;
+              address?: string;
+            };
+            app = data.class ?? "";
+            title = data.title ?? "";
+          }
+        } catch {
+          // Not on Hyprland, try xdotool (X11)
+        }
+
+        // Fallback to xdotool for X11
+        if (!app) {
+          try {
+            const activeWindow = execSync(
+              "xdotool getactivewindow getwindowname 2>/dev/null",
+              { encoding: "utf-8", timeout: 2000 },
+            ).trim();
+            const parts = activeWindow.split(" — ");
+            app = parts[0]?.trim() ?? activeWindow;
+            title = parts.slice(1).join(" — ").trim();
+          } catch {
+            // xdotool not available
+          }
+        }
+
+        // Fallback to wlr-randr or /proc for other Wayland
+        if (!app) {
+          try {
+            const focused = execSync(
+              "cat /proc/$(cat /sys/class/tty/tty0/active 2>/dev/null | cut -d' ' -f2)/comm 2>/dev/null || echo ''",
+              { encoding: "utf-8", timeout: 1000 },
+            ).trim();
+            if (focused) app = focused;
+          } catch {
+            // ignore
+          }
+        }
       } else if (platform === "darwin") {
         const script = `tell application "System Events" to get {name of first application process whose frontmost is true, name of front window of first application process whose frontmost is true}`;
-        const output = execSync(`osascript -e '${script}' 2>/dev/null`, { encoding: "utf-8", timeout: 2000 }).trim();
+        const output = execSync(`osascript -e '${script}' 2>/dev/null`, {
+          encoding: "utf-8",
+          timeout: 2000,
+        }).trim();
         const parts = output.split(", ");
         app = parts[0]?.trim() ?? "";
         title = parts.slice(1).join(", ").trim();
@@ -476,7 +709,8 @@ export class DefaultFluxRuntime implements FluxRuntime {
       if (!app) return null;
 
       // Only emit if something changed (dedup)
-      if (app === this.lastScreenApp && title === this.lastScreenTitle) return null;
+      if (app === this.lastScreenApp && title === this.lastScreenTitle)
+        return null;
       this.lastScreenApp = app;
       this.lastScreenTitle = title;
 
@@ -490,12 +724,25 @@ export class DefaultFluxRuntime implements FluxRuntime {
     }
   }
 
-  private gatherSystemObservation(): { source: ObservationSource; title: string; detail: string } | null {
+  private gatherSystemObservation(): {
+    source: ObservationSource;
+    title: string;
+    detail: string;
+  } | null {
     try {
-      const loadavg = execSync("cat /proc/loadavg 2>/dev/null || sysctl -n vm.loadavg 2>/dev/null", { encoding: "utf-8", timeout: 2000 }).trim();
+      const loadavg = execSync(
+        "cat /proc/loadavg 2>/dev/null || sysctl -n vm.loadavg 2>/dev/null",
+        { encoding: "utf-8", timeout: 2000 },
+      ).trim();
       const parts = loadavg.split(" ");
       const load1 = parseFloat(parts[0] ?? "0");
-      const cpus = parseInt(execSync("nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4", { encoding: "utf-8", timeout: 2000 }).trim(), 10);
+      const cpus = parseInt(
+        execSync(
+          "nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4",
+          { encoding: "utf-8", timeout: 2000 },
+        ).trim(),
+        10,
+      );
       const ratio = load1 / cpus;
 
       let detail = `load: ${load1} (${ratio.toFixed(2)}x ${cpus} cores)`;
@@ -533,7 +780,18 @@ export class DefaultFluxRuntime implements FluxRuntime {
     // Step 4: Process through service orchestrator (intent classification + routing)
     const getSystemContext = async () => {
       const sensorSnapshots: Record<string, unknown> = {};
-      for (const sensorId of ["git", "docker", "battery", "idle", "clipboard", "spotify", "audio", "notifications"] as const) {
+      for (const sensorId of [
+        "git",
+        "docker",
+        "battery",
+        "idle",
+        "clipboard",
+        "spotify",
+        "audio",
+        "notifications",
+        "screen",
+        "filesystem",
+      ] as const) {
         try {
           const sensor = this.sensors.get(sensorId);
           if (sensor) {
@@ -543,7 +801,9 @@ export class DefaultFluxRuntime implements FluxRuntime {
         } catch {}
       }
 
-      const batterySnap = sensorSnapshots.battery as { level?: number; charging?: boolean; timeRemaining?: number } | undefined;
+      const batterySnap = sensorSnapshots.battery as
+        | { level?: number; isCharging?: boolean; timeToEmpty?: number | null; timeToFull?: number | null; status?: string }
+        | undefined;
       const recentActivity: string[] = [];
       for (const event of this.recentSensorEvents.slice(0, 5)) {
         recentActivity.push(`[${event.sensorId}] ${event.type}`);
@@ -552,14 +812,27 @@ export class DefaultFluxRuntime implements FluxRuntime {
         recentActivity.push(`Thought: ${thought.content.slice(0, 80)}`);
       }
 
-      const goals = this.goalManager.getAll().filter(g => g.status === 'active' || g.status === 'in_progress').map(g => ({
-        name: g.title,
-        progress: g.progress,
-        status: g.status as string,
-      }));
+      const goals = this.goalManager
+        .getAll()
+        .filter((g) => g.status === "active" || g.status === "in_progress")
+        .map((g) => ({
+          name: g.title,
+          progress: g.progress,
+          status: g.status as string,
+        }));
 
       return {
-        battery: batterySnap ? { level: batterySnap.level ?? 0, charging: batterySnap.charging ?? false, ...(batterySnap.timeRemaining != null ? { timeRemaining: batterySnap.timeRemaining } : {}) } : null,
+        battery: batterySnap
+          ? {
+              level: batterySnap.level ?? 0,
+              charging: batterySnap.isCharging ?? false,
+              ...(batterySnap.timeToEmpty != null
+                ? { timeRemaining: batterySnap.timeToEmpty }
+                : batterySnap.timeToFull != null
+                  ? { timeRemaining: batterySnap.timeToFull }
+                  : {}),
+            }
+          : null,
         sensors: sensorSnapshots,
         goals,
         recentActivity,
@@ -586,7 +859,11 @@ export class DefaultFluxRuntime implements FluxRuntime {
     await this.session.memory.add("assistant", responseText);
 
     // Step 6: Record in history
-    this.history.push({ role: "assistant", content: responseText, timestamp: Date.now() });
+    this.history.push({
+      role: "assistant",
+      content: responseText,
+      timestamp: Date.now(),
+    });
 
     // Step 7: Update working memory
     this.workingMemory.add({
@@ -621,17 +898,29 @@ export class DefaultFluxRuntime implements FluxRuntime {
     });
 
     // Step 9: Record habit
-    this.habits.observe("communication", `User message: ${input.slice(0, 50)}`, input.slice(0, 30));
+    this.habits.observe(
+      "communication",
+      `User message: ${input.slice(0, 50)}`,
+      input.slice(0, 30),
+    );
 
     // Step 10: Track confidence
-    this.confidenceCalibration.record("chat_response", 0.8, responseText.length > 0);
+    this.confidenceCalibration.record(
+      "chat_response",
+      0.8,
+      responseText.length > 0,
+    );
 
     // Step 11: Generate a thought about this interaction
     this.thoughtGraph.addNode({
       type: "observation_interpretation",
       content: `User said: ${input.slice(0, 100)}`,
       reasoning: "Direct user message",
-      confidence: { value: 1.0, reason: "Direct observation", timestamp: Date.now() },
+      confidence: {
+        value: 1.0,
+        reason: "Direct observation",
+        timestamp: Date.now(),
+      },
       evidence: [],
       counterarguments: [],
       relatedThoughtIds: [],
@@ -645,18 +934,18 @@ export class DefaultFluxRuntime implements FluxRuntime {
     this.memory.storeEpisodic({
       type: "episodic",
       category: "interaction",
-      event: `User: ${input.slice(0, 100)}`,
-      context: `Assistant responded with ${responseText.length} characters`,
+      event: `User asked: ${input.slice(0, 150)}`,
+      context: `Assistant replied: ${responseText.slice(0, 200)}`,
       participants: ["user", "assistant"],
       location: null,
       duration,
       outcome: responseText.length > 0 ? "responded" : "no response",
       emotionalValence: responseText.length > 0 ? 0.5 : -0.2,
-      content: `User asked: ${input.slice(0, 200)}`,
-      strength: 0.7,
+      content: `Q: ${input.slice(0, 200)}\nA: ${responseText.slice(0, 300)}`,
+      strength: 0.8,
       confidence: 0.9,
-      source: "interaction",
-      tags: ["chat", "runtime"],
+      source: "chat",
+      tags: ["chat", "conversation"],
       relatedIds: [],
       relatedEpisodeIds: [],
     });
@@ -675,7 +964,11 @@ export class DefaultFluxRuntime implements FluxRuntime {
     };
   }
 
-  processEvent(event: { source: ObservationSource; title: string; detail: string }): {
+  processEvent(event: {
+    source: ObservationSource;
+    title: string;
+    detail: string;
+  }): {
     readonly action: "ignore" | "buffer" | "immediate" | "summarize";
   } {
     return this.attention.process(event);
@@ -691,7 +984,10 @@ export class DefaultFluxRuntime implements FluxRuntime {
     const memStats = this.memory.getStats();
     return {
       memorySize: this.workingMemory.snapshot().entries.length,
-      activeGoals: this.goalManager.getAll().filter((g) => g.status === "active" || g.status === "in_progress").length,
+      activeGoals: this.goalManager
+        .getAll()
+        .filter((g) => g.status === "active" || g.status === "in_progress")
+        .length,
       worldModelEntities: this.worldModel.getState().version,
       attentionBufferSize: this.attention.getBuffer().length,
       cognitiveState: this.running ? "running" : "idle",
@@ -714,10 +1010,30 @@ export class DefaultFluxRuntime implements FluxRuntime {
   async getStreamingSnapshot(): Promise<{
     readonly state: FluxRuntimeState;
     readonly pipelineResult: CognitionResult | null;
-    readonly recentThoughts: ReadonlyArray<{ type: string; content: string; confidence: number; timestamp: number }>;
-    readonly recentActions: ReadonlyArray<{ type: string; reasoning: string; confidence: number; timestamp: number }>;
-    readonly recentSensorEvents: ReadonlyArray<{ sensorId: string; type: string; timestamp: number; priority: string }>;
-    readonly goals: ReadonlyArray<{ id: string; title: string; status: string; progress: number }>;
+    readonly recentThoughts: ReadonlyArray<{
+      type: string;
+      content: string;
+      confidence: number;
+      timestamp: number;
+    }>;
+    readonly recentActions: ReadonlyArray<{
+      type: string;
+      reasoning: string;
+      confidence: number;
+      timestamp: number;
+    }>;
+    readonly recentSensorEvents: ReadonlyArray<{
+      sensorId: string;
+      type: string;
+      timestamp: number;
+      priority: string;
+    }>;
+    readonly goals: ReadonlyArray<{
+      id: string;
+      title: string;
+      status: string;
+      progress: number;
+    }>;
     readonly worldState: ReturnType<DefaultWorldModel["getState"]>;
     readonly sensorSnapshots: Record<string, unknown>;
   }> {
@@ -730,12 +1046,32 @@ export class DefaultFluxRuntime implements FluxRuntime {
 
     // Gather sensor snapshots
     const sensorSnapshots: Record<string, unknown> = {};
-    for (const sensorId of ["git", "docker", "battery", "idle", "clipboard", "spotify", "audio", "notifications"] as const) {
+    for (const sensorId of [
+      "git",
+      "docker",
+      "battery",
+      "idle",
+      "clipboard",
+      "spotify",
+      "audio",
+      "notifications",
+      "filesystem",
+    ] as const) {
       try {
         const sensor = this.sensors.get(sensorId);
         if (sensor) {
           const snap = await sensor.snapshot();
-          if (snap) sensorSnapshots[sensorId] = snap;
+          if (snap) {
+            sensorSnapshots[sensorId] = snap;
+          } else {
+            // Sensor available but no data yet — return minimal state
+            const sensorState = sensor.getState();
+            sensorSnapshots[sensorId] = {
+              status: sensorState.status,
+              available: true,
+              lastUpdate: sensorState.lastUpdate || 0,
+            };
+          }
         }
       } catch {
         // Best-effort

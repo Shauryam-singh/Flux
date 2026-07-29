@@ -1,8 +1,8 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { Orchestrator } from "../impl/orchestrator.js";
-import type { ServiceRegistry } from "../interfaces/service-registry.js";
 import type { Service } from "../interfaces/service.js";
 import type { ServiceContext } from "../interfaces/service-context.js";
+import type { ServiceRegistry } from "../interfaces/service-registry.js";
 
 function createMockService(name: string): Service {
   return {

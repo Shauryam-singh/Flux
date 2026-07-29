@@ -1,6 +1,9 @@
+import type {
+  ObservationPriority,
+  ObservationSource,
+} from "@ai-agent/attention";
+import type { SensorEvent, SensorMetadata } from "../../types/sensor.js";
 import { BaseSensor } from "../base-sensor.js";
-import type { SensorMetadata, SensorEvent } from "../../types/sensor.js";
-import type { ObservationSource, ObservationPriority } from "@ai-agent/attention";
 
 export interface SpotifyState {
   readonly isPlaying: boolean;
@@ -90,11 +93,12 @@ export class SpotifySensor extends BaseSensor<SpotifyState> {
       position: isNaN(position) ? 0 : position,
       volume: volume ? parseFloat(volume) * 100 : 50,
       shuffle: shuffle?.trim().toLowerCase() === "on",
-      repeat: repeat?.trim().toLowerCase() === "track"
-        ? "track"
-        : repeat?.trim().toLowerCase() === "playlist"
-          ? "context"
-          : "off",
+      repeat:
+        repeat?.trim().toLowerCase() === "track"
+          ? "track"
+          : repeat?.trim().toLowerCase() === "playlist"
+            ? "context"
+            : "off",
     };
   }
 }

@@ -1,6 +1,9 @@
+import type {
+  ObservationPriority,
+  ObservationSource,
+} from "@ai-agent/attention";
+import type { SensorEvent, SensorMetadata } from "../../types/sensor.js";
 import { BaseSensor } from "../base-sensor.js";
-import type { SensorMetadata, SensorEvent } from "../../types/sensor.js";
-import type { ObservationSource, ObservationPriority } from "@ai-agent/attention";
 
 export interface IdleState {
   readonly isIdle: boolean;
@@ -40,7 +43,7 @@ export class IdleSensor extends BaseSensor<IdleState> {
 
   protected async onSnapshot(): Promise<IdleState> {
     const idleSeconds = await this.getIdleSeconds();
-    const activeWindow = this.execCommand("xdotool getactivewindow getwindowname 2>/dev/null");
+    const activeWindow = this.getActiveWindow();
 
     return {
       isIdle: idleSeconds * 1000 > this.idleThresholdMs,
@@ -54,7 +57,7 @@ export class IdleSensor extends BaseSensor<IdleState> {
 
   protected async onRefresh(): Promise<IdleState | null> {
     const idleSeconds = await this.getIdleSeconds();
-    const activeWindow = this.execCommand("xdotool getactivewindow getwindowname 2>/dev/null");
+    const activeWindow = this.getActiveWindow();
 
     const state: IdleState = {
       isIdle: idleSeconds * 1000 > this.idleThresholdMs,
@@ -105,7 +108,25 @@ export class IdleSensor extends BaseSensor<IdleState> {
   }
 
   private async getIdleSeconds(): Promise<number> {
-    // Use xprintidle on Linux
+    // Try Hyprland first (Wayland)
+    const hyprIdle = this.execCommand("hyprctl activewindow -j 2>/dev/null");
+    if (hyprIdle) {
+      try {
+        const data = JSON.parse(hyprIdle) as {
+          focusHistoryID?: number;
+          address?: string;
+        };
+        // On Hyprland, we can approximate idle from focus history
+        // If there's a focused window, user is likely active
+        if (data.address && data.address !== "0x0") {
+          return 0; // Has focused window = active
+        }
+      } catch {
+        // parse error, continue
+      }
+    }
+
+    // Try xprintidle on X11
     const output = this.execCommand("xprintidle 2>/dev/null");
     if (output) {
       // xprintidle returns milliseconds
@@ -122,5 +143,28 @@ export class IdleSensor extends BaseSensor<IdleState> {
     }
 
     return 0;
+  }
+
+  private getActiveWindow(): string | null {
+    // Try Hyprland first (Wayland)
+    const hyprOutput = this.execCommand("hyprctl activewindow -j 2>/dev/null");
+    if (hyprOutput) {
+      try {
+        const data = JSON.parse(hyprOutput) as {
+          class?: string;
+          title?: string;
+        };
+        if (data.class) {
+          return data.title ? `${data.class} - ${data.title}` : data.class;
+        }
+      } catch {
+        // parse error, continue
+      }
+    }
+
+    // Fallback to xdotool for X11
+    return this.execCommand(
+      "xdotool getactivewindow getwindowname 2>/dev/null",
+    );
   }
 }

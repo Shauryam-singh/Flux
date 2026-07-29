@@ -1,1 +1,6 @@
-export type { Thought, ThoughtType, ReasoningCycleResult, ReasoningTrigger } from "./thought.js";
+export type {
+  ReasoningCycleResult,
+  ReasoningTrigger,
+  Thought,
+  ThoughtType,
+} from "./thought.js";

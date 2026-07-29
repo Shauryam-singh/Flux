@@ -1,6 +1,9 @@
+import type {
+  ObservationPriority,
+  ObservationSource,
+} from "@ai-agent/attention";
+import type { SensorEvent, SensorMetadata } from "../../types/sensor.js";
 import { BaseSensor } from "../base-sensor.js";
-import type { SensorMetadata, SensorEvent } from "../../types/sensor.js";
-import type { ObservationSource, ObservationPriority } from "@ai-agent/attention";
 
 export interface ClipboardState {
   readonly text: string;
@@ -81,7 +84,9 @@ export class ClipboardSensor extends BaseSensor<ClipboardState> {
       return this.execCommand("pbpaste 2>/dev/null");
     }
     if (platform === "win32") {
-      return this.execCommand("powershell -command \"Get-Clipboard\" 2>/dev/null");
+      return this.execCommand(
+        'powershell -command "Get-Clipboard" 2>/dev/null',
+      );
     }
     return null;
   }

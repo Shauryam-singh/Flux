@@ -1,6 +1,10 @@
 import type { Memory } from "@ai-agent/agent";
 import type { Service } from "../interfaces/service.js";
-import type { ServiceContext, LlmProvider, SystemContext } from "../interfaces/service-context.js";
+import type {
+  LlmProvider,
+  ServiceContext,
+  SystemContext,
+} from "../interfaces/service-context.js";
 import type { ServiceRegistry } from "../interfaces/service-registry.js";
 import type { ServiceResponse } from "../interfaces/service-response.js";
 import { classifyIntent } from "./intent-classifier.js";

@@ -1,19 +1,34 @@
+import type {
+  CompletionResponse,
+  StreamingCallbacks,
+} from "@ai-agent/providers";
 import type { ToolExecutor } from "@ai-agent/tools";
-import type { StreamingCallbacks, CompletionResponse } from "@ai-agent/providers";
 
 import type { Agent } from "../interfaces/agent.js";
 import type { Planner } from "../planner/planner.js";
 import type { Session } from "../session/session.js";
-import type { AgentRequest, AgentMode } from "../types/agent-request.js";
+import type { AgentMode, AgentRequest } from "../types/agent-request.js";
 import type { AgentResponse } from "../types/agent-response.js";
 
 interface StreamCallbacks extends StreamingCallbacks {
-  onToolResult?: (toolName: string, input: Record<string, unknown>, result: unknown) => void;
+  onToolResult?: (
+    toolName: string,
+    input: Record<string, unknown>,
+    result: unknown,
+  ) => void;
   onPlanOnly?: (toolName: string, input: Record<string, unknown>) => void;
-  onApprovalRequired?: (toolName: string, input: Record<string, unknown>) => Promise<boolean>;
+  onApprovalRequired?: (
+    toolName: string,
+    input: Record<string, unknown>,
+  ) => Promise<boolean>;
   onOptionsPresented?: (options: string[]) => Promise<string>;
-  onMultipleToolCalls?: (toolCalls: Array<{ tool: string; input: Record<string, unknown> }>) => Promise<boolean>;
-  beforeTool?: (toolName: string, input: Record<string, unknown>) => Promise<void>;
+  onMultipleToolCalls?: (
+    toolCalls: Array<{ tool: string; input: Record<string, unknown> }>,
+  ) => Promise<boolean>;
+  beforeTool?: (
+    toolName: string,
+    input: Record<string, unknown>,
+  ) => Promise<void>;
 }
 
 export class DefaultAgent implements Agent {
@@ -28,9 +43,7 @@ export class DefaultAgent implements Agent {
   ): Promise<AgentResponse> {
     // Save user message - extract just the message text
     const input = request.input as { message?: string } | string;
-    const userMessage = typeof input === "string" 
-      ? input 
-      : input.message || "";
+    const userMessage = typeof input === "string" ? input : input.message || "";
     await session.memory.add("user", userMessage);
 
     const toolCall = await this.planner.plan(session, request);
@@ -55,9 +68,7 @@ export class DefaultAgent implements Agent {
   ): Promise<void> {
     // Save user message - extract just the message text
     const input = request.input as { message?: string } | string;
-    const userMessage = typeof input === "string" 
-      ? input 
-      : input.message || "";
+    const userMessage = typeof input === "string" ? input : input.message || "";
     await session.memory.add("user", userMessage);
 
     const mode = request.mode || "normal";
@@ -67,12 +78,17 @@ export class DefaultAgent implements Agent {
         ...(callbacks.onToken !== undefined && { onToken: callbacks.onToken }),
         onDone: async (response) => {
           const text = response.text;
-          let toolCalls: Array<{ tool: string; input: Record<string, unknown> }> = [];
+          let toolCalls: Array<{
+            tool: string;
+            input: Record<string, unknown>;
+          }> = [];
           let isMultiple = false;
 
           // Use pre-parsed tool call if available from planner
           if (response.toolCall) {
-            toolCalls = [{ tool: response.toolCall.tool, input: response.toolCall.input }];
+            toolCalls = [
+              { tool: response.toolCall.tool, input: response.toolCall.input },
+            ];
           } else {
             // Fallback to parsing the text
             try {
@@ -81,17 +97,26 @@ export class DefaultAgent implements Agent {
                 .replace(/^```\s*/i, "")
                 .replace(/```\s*$/i, "")
                 .trim();
-              
+
               // Try to parse as array first (multiple tool calls)
               const parsed = JSON.parse(cleaned);
-              
+
               if (Array.isArray(parsed)) {
                 // Multiple tool calls
-                toolCalls = parsed.filter((item): item is { tool: string; input: Record<string, unknown> } => 
-                  typeof item === "object" && item !== null && typeof item.tool === "string"
+                toolCalls = parsed.filter(
+                  (
+                    item,
+                  ): item is { tool: string; input: Record<string, unknown> } =>
+                    typeof item === "object" &&
+                    item !== null &&
+                    typeof item.tool === "string",
                 );
                 isMultiple = toolCalls.length > 1;
-              } else if (typeof parsed === "object" && parsed !== null && typeof parsed.tool === "string") {
+              } else if (
+                typeof parsed === "object" &&
+                parsed !== null &&
+                typeof parsed.tool === "string"
+              ) {
                 // Single tool call
                 toolCalls = [{ tool: parsed.tool, input: parsed.input || {} }];
               } else {
@@ -109,9 +134,11 @@ export class DefaultAgent implements Agent {
           // Handle plan mode
           if (mode === "plan") {
             // Check if response contains numbered options
-            const optionsMatch = text.match(/(?:^|\n)\s*(\d+)\.\s*\*\*?([^*\n]+)\*\*?/gm);
+            const optionsMatch = text.match(
+              /(?:^|\n)\s*(\d+)\.\s*\*\*?([^*\n]+)\*\*?/gm,
+            );
             if (optionsMatch && optionsMatch.length >= 2) {
-              const options = optionsMatch.map(m => {
+              const options = optionsMatch.map((m) => {
                 const match = m.match(/\d+\.\s*\*\*?([^*\n]+)\*\*?/);
                 return match && match[1] ? match[1].trim() : m.trim();
               });
@@ -141,7 +168,10 @@ export class DefaultAgent implements Agent {
           for (const tc of toolCalls) {
             // Check if approval is required (normal mode + destructive tool)
             if (mode === "normal" && this.requiresApproval(tc.tool)) {
-              const approved = await callbacks.onApprovalRequired?.(tc.tool, tc.input);
+              const approved = await callbacks.onApprovalRequired?.(
+                tc.tool,
+                tc.input,
+              );
               if (!approved) {
                 callbacks.onDone?.({ text: "Operation cancelled by user" });
                 return;
@@ -176,7 +206,7 @@ export class DefaultAgent implements Agent {
       // Fallback to non-streaming
       const response = await this.run(session, request);
       callbacks.onDone?.({
-        text: response.result?.output as string || "",
+        text: (response.result?.output as string) || "",
       });
     }
   }

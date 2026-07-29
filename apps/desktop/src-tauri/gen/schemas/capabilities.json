@@ -1,1 +1,1 @@
-{}
+{"default":{"identifier":"default","description":"Default permissions for Flux desktop","local":true,"windows":["main"],"permissions":["core:default","shell:allow-open","core:window:allow-set-size","core:window:allow-center","core:window:allow-set-position","core:window:allow-outer-position","core:window:allow-show","core:window:allow-hide","core:window:allow-set-focus"]}}

@@ -1,6 +1,9 @@
+import type {
+  ObservationPriority,
+  ObservationSource,
+} from "@ai-agent/attention";
+import type { SensorEvent, SensorMetadata } from "../../types/sensor.js";
 import { BaseSensor } from "../base-sensor.js";
-import type { SensorMetadata, SensorEvent } from "../../types/sensor.js";
-import type { ObservationSource, ObservationPriority } from "@ai-agent/attention";
 
 export interface K8sPod {
   readonly name: string;
@@ -13,7 +16,12 @@ export interface K8sPod {
 }
 
 export interface K8sEvent {
-  readonly type: "pod_created" | "pod_deleted" | "pod_failed" | "pod_ready" | "pod_restarted";
+  readonly type:
+    | "pod_created"
+    | "pod_deleted"
+    | "pod_failed"
+    | "pod_ready"
+    | "pod_restarted";
   readonly podName: string;
   readonly namespace: string;
   readonly timestamp: number;
@@ -62,7 +70,9 @@ export class KubernetesSensor extends BaseSensor<KubernetesState> {
 
   protected async onSnapshot(): Promise<KubernetesState | null> {
     const pods = await this.listPods();
-    const context = this.execCommand("kubectl config current-context 2>/dev/null");
+    const context = this.execCommand(
+      "kubectl config current-context 2>/dev/null",
+    );
 
     return {
       pods,
@@ -78,7 +88,9 @@ export class KubernetesSensor extends BaseSensor<KubernetesState> {
   protected async onRefresh(): Promise<KubernetesState | null> {
     const pods = await this.listPods();
     const newPods = new Map(pods.map((p) => [p.name, p]));
-    const context = this.execCommand("kubectl config current-context 2>/dev/null");
+    const context = this.execCommand(
+      "kubectl config current-context 2>/dev/null",
+    );
 
     // Detect changes
     for (const [name, newP] of newPods) {
@@ -147,14 +159,26 @@ export class KubernetesSensor extends BaseSensor<KubernetesState> {
       type,
       data: {
         pods: [...this.lastPods.values()],
-        runningCount: [...this.lastPods.values()].filter((p) => p.status === "Running").length,
-        failedCount: [...this.lastPods.values()].filter((p) => p.status === "Failed").length,
-        pendingCount: [...this.lastPods.values()].filter((p) => p.status === "Pending").length,
+        runningCount: [...this.lastPods.values()].filter(
+          (p) => p.status === "Running",
+        ).length,
+        failedCount: [...this.lastPods.values()].filter(
+          (p) => p.status === "Failed",
+        ).length,
+        pendingCount: [...this.lastPods.values()].filter(
+          (p) => p.status === "Pending",
+        ).length,
         recentEvents: [...this.recentEvents],
-        context: this.execCommand("kubectl config current-context 2>/dev/null") || null,
+        context:
+          this.execCommand("kubectl config current-context 2>/dev/null") ||
+          null,
         namespace: this.namespace,
       },
-      priority: type.includes("failed") ? "high" : type.includes("created") || type.includes("deleted") ? "medium" : "low",
+      priority: type.includes("failed")
+        ? "high"
+        : type.includes("created") || type.includes("deleted")
+          ? "medium"
+          : "low",
       source: "process",
     });
   }
@@ -165,27 +189,30 @@ export class KubernetesSensor extends BaseSensor<KubernetesState> {
     );
     if (!output) return [];
 
-    return output.split("\n").filter(Boolean).map((line) => {
-      const parts = line.split(/\s+/);
-      const name = parts[0] ?? "";
-      const ready = parts[1] ?? "";
-      const status = parts[2] ?? "";
-      const restarts = parseInt(parts[3] ?? "0", 10);
-      const age = parts[4] ?? "";
-      const node = parts.length > 5 ? parts.slice(5).join(" ") : null;
+    return output
+      .split("\n")
+      .filter(Boolean)
+      .map((line) => {
+        const parts = line.split(/\s+/);
+        const name = parts[0] ?? "";
+        const ready = parts[1] ?? "";
+        const status = parts[2] ?? "";
+        const restarts = parseInt(parts[3] ?? "0", 10);
+        const age = parts[4] ?? "";
+        const node = parts.length > 5 ? parts.slice(5).join(" ") : null;
 
-      const readyCount = ready.split("/");
-      const isReady = readyCount[0] === readyCount[1];
+        const readyCount = ready.split("/");
+        const isReady = readyCount[0] === readyCount[1];
 
-      return {
-        name,
-        namespace: this.namespace,
-        status: status as K8sPod["status"],
-        ready: isReady,
-        restarts: isNaN(restarts) ? 0 : restarts,
-        age,
-        node,
-      };
-    });
+        return {
+          name,
+          namespace: this.namespace,
+          status: status as K8sPod["status"],
+          ready: isReady,
+          restarts: isNaN(restarts) ? 0 : restarts,
+          age,
+          node,
+        };
+      });
   }
 }

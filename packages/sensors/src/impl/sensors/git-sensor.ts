@@ -1,6 +1,9 @@
+import type {
+  ObservationPriority,
+  ObservationSource,
+} from "@ai-agent/attention";
+import type { SensorEvent, SensorMetadata } from "../../types/sensor.js";
 import { BaseSensor } from "../base-sensor.js";
-import type { SensorMetadata, SensorEvent } from "../../types/sensor.js";
-import type { ObservationSource, ObservationPriority } from "@ai-agent/attention";
 
 export interface GitState {
   readonly branch: string;
@@ -22,7 +25,15 @@ export interface GitState {
 }
 
 export interface GitEvent {
-  readonly type: "commit" | "branch_change" | "merge" | "rebase" | "push" | "pull" | "stash" | "conflict";
+  readonly type:
+    | "commit"
+    | "branch_change"
+    | "merge"
+    | "rebase"
+    | "push"
+    | "pull"
+    | "stash"
+    | "conflict";
   readonly detail: string;
   readonly branch: string;
   readonly hash?: string;
@@ -31,7 +42,8 @@ export interface GitEvent {
 const METADATA: SensorMetadata = {
   id: "git",
   name: "Git Sensor",
-  description: "Monitors git repository state changes (commits, branches, merges, pushes)",
+  description:
+    "Monitors git repository state changes (commits, branches, merges, pushes)",
   category: "git",
   platform: "all",
   version: "1.0.0",
@@ -86,25 +98,36 @@ export class GitSensor extends BaseSensor<GitState> {
     const staged = this.execGit("git diff --cached --numstat");
     const unstaged = this.execGit("git diff --numstat");
     const untracked = this.execGit("git ls-files --others --exclude-standard");
-    const aheadBehind = this.execGit("git rev-list --left-right --count HEAD...@{upstream}");
+    const aheadBehind = this.execGit(
+      "git rev-list --left-right --count HEAD...@{upstream}",
+    );
     const log = this.execGit("git log --format=%H|%s|%an|%at -10");
     const tag = this.execGit("git describe --tags --exact-match 2>/dev/null");
-    const merging = this.execGit("test -f .git/MERGE_HEAD && echo true") === "true";
-    const rebasing = this.execGit("test -d .git/rebase-merge && echo true") === "true";
+    const merging =
+      this.execGit("test -f .git/MERGE_HEAD && echo true") === "true";
+    const rebasing =
+      this.execGit("test -d .git/rebase-merge && echo true") === "true";
 
-    const ahead = aheadBehind ? parseInt(aheadBehind.split("\t")[0] ?? "0", 10) : 0;
-    const behind = aheadBehind ? parseInt(aheadBehind.split("\t")[1] ?? "0", 10) : 0;
+    const ahead = aheadBehind
+      ? parseInt(aheadBehind.split("\t")[0] ?? "0", 10)
+      : 0;
+    const behind = aheadBehind
+      ? parseInt(aheadBehind.split("\t")[1] ?? "0", 10)
+      : 0;
 
     const recentCommits = log
-      ? log.split("\n").filter(Boolean).map((line) => {
-          const [hash, message, author, ts] = line.split("|");
-          return {
-            hash: hash ?? "",
-            message: message ?? "",
-            author: author ?? "",
-            timestamp: parseInt(ts ?? "0", 10) * 1000,
-          };
-        })
+      ? log
+          .split("\n")
+          .filter(Boolean)
+          .map((line) => {
+            const [hash, message, author, ts] = line.split("|");
+            return {
+              hash: hash ?? "",
+              message: message ?? "",
+              author: author ?? "",
+              timestamp: parseInt(ts ?? "0", 10) * 1000,
+            };
+          })
       : [];
 
     return {
@@ -112,7 +135,9 @@ export class GitSensor extends BaseSensor<GitState> {
       isDirty,
       stagedCount: staged ? staged.split("\n").filter(Boolean).length : 0,
       unstagedCount: unstaged ? unstaged.split("\n").filter(Boolean).length : 0,
-      untrackedCount: untracked ? untracked.split("\n").filter(Boolean).length : 0,
+      untrackedCount: untracked
+        ? untracked.split("\n").filter(Boolean).length
+        : 0,
       ahead,
       behind,
       recentCommits,
@@ -186,7 +211,11 @@ export class GitSensor extends BaseSensor<GitState> {
     }
 
     // Stash detected (dirty but staged count changed significantly)
-    if (oldState.stagedCount !== newState.stagedCount && newState.stagedCount === 0 && oldState.stagedCount > 0) {
+    if (
+      oldState.stagedCount !== newState.stagedCount &&
+      newState.stagedCount === 0 &&
+      oldState.stagedCount > 0
+    ) {
       this.emit({
         sensorId: this.metadata.id,
         timestamp: Date.now(),

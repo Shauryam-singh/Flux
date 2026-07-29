@@ -9,7 +9,9 @@ const fluxConfig: FluxConfig = {
   provider: "ollama",
   model: "qwen2.5-coder:7b",
   providerConfigs: {
-    ollama: { baseUrl: process.env.OLLAMA_BASE_URL ?? "http://localhost:11434" },
+    ollama: {
+      baseUrl: process.env.OLLAMA_BASE_URL ?? "http://localhost:11434",
+    },
   },
 };
 
@@ -39,7 +41,11 @@ function parseBody(req: import("node:http").IncomingMessage): Promise<Buffer> {
   });
 }
 
-function sendJson(res: import("node:http").ServerResponse, status: number, data: unknown) {
+function sendJson(
+  res: import("node:http").ServerResponse,
+  status: number,
+  data: unknown,
+) {
   res.writeHead(status, {
     "Content-Type": "application/json",
     "Access-Control-Allow-Origin": "*",
@@ -93,7 +99,7 @@ const server = createServer(async (req, res) => {
       res.writeHead(200, {
         "Content-Type": "text/event-stream",
         "Cache-Control": "no-cache",
-        "Connection": "keep-alive",
+        Connection: "keep-alive",
         "Access-Control-Allow-Origin": "*",
       });
 
@@ -116,11 +122,15 @@ const server = createServer(async (req, res) => {
             },
             onDone: async (response: unknown) => {
               await flux.session.memory.add("assistant", fullText);
-              res.write(`data: ${JSON.stringify({ token: "", done: true, text: fullText })}\n\n`);
+              res.write(
+                `data: ${JSON.stringify({ token: "", done: true, text: fullText })}\n\n`,
+              );
               res.end();
             },
             onError: (error: Error) => {
-              res.write(`data: ${JSON.stringify({ error: error.message })}\n\n`);
+              res.write(
+                `data: ${JSON.stringify({ error: error.message })}\n\n`,
+              );
               res.end();
             },
           },
@@ -134,8 +144,12 @@ const server = createServer(async (req, res) => {
         });
         fullText = response.text;
         await flux.session.memory.add("assistant", fullText);
-        res.write(`data: ${JSON.stringify({ token: fullText, done: false })}\n\n`);
-        res.write(`data: ${JSON.stringify({ token: "", done: true, text: fullText })}\n\n`);
+        res.write(
+          `data: ${JSON.stringify({ token: fullText, done: false })}\n\n`,
+        );
+        res.write(
+          `data: ${JSON.stringify({ token: "", done: true, text: fullText })}\n\n`,
+        );
         res.end();
       }
     } catch (err) {
@@ -151,14 +165,16 @@ const server = createServer(async (req, res) => {
     res.writeHead(200, {
       "Content-Type": "text/event-stream",
       "Cache-Control": "no-cache",
-      "Connection": "keep-alive",
+      Connection: "keep-alive",
       "Access-Control-Allow-Origin": "*",
     });
 
     // Send initial snapshot
     try {
       const snapshot = await flux.runtime.getStreamingSnapshot();
-      res.write(`data: ${JSON.stringify({ type: "snapshot", ...snapshot })}\n\n`);
+      res.write(
+        `data: ${JSON.stringify({ type: "snapshot", ...snapshot })}\n\n`,
+      );
     } catch {
       // Best-effort
     }
@@ -167,10 +183,14 @@ const server = createServer(async (req, res) => {
     const unsubscribe = flux.runtime.onTick(async (event) => {
       try {
         const snapshot = await flux.runtime.getStreamingSnapshot();
-        res.write(`data: ${JSON.stringify({ type: "tick", tickNumber: event.tickNumber, timestamp: event.timestamp, duration: event.duration, observations: event.observations, ...snapshot })}\n\n`);
+        res.write(
+          `data: ${JSON.stringify({ type: "tick", tickNumber: event.tickNumber, timestamp: event.timestamp, duration: event.duration, observations: event.observations, ...snapshot })}\n\n`,
+        );
       } catch {
         // Best-effort — send minimal tick data
-        res.write(`data: ${JSON.stringify({ type: "tick", tickNumber: event.tickNumber, timestamp: event.timestamp, duration: event.duration, observations: event.observations })}\n\n`);
+        res.write(
+          `data: ${JSON.stringify({ type: "tick", tickNumber: event.tickNumber, timestamp: event.timestamp, duration: event.duration, observations: event.observations })}\n\n`,
+        );
       }
     });
 
@@ -228,7 +248,10 @@ const server = createServer(async (req, res) => {
   if (req.method === "POST" && req.url === "/voice/transcribe") {
     try {
       const body = await parseBody(req);
-      const json = JSON.parse(body.toString()) as { audio?: string; sampleRate?: number };
+      const json = JSON.parse(body.toString()) as {
+        audio?: string;
+        sampleRate?: number;
+      };
 
       if (!json.audio) {
         sendJson(res, 400, { error: "audio (base64) is required" });
@@ -254,7 +277,13 @@ const server = createServer(async (req, res) => {
   if (req.method === "POST" && req.url === "/voice/speak") {
     try {
       const body = await parseBody(req);
-      const json = JSON.parse(body.toString()) as { text?: string; voice?: string; speed?: number; pitch?: number; volume?: number };
+      const json = JSON.parse(body.toString()) as {
+        text?: string;
+        voice?: string;
+        speed?: number;
+        pitch?: number;
+        volume?: number;
+      };
 
       if (!json.text || typeof json.text !== "string") {
         sendJson(res, 400, { error: "text is required" });
@@ -309,8 +338,14 @@ const server = createServer(async (req, res) => {
         { name: "reminders", description: "Reminders & notes" },
         { name: "files", description: "File manager" },
         { name: "voice", description: "Voice transcription and speech" },
-        { name: "attention", description: "Event filtering and prioritization" },
-        { name: "cognitive", description: "Reasoning, goals, and decision engine" },
+        {
+          name: "attention",
+          description: "Event filtering and prioritization",
+        },
+        {
+          name: "cognitive",
+          description: "Reasoning, goals, and decision engine",
+        },
       ],
     });
     return;
@@ -319,7 +354,11 @@ const server = createServer(async (req, res) => {
   if (req.method === "POST" && req.url === "/attention/process") {
     try {
       const body = await parseBody(req);
-      const event = JSON.parse(body.toString()) as { source: string; title: string; detail: string };
+      const event = JSON.parse(body.toString()) as {
+        source: string;
+        title: string;
+        detail: string;
+      };
 
       if (!event.source || !event.title) {
         sendJson(res, 400, { error: "source and title are required" });
@@ -367,7 +406,11 @@ const server = createServer(async (req, res) => {
   if (req.method === "POST" && req.url === "/cognitive/observe") {
     try {
       const body = await parseBody(req);
-      const event = JSON.parse(body.toString()) as { source: string; title: string; detail: string };
+      const event = JSON.parse(body.toString()) as {
+        source: string;
+        title: string;
+        detail: string;
+      };
 
       if (!event.source || !event.title) {
         sendJson(res, 400, { error: "source and title are required" });
@@ -452,10 +495,57 @@ const server = createServer(async (req, res) => {
     return;
   }
 
+  // ─── All memories (for memory page UI) ─────────────────────────
+  if (req.method === "GET" && req.url === "/memory/all") {
+    const limit = parseInt(
+      new URL(req.url ?? "/", `http://localhost:${PORT}`).searchParams.get(
+        "limit",
+      ) ?? "50",
+      10,
+    );
+    const allTypes: Array<
+      | "semantic"
+      | "episodic"
+      | "procedural"
+      | "relationship"
+      | "project"
+      | "timeline"
+      | "reflection"
+    > = [
+      "semantic",
+      "episodic",
+      "procedural",
+      "relationship",
+      "project",
+      "timeline",
+      "reflection",
+    ];
+    const memories: Record<string, unknown[]> = {};
+    for (const type of allTypes) {
+      const result = flux.runtime.memory.query({
+        types: [type],
+        sortBy: "recency",
+        limit,
+      });
+      memories[type] = [...result.memories];
+    }
+    // Also include chat history from session memory
+    const chatHistory = await flux.session.memory.history();
+    sendJson(res, 200, {
+      memories,
+      chatHistory,
+      stats: flux.runtime.memory.getStats(),
+    });
+    return;
+  }
+
   // ─── Episodic memories (for briefing) ──────────────────────────
   if (req.method === "GET" && req.url === "/memory/episodic") {
     const url = new URL(req.url ?? "/", `http://localhost:${PORT}`);
-    const maxAgeMs = parseInt(url.searchParams.get("maxAge") ?? String(24 * 60 * 60 * 1000), 10);
+    const maxAgeMs = parseInt(
+      url.searchParams.get("maxAge") ?? String(24 * 60 * 60 * 1000),
+      10,
+    );
     const limit = parseInt(url.searchParams.get("limit") ?? "20", 10);
     const result = flux.runtime.memory.query({
       types: ["episodic"],
@@ -463,7 +553,10 @@ const server = createServer(async (req, res) => {
       sortBy: "recency",
       limit,
     });
-    sendJson(res, 200, { memories: result.memories, total: result.totalMatches });
+    sendJson(res, 200, {
+      memories: result.memories,
+      total: result.totalMatches,
+    });
     return;
   }
 
@@ -495,11 +588,56 @@ const server = createServer(async (req, res) => {
   // ─── Agents (built-in agent definitions) ───────────────────────
   if (req.method === "GET" && req.url === "/agents") {
     const agents = [
-      { id: "coder", name: "Code Agent", status: "active", capabilities: ["code_generation", "refactoring", "debugging"], priority: 1, successRate: 0.85, tasks: 0, maxTasks: 3 },
-      { id: "researcher", name: "Research Agent", status: "active", capabilities: ["web_search", "documentation", "analysis"], priority: 2, successRate: 0.80, tasks: 0, maxTasks: 2 },
-      { id: "reviewer", name: "Review Agent", status: "idle", capabilities: ["code_review", "security_audit", "performance"], priority: 3, successRate: 0.90, tasks: 0, maxTasks: 2 },
-      { id: "planner", name: "Planning Agent", status: "active", capabilities: ["task_decomposition", "scheduling", "prioritization"], priority: 1, successRate: 0.88, tasks: 0, maxTasks: 1 },
-      { id: "monitor", name: "Monitor Agent", status: "active", capabilities: ["system_monitoring", "alerting", "diagnostics"], priority: 2, successRate: 0.92, tasks: 0, maxTasks: 5 },
+      {
+        id: "coder",
+        name: "Code Agent",
+        status: "active",
+        capabilities: ["code_generation", "refactoring", "debugging"],
+        priority: 1,
+        successRate: 0.85,
+        tasks: 0,
+        maxTasks: 3,
+      },
+      {
+        id: "researcher",
+        name: "Research Agent",
+        status: "active",
+        capabilities: ["web_search", "documentation", "analysis"],
+        priority: 2,
+        successRate: 0.8,
+        tasks: 0,
+        maxTasks: 2,
+      },
+      {
+        id: "reviewer",
+        name: "Review Agent",
+        status: "idle",
+        capabilities: ["code_review", "security_audit", "performance"],
+        priority: 3,
+        successRate: 0.9,
+        tasks: 0,
+        maxTasks: 2,
+      },
+      {
+        id: "planner",
+        name: "Planning Agent",
+        status: "active",
+        capabilities: ["task_decomposition", "scheduling", "prioritization"],
+        priority: 1,
+        successRate: 0.88,
+        tasks: 0,
+        maxTasks: 1,
+      },
+      {
+        id: "monitor",
+        name: "Monitor Agent",
+        status: "active",
+        capabilities: ["system_monitoring", "alerting", "diagnostics"],
+        priority: 2,
+        successRate: 0.92,
+        tasks: 0,
+        maxTasks: 5,
+      },
     ];
     sendJson(res, 200, { agents });
     return;
@@ -509,7 +647,13 @@ const server = createServer(async (req, res) => {
   if (req.method === "GET" && req.url === "/projects") {
     const projectMems = flux.runtime.memory.getProject();
     const projects = [
-      { name: "Flux AI OS", description: "AI operating system with 6 architectural phases", status: "active", packages: 86, lastActivity: Date.now() },
+      {
+        name: "Flux AI OS",
+        description: "AI operating system with 6 architectural phases",
+        status: "active",
+        packages: 86,
+        lastActivity: Date.now(),
+      },
       ...projectMems.map((m) => ({
         name: m.projectName || "Unknown",
         description: m.content?.slice(0, 100) || "",
@@ -567,7 +711,9 @@ server.listen(PORT, () => {
   console.log(`Endpoints:`);
   console.log(`  POST /chat                - Send a message`);
   console.log(`  POST /chat/stream         - Send a message (SSE streaming)`);
-  console.log(`  GET  /events              - SSE event stream (runtime events)`);
+  console.log(
+    `  GET  /events              - SSE event stream (runtime events)`,
+  );
   console.log(`  GET  /state               - One-shot state snapshot`);
   console.log(`  GET  /goals               - All goals`);
   console.log(`  GET  /agents              - Agent definitions`);
@@ -583,8 +729,12 @@ server.listen(PORT, () => {
   console.log(`  POST /attention/process   - Process an observation event`);
   console.log(`  GET  /attention/stats     - Get attention system stats`);
   console.log(`  GET  /cognitive/state     - Get cognitive system state`);
-  console.log(`  POST /cognitive/observe   - Feed observation to cognitive system`);
-  console.log(`  POST /cognitive/message   - Feed user message to cognitive system`);
+  console.log(
+    `  POST /cognitive/observe   - Feed observation to cognitive system`,
+  );
+  console.log(
+    `  POST /cognitive/message   - Feed user message to cognitive system`,
+  );
   console.log(`  POST /cognitive/reason    - Force a reasoning cycle`);
   console.log(`  GET  /cognitive/goals     - Get current goals`);
   console.log(`  GET  /health              - Health check`);

@@ -1,9 +1,11 @@
-import type { Service } from "@ai-agent/services-core";
-import type { ServiceContext } from "@ai-agent/services-core";
-import type { ServiceResponse } from "@ai-agent/services-core";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
+import type {
+  Service,
+  ServiceContext,
+  ServiceResponse,
+} from "@ai-agent/services-core";
 
 export interface MonitorRule {
   id: string;
@@ -91,15 +93,24 @@ function getSystemMetrics(): {
   };
 }
 
-function checkRule(rule: MonitorRule, metrics: ReturnType<typeof getSystemMetrics>): boolean {
+function checkRule(
+  rule: MonitorRule,
+  metrics: ReturnType<typeof getSystemMetrics>,
+): boolean {
   const threshold = rule.threshold ?? 80;
   switch (rule.type) {
     case "cpu":
-      return rule.condition === "above" ? metrics.cpu > threshold : metrics.cpu < threshold;
+      return rule.condition === "above"
+        ? metrics.cpu > threshold
+        : metrics.cpu < threshold;
     case "memory":
-      return rule.condition === "above" ? metrics.memory.percent > threshold : metrics.memory.percent < threshold;
+      return rule.condition === "above"
+        ? metrics.memory.percent > threshold
+        : metrics.memory.percent < threshold;
     case "disk":
-      return rule.condition === "above" ? metrics.disk.percent > threshold : metrics.disk.percent < threshold;
+      return rule.condition === "above"
+        ? metrics.disk.percent > threshold
+        : metrics.disk.percent < threshold;
     default:
       return false;
   }
@@ -108,45 +119,69 @@ function checkRule(rule: MonitorRule, metrics: ReturnType<typeof getSystemMetric
 export function createMonitorService(): Service {
   return {
     name: "monitor",
-    description: "Proactive system monitor: watch CPU, memory, disk, processes. Set thresholds to auto-alert when limits are exceeded.",
+    description:
+      "Proactive system monitor: watch CPU, memory, disk, processes. Set thresholds to auto-alert when limits are exceeded.",
 
     async canHandle(input: string): Promise<boolean> {
       const lower = input.toLowerCase();
       const keywords = [
-        "monitor", "watch", "track", "watching",
-        "cpu usage", "memory usage", "disk usage",
-        "threshold", "alert when", "warn when",
-        "system health", "system status",
+        "monitor",
+        "watch",
+        "track",
+        "watching",
+        "cpu usage",
+        "memory usage",
+        "disk usage",
+        "threshold",
+        "alert when",
+        "warn when",
+        "system health",
+        "system status",
       ];
       return keywords.some((k) => lower.includes(k));
     },
 
-    async execute(input: string, ctx: ServiceContext): Promise<ServiceResponse> {
+    async execute(
+      input: string,
+      ctx: ServiceContext,
+    ): Promise<ServiceResponse> {
       const lower = input.toLowerCase();
       let result: string;
 
-      if (/^(show|list|get|what)\s+(my\s+)?(monitor\s+)?(rules?|watches?|alerts?|thresholds?)/i.test(lower)) {
+      if (
+        /^(show|list|get|what)\s+(my\s+)?(monitor\s+)?(rules?|watches?|alerts?|thresholds?)/i.test(
+          lower,
+        )
+      ) {
         const rules = loadRules();
         if (rules.length === 0) {
-          result = "No monitor rules set. Create one with: `monitor CPU above 80 alert`";
+          result =
+            "No monitor rules set. Create one with: `monitor CPU above 80 alert`";
         } else {
-          const list = rules.map((r, i) => {
-            const status = r.enabled ? "✅" : "⏸️";
-            return `${i + 1}. ${status} **${r.name}**: ${r.type} ${r.condition} ${r.threshold ?? r.value} → ${r.action}`;
-          }).join("\n");
+          const list = rules
+            .map((r, i) => {
+              const status = r.enabled ? "✅" : "⏸️";
+              return `${i + 1}. ${status} **${r.name}**: ${r.type} ${r.condition} ${r.threshold ?? r.value} → ${r.action}`;
+            })
+            .join("\n");
           result = `**Monitor Rules:**\n\n${list}`;
         }
       } else if (/^(add|create|set|new)\s+(a\s+)?monitor/i.test(lower)) {
-        const match = input.match(/(?:add|create|set|new)\s+(?:a\s+)?monitor\s+(cpu|memory|disk|process)\s+(above|below|equals)\s+(\d+)\s*(alert|speak|log|notify)?\s*(.*)?/i);
+        const match = input.match(
+          /(?:add|create|set|new)\s+(?:a\s+)?monitor\s+(cpu|memory|disk|process)\s+(above|below|equals)\s+(\d+)\s*(alert|speak|log|notify)?\s*(.*)?/i,
+        );
 
         if (!match) {
-          result = "Usage: `add monitor [cpu|memory|disk] [above|below] [threshold] [alert|speak] [message]`\nExample: `add monitor CPU above 80 alert High CPU usage detected`";
+          result =
+            "Usage: `add monitor [cpu|memory|disk] [above|below] [threshold] [alert|speak] [message]`\nExample: `add monitor CPU above 80 alert High CPU usage detected`";
         } else {
           const type = match[1] ?? "cpu";
           const condition = match[2] ?? "above";
           const threshold = match[3] ?? "80";
           const action = match[4] ?? "alert";
-          const message = match[5]?.trim() || `${type.toUpperCase()} is ${condition} ${threshold}%`;
+          const message =
+            match[5]?.trim() ||
+            `${type.toUpperCase()} is ${condition} ${threshold}%`;
 
           const rule: MonitorRule = {
             id: `rule_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
@@ -167,7 +202,9 @@ export function createMonitorService(): Service {
           logEvent(`Rule created: ${rule.name}`);
           result = `Monitor rule created: **${rule.name}**\nAction: ${rule.action} when ${rule.type} ${rule.condition} ${rule.threshold}%`;
         }
-      } else if (/^(remove|delete|disable)\s+(rule|monitor|watch)\s*(\d+)?/i.test(lower)) {
+      } else if (
+        /^(remove|delete|disable)\s+(rule|monitor|watch)\s*(\d+)?/i.test(lower)
+      ) {
         const rules = loadRules();
         const match = input.match(/(\d+)$/);
         const index = match ? parseInt(match[1]!) - 1 : -1;
@@ -180,7 +217,9 @@ export function createMonitorService(): Service {
         } else {
           result = "Usage: `remove rule [number]`";
         }
-      } else if (/^(enable|disable)\s+(rule|monitor|watch)\s*(\d+)?/i.test(lower)) {
+      } else if (
+        /^(enable|disable)\s+(rule|monitor|watch)\s*(\d+)?/i.test(lower)
+      ) {
         const rules = loadRules();
         const match = input.match(/(\d+)$/);
         const index = match ? parseInt(match[1]!) - 1 : -1;
@@ -223,9 +262,11 @@ export function createMonitorService(): Service {
 
         result = status;
       } else if (/^(start|begin)\s+monitoring/i.test(lower)) {
-        result = "Continuous monitoring started. I'll alert you when thresholds are exceeded.\n\nUse `check` to scan now, or `show rules` to see active monitors.";
+        result =
+          "Continuous monitoring started. I'll alert you when thresholds are exceeded.\n\nUse `check` to scan now, or `show rules` to see active monitors.";
       } else {
-        result = "I can monitor your system. Try:\n- `check` — scan system health\n- `add monitor CPU above 80 alert` — set a rule\n- `show rules` — list monitors\n- `remove rule 1` — delete a rule";
+        result =
+          "I can monitor your system. Try:\n- `check` — scan system health\n- `add monitor CPU above 80 alert` — set a rule\n- `show rules` — list monitors\n- `remove rule 1` — delete a rule";
       }
 
       await ctx.memory.add("user", input);

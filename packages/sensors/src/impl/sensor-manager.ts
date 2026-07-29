@@ -1,8 +1,8 @@
 import type {
   Sensor,
-  SensorId,
   SensorCategory,
   SensorEvent,
+  SensorId,
   SensorManager,
   SensorManagerState,
 } from "../types/sensor.js";

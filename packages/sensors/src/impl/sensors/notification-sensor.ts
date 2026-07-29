@@ -1,6 +1,9 @@
+import type {
+  ObservationPriority,
+  ObservationSource,
+} from "@ai-agent/attention";
+import type { SensorEvent, SensorMetadata } from "../../types/sensor.js";
 import { BaseSensor } from "../base-sensor.js";
-import type { SensorMetadata, SensorEvent } from "../../types/sensor.js";
-import type { ObservationSource, ObservationPriority } from "@ai-agent/attention";
 
 export interface NotificationEvent {
   readonly app: string;
@@ -20,7 +23,8 @@ export interface NotificationState {
 const METADATA: SensorMetadata = {
   id: "notifications",
   name: "Notification Sensor",
-  description: "Monitors desktop notifications via D-Bus/org.freedesktop.Notifications",
+  description:
+    "Monitors desktop notifications via D-Bus/org.freedesktop.Notifications",
   category: "linux",
   platform: "linux",
   version: "1.0.0",
@@ -30,7 +34,9 @@ export class NotificationSensor extends BaseSensor<NotificationState> {
   private notifications: NotificationEvent[] = [];
   private totalCount = 0;
   private lastId = 0;
-  private monitorProcess: ReturnType<typeof import("node:child_process").exec> | null = null;
+  private monitorProcess: ReturnType<
+    typeof import("node:child_process").exec
+  > | null = null;
 
   constructor(pollIntervalMs = 1000) {
     super(METADATA, pollIntervalMs);
@@ -52,7 +58,8 @@ export class NotificationSensor extends BaseSensor<NotificationState> {
     return {
       recentNotifications: [...this.notifications],
       totalCount: this.totalCount,
-      lastNotification: this.notifications[this.notifications.length - 1] ?? null,
+      lastNotification:
+        this.notifications[this.notifications.length - 1] ?? null,
     };
   }
 
@@ -74,7 +81,8 @@ export class NotificationSensor extends BaseSensor<NotificationState> {
 
   private startDBusMonitor(): void {
     try {
-      const { exec } = require("node:child_process") as typeof import("node:child_process");
+      const { exec } =
+        require("node:child_process") as typeof import("node:child_process");
       const proc = exec(
         "dbus-monitor --session type='method_call',interface='org.freedesktop.Notifications',member='Notify' 2>/dev/null",
         { encoding: "utf-8" },

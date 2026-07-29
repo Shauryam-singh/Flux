@@ -1,6 +1,9 @@
-import type { Service } from "@ai-agent/services-core";
-import type { ServiceContext, SystemContext } from "@ai-agent/services-core";
-import type { ServiceResponse } from "@ai-agent/services-core";
+import type {
+  Service,
+  ServiceContext,
+  ServiceResponse,
+  SystemContext,
+} from "@ai-agent/services-core";
 
 export interface ChatServiceOptions {
   personality?: string;
@@ -49,39 +52,88 @@ NEVER:
 - Never use phrases like "I'd be happy to help!" or "Great question!" or "Let me assist you with that."`;
 
 function buildSystemContextPrompt(ctx?: SystemContext): string {
-  if (!ctx) return '';
+  if (!ctx) return "";
 
-  const parts: string[] = ['\n\nCURRENT SYSTEM STATE:'];
+  const parts: string[] = ["\n\nCURRENT SYSTEM STATE:"];
 
-  // Time
   parts.push(`- Time: ${ctx.currentTime}`);
   parts.push(`- Platform: ${ctx.platform}`);
 
-  // Battery
+  // Battery — level is already 0-100
   if (ctx.battery) {
     const bat = ctx.battery;
-    const pct = Math.round(bat.level * 100);
-    parts.push(`- Battery: ${pct}%${bat.charging ? ' (charging)' : ''}${bat.timeRemaining ? `, ~${Math.round(bat.timeRemaining / 60)}min remaining` : ''}`);
+    const pct = Math.round(bat.level);
+    parts.push(
+      `- Battery: ${pct}%${bat.charging ? " (charging)" : ""}${bat.timeRemaining ? `, ~${Math.round(bat.timeRemaining / 60)}min remaining` : ""}`,
+    );
   }
 
-  // Active sensors
-  const activeSensors = Object.entries(ctx.sensors)
-    .filter(([, data]) => data !== null && data !== undefined)
-    .map(([id]) => id);
-  if (activeSensors.length > 0) {
-    parts.push(`- Active sensors: ${activeSensors.join(', ')}`);
+  // Screen — the active window / application
+  const screen = ctx.sensors.screen as
+    | { activeWindow?: string; title?: string; focused?: boolean }
+    | undefined;
+  if (screen) {
+    const app =
+      screen.activeWindow ?? screen.title ?? "unknown";
+    parts.push(`- Current application: ${app}`);
+  }
+
+  // Idle — how long since last user input
+  const idle = ctx.sensors.idle as
+    | { idleMs?: number; activeWindow?: string }
+    | undefined;
+  if (idle?.idleMs != null) {
+    const sec = Math.round(idle.idleMs / 1000);
+    if (sec < 60) {
+      parts.push(`- User idle: ${sec}s`);
+    } else {
+      parts.push(`- User idle: ${Math.round(sec / 60)}m ${sec % 60}s`);
+    }
+  }
+
+  // Audio — current volume
+  const audio = ctx.sensors.audio as
+    | { outputVolume?: number; inputVolume?: number }
+    | undefined;
+  if (audio?.outputVolume != null) {
+    parts.push(`- System volume: ${Math.round(audio.outputVolume)}%`);
+  }
+
+  // Clipboard — last copied text (truncated)
+  const clipboard = ctx.sensors.clipboard as
+    | { content?: string; type?: string }
+    | undefined;
+  if (clipboard?.content) {
+    const text = clipboard.content.slice(0, 120);
+    parts.push(`- Clipboard: "${text}"`);
+  }
+
+  // Git — current branch and status
+  const git = ctx.sensors.git as
+    | { branch?: string; dirty?: boolean; ahead?: number; behind?: number }
+    | undefined;
+  if (git?.branch) {
+    let gitStatus = git.branch;
+    if (git.dirty) gitStatus += " (dirty)";
+    if (git.ahead) gitStatus += ` (${git.ahead} ahead)`;
+    if (git.behind) gitStatus += ` (${git.behind} behind)`;
+    parts.push(`- Git: ${gitStatus}`);
   }
 
   // Goals
   if (ctx.goals.length > 0) {
-    const goalList = ctx.goals.map(g => `${g.name} (${g.progress}% ${g.status})`).join('; ');
+    const goalList = ctx.goals
+      .map((g) => `${g.name} (${g.progress}% ${g.status})`)
+      .join("; ");
     parts.push(`- Goals: ${goalList}`);
   }
 
   // Recent activity
   if (ctx.recentActivity.length > 0) {
     parts.push(`- Recent activity:`);
-    ctx.recentActivity.slice(0, 5).forEach(a => parts.push(`  * ${a}`));
+    for (const a of ctx.recentActivity.slice(0, 5)) {
+      parts.push(`  * ${a}`);
+    }
   }
 
   // Memory
@@ -89,7 +141,15 @@ function buildSystemContextPrompt(ctx?: SystemContext): string {
     parts.push(`- Memory: ${ctx.memoryStats.totalMemories} memories stored`);
   }
 
-  return parts.join('\n');
+  // Remaining sensor summaries
+  const remainingSensors = Object.entries(ctx.sensors)
+    .filter(([k, v]) => !["screen", "idle", "audio", "clipboard", "git", "battery"].includes(k) && v !== null && v !== undefined)
+    .map(([k]) => k);
+  if (remainingSensors.length > 0) {
+    parts.push(`- Other sensors: ${remainingSensors.join(", ")}`);
+  }
+
+  return parts.join("\n");
 }
 
 export function createChatService(options?: ChatServiceOptions): Service {
@@ -97,20 +157,24 @@ export function createChatService(options?: ChatServiceOptions): Service {
 
   return {
     name: "chat",
-    description: "General conversational AI for questions, discussion, and everyday tasks",
+    description:
+      "General conversational AI for questions, discussion, and everyday tasks",
 
     async canHandle(_input: string): Promise<boolean> {
       return true;
     },
 
-    async execute(input: string, ctx: ServiceContext): Promise<ServiceResponse> {
+    async execute(
+      input: string,
+      ctx: ServiceContext,
+    ): Promise<ServiceResponse> {
       await ctx.memory.add("user", input);
 
       const history = await ctx.memory.history();
       const messages = history.map((m) => `${m.role}: ${m.content}`).join("\n");
 
       // Get system context for the prompt
-      let systemContextPrompt = '';
+      let systemContextPrompt = "";
       if (ctx.getSystemContext) {
         try {
           const sysCtx = await ctx.getSystemContext();

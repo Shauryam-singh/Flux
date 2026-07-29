@@ -301,7 +301,14 @@ function initEventListeners() {
       } else if (e.key === 'Enter') {
         e.preventDefault();
         const selected = results[paletteSelectedIndex];
-        if (selected) selected.click();
+        if (selected) {
+          selected.click();
+        } else if (paletteInput.value.trim()) {
+          // No matching command — send as chat message
+          const msg = paletteInput.value.trim();
+          toggleCommandPalette();
+          sendChatMessageDirect(msg);
+        }
       }
     });
   }
@@ -310,6 +317,19 @@ function initEventListeners() {
   const backdrop = document.getElementById('palette-backdrop');
   if (backdrop) {
     backdrop.addEventListener('click', toggleCommandPalette);
+  }
+
+  // Chat input
+  const chatInput = document.getElementById('chat-input');
+  const chatSend = document.getElementById('chat-send');
+  if (chatInput && chatSend) {
+    chatSend.addEventListener('click', () => sendChatMessage());
+    chatInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendChatMessage();
+      }
+    });
   }
 
   // Keyboard shortcuts
@@ -491,6 +511,46 @@ function showExplain() {
 function escapeHtml(str) {
   if (!str) return '';
   return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+// ─── Chat Message Sending ───
+
+async function sendChatMessage() {
+  const input = document.getElementById('chat-input');
+  if (!input) return;
+  const message = input.value.trim();
+  if (!message) return;
+
+  input.value = '';
+  await sendChatMessageDirect(message);
+}
+
+async function sendChatMessageDirect(message) {
+  UI.showToast('Sending...', 'info', 2000);
+
+  // Try Tauri first
+  const tauriResult = await invokeTauri('send_message', { message });
+  if (tauriResult !== null) {
+    UI.showToast(`Flux: ${tauriResult}`, 'success', 5000);
+    return;
+  }
+
+  // Fallback: direct API call
+  try {
+    const resp = await fetch('http://localhost:3141/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message }),
+    });
+    const data = await resp.json();
+    if (data.reply) {
+      UI.showToast(`Flux: ${data.reply}`, 'success', 5000);
+    } else {
+      UI.showToast('No response from Flux', 'warning', 3000);
+    }
+  } catch (err) {
+    UI.showToast('API not running', 'error', 3000);
+  }
 }
 
 // ─── Subscribe to Data Events ───

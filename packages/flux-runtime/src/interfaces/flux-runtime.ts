@@ -41,7 +41,7 @@ export interface TickEvent {
   readonly observations: number;
   readonly cognitiveCycleRan: boolean;
   readonly duration: number;
-  readonly pipelineResult?: CognitionResult;
+  readonly pipelineResult?: CognitionResult | undefined;
 }
 
 export interface FluxRuntime {
@@ -63,6 +63,16 @@ export interface FluxRuntime {
   onTick(handler: (event: TickEvent) => void): () => void;
   getHistory(): ReadonlyArray<FluxRuntimeMessage>;
   getState(): FluxRuntimeState;
+  getStreamingSnapshot(): Promise<{
+    readonly state: FluxRuntimeState;
+    readonly pipelineResult: import("@ai-agent/thought-graph").CognitionResult | null;
+    readonly recentThoughts: ReadonlyArray<{ type: string; content: string; confidence: number; timestamp: number }>;
+    readonly recentActions: ReadonlyArray<{ type: string; reasoning: string; confidence: number; timestamp: number }>;
+    readonly recentSensorEvents: ReadonlyArray<{ sensorId: string; type: string; timestamp: number; priority: string }>;
+    readonly goals: ReadonlyArray<{ id: string; title: string; status: string; progress: number }>;
+    readonly worldState: import("@ai-agent/world-model").WorldState;
+    readonly sensorSnapshots: Record<string, unknown>;
+  }>;
   explainThought(thoughtId: string): ReturnType<DefaultThoughtGraph["explain"]>;
   getRecentThoughts(limit?: number): ReturnType<DefaultThoughtGraph["getRecentThoughts"]>;
   getStrongestThoughts(limit?: number): ReturnType<DefaultThoughtGraph["getStrongestThoughts"]>;

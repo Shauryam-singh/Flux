@@ -680,6 +680,52 @@ ul, ol {
 .sensor-status.offline { background: var(--muted); }
 
 /* HUD Bottom Actions */
+/* ─── HUD Chat Input ─── */
+.hud-chat {
+  display: flex;
+  gap: 6px;
+  padding: 6px 10px;
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.hud-chat input {
+  flex: 1;
+  padding: 7px 10px;
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  font-family: var(--font-sans);
+  color: var(--text);
+  background: rgba(25, 30, 40, 0.4);
+  border: 1px solid var(--border);
+  outline: none;
+  transition: border-color var(--transition-fast);
+}
+
+.hud-chat input:focus {
+  border-color: var(--accent-dim);
+}
+
+.hud-chat input::placeholder {
+  color: var(--muted-dim);
+}
+
+.chat-send-btn {
+  padding: 7px 10px;
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  color: var(--accent);
+  background: rgba(85, 214, 255, 0.08);
+  border: 1px solid var(--accent-dim);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.chat-send-btn:hover {
+  background: var(--bg-hover);
+  border-color: var(--accent);
+}
+
 .hud-actions {
   display: flex;
   gap: 4px;

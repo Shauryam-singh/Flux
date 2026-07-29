@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════
-// FLUX DATA ENGINE — Reactive state with simulated live updates
+// FLUX DATA ENGINE — Reactive state with real runtime data via SSE
 // ═══════════════════════════════════════════════════════════════
 
 // ─── Event System ───
@@ -15,239 +15,343 @@ export function emit(event, data) {
   if (cbs) cbs.forEach(cb => cb(data));
 }
 
-// ─── Mock Data Pools ───
-const cognitionTexts = [
-  'Thinking...', 'Analysing build errors', 'Updating world model',
-  'Consolidating memories', 'Waiting for new observations',
-  'Planning next action', 'Reviewing code changes', 'Scanning sensors',
-  'Evaluating goals', 'Processing git diff', 'Learning user patterns',
-  'Optimizing task graph', 'Calibrating confidence', 'Generating hypotheses',
-  'Merging observations', 'Strengthening memories', 'Detecting workflows',
-  'Predicting user intent', 'Running simulation', 'Researching best practices',
-  'Building skill index', 'Evaluating strategies', 'Reflecting on past actions',
-  'Monitoring Docker containers', 'Indexing project files',
-];
-
-const goalNames = [
-  'Executive Intelligence', 'Memory Consolidation', 'Sensor Integration',
-  'Background Cognition', 'Workflow Discovery', 'Skill Learning',
-  'Knowledge Graph', 'Confidence Calibration', 'Self-Evaluation',
-];
-
-const goalBlockers = [
-  '', '', '', '', '',
-  'Waiting for Docker rebuild',
-  'Circular dependency detected',
-  'Pending user approval',
-];
-
-const focusAreas = [
-  ['packages/runtime', 'Docker', 'Git'],
-  ['src/executive', 'task-graph', 'API'],
-  ['packages/cognitive-memory', 'consolidation'],
-  ['packages/sensors', 'filesystem', 'clipboard'],
-  ['packages/thought-graph', 'cognition-pipeline'],
-  ['apps/cli', 'daemon', 'background'],
-  ['packages/self-evolution', 'meta-cognition'],
-  ['packages/working-memory', 'goals', 'reasoning'],
-];
-
-const predictions = [
-  { text: 'Likely preparing commit', confidence: 87 },
-  { text: 'Debugging runtime errors', confidence: 72 },
-  { text: 'Writing documentation', confidence: 65 },
-  { text: 'Reviewing code changes', confidence: 81 },
-  { text: 'Taking a break', confidence: 45 },
-  { text: 'Starting new feature', confidence: 68 },
-  { text: 'Running tests', confidence: 79 },
-  { text: 'Refactoring modules', confidence: 73 },
-];
-
-const taskTemplates = [
-  { text: 'Repository indexed', status: 'done' },
-  { text: 'Monitoring Git', status: 'active' },
-  { text: 'Docker healthy', status: 'active' },
-  { text: 'Watching filesystem', status: 'active' },
-  { text: 'Building embeddings', status: 'pending' },
-  { text: 'Consolidating memories', status: 'pending' },
-  { text: 'Syncing sensors', status: 'active' },
-  { text: 'Running diagnostics', status: 'pending' },
-];
-
-const memoryTemplates = [
-  { badge: 'remember', text: 'User prefers TypeScript' },
-  { badge: 'remember', text: 'Project uses Result<T,E>' },
-  { badge: 'reflection', text: 'Working on Executive layer' },
-  { badge: 'insight', text: 'Circular imports causing issues' },
-  { badge: 'remember', text: 'Piper voice installed at /usr/bin' },
-  { badge: 'reflection', text: 'Should consolidate similar memories' },
-  { badge: 'insight', text: 'Docker compose needs restart' },
-  { badge: 'remember', text: 'User likes concise responses' },
-];
-
-const thoughtTypes = ['observed', 'thought', 'evidence', 'decision', 'confidence'];
-const thoughtTexts = [
-  'Modified runtime.ts', 'Dependency graph becoming complex',
-  '18 imports detected', 'Wait until user finishes typing',
-  '91% confidence', 'New sensor event from Git',
-  'Memory access pattern detected', 'Goal progress stalled',
-  'Docker container restarted', 'Clipboard content changed',
-  'User idle for 5 minutes', 'File watch triggered',
-  'Build succeeded after retry', 'Optimization opportunity found',
-];
-
-const moodStates = [
-  { icon: '\u{1F9E0}', label: 'Focused', sub: 'Deep analysis in progress' },
-  { icon: '\u{1F3A8}', label: 'Creative', sub: 'Generating novel solutions' },
-  { icon: '\u{1F50D}', label: 'Investigating', sub: 'Tracing root cause' },
-  { icon: '\u{1F4DA}', label: 'Learning', sub: 'Acquiring new patterns' },
-  { icon: '\u{1F4CB}', label: 'Planning', sub: 'Decomposing objectives' },
-  { icon: '\u{1F3D3}', label: 'Idle', sub: 'Awaiting new observations' },
-  { icon: '\u{1F504}', label: 'Recovering', sub: 'Restoring from error' },
-];
-
-const worldNodes = [
-  { name: 'Runtime', statuses: ['healthy', 'healthy', 'healthy', 'busy'] },
-  { name: 'Memory', statuses: ['busy', 'healthy', 'busy', 'healthy'] },
-  { name: 'Executive', statuses: ['blocked', 'busy', 'healthy', 'blocked'] },
-  { name: 'API', statuses: ['running', 'running', 'running', 'healthy'] },
-  { name: 'Voice', statuses: ['idle', 'idle', 'busy', 'idle'] },
-  { name: 'Sensors', statuses: ['healthy', 'busy', 'healthy', 'healthy'] },
-  { name: 'Cognition', statuses: ['busy', 'healthy', 'busy', 'busy'] },
-];
-
-const sensors = [
-  { name: 'Git', icon: '\u{1F4CC}', events: ['3 commits today', 'Branch: main', 'Clean working tree', 'Last push: 2h ago'] },
-  { name: 'Filesystem', icon: '\u{1F4C1}', events: ['2 files modified', 'Watching src/', 'No changes', 'inotify active'] },
-  { name: 'Clipboard', icon: '\u{1F4CB}', events: ['Text copied', 'No change', 'Image detected', 'Code snippet'] },
-  { name: 'Docker', icon: '\u{1F433}', events: ['2 containers running', 'Healthy', 'Redis: up', 'API: up'] },
-  { name: 'Battery', icon: '\u{1F50B}', events: ['87%', 'Charging', '92%', 'Full'] },
-  { name: 'Audio', icon: '\u{1F3B5}', events: ['Volume 60%', 'PulseAudio', 'PipeWire', 'Muted'] },
-  { name: 'Notifications', icon: '\u{1F514}', events: ['2 unread', 'Slack: 3', 'Email: 1', 'None'] },
-  { name: 'Calendar', icon: '\u{1F4C5}', events: ['No meetings', 'Standup 10am', 'Free today', 'Review 3pm'] },
-  { name: 'SSH', icon: '\u{1F4BB}', events: ['1 session', 'None', 'Server: prod', 'Connected'] },
-  { name: 'Spotify', icon: '\u{1F3B5}', events: ['Paused', 'Playing', 'No device', 'Queue empty'] },
-  { name: 'Idle', icon: '\u{23F1}', events: ['Active', 'Idle 2m', 'Screen lock', 'Active'] },
-];
-
 // ─── State ───
 export const state = {
   mode: 'dormant', // dormant | hud | dashboard
-  cognition: cognitionTexts[0],
-  goal: { name: goalNames[0], progress: 72, blocker: '' },
-  focus: focusAreas[0],
-  prediction: predictions[0],
-  tasks: taskTemplates.slice(0, 6),
-  memories: memoryTemplates.slice(0, 3),
-  sensors: sensors.map(s => ({ ...s, status: 'healthy', lastEvent: s.events[0] })),
+  cognition: 'Initializing...',
+  goal: { name: 'System Startup', progress: 0, blocker: '' },
+  focus: ['packages/flux-runtime', 'Sensors', 'Cognition'],
+  prediction: { text: 'Starting up', confidence: 50 },
+  tasks: [],
+  memories: [],
+  sensors: [],
   thoughts: [],
-  worldModel: worldNodes.map(n => ({ name: n.name, status: n.statuses[0] })),
-  mood: moodStates[0],
-  confidence: { belief: 'Build failure caused by circular dependency', primary: 91, alt: 'Environment issue', altValue: 18 },
+  worldModel: [],
+  mood: { icon: '\u{1F3D3}', label: 'Idle', sub: 'Awaiting connection' },
+  confidence: { belief: 'Waiting for runtime data', primary: 50, alt: 'Unknown', altValue: 50 },
   time: '',
-  cpu: 7,
+  cpu: 0,
   model: 'qwen2.5-coder',
-  pipelineStage: 7,
+  pipelineStage: 0,
+  connected: false,
 };
 
-// ─── Helpers ───
-function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
-function randInt(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
+// ─── SSE Connection ───
+let eventSource = null;
+let reconnectTimer = null;
+const API_BASE = 'http://localhost:3141';
 
-// ─── Update Functions ───
-function updateTime() {
-  const now = new Date();
-  state.time = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
-  emit('time', state.time);
-}
-
-function updateCpu() {
-  state.cpu = randInt(3, 24);
-  emit('cpu', state.cpu);
-}
-
-function updateCognition() {
-  state.cognition = pick(cognitionTexts);
-  state.pipelineStage = randInt(1, 14);
-  emit('cognition', state.cognition);
-}
-
-function updateGoal() {
-  if (state.goal.progress < 100) {
-    state.goal.progress = Math.min(100, state.goal.progress + randInt(1, 3));
-  } else {
-    state.goal.name = pick(goalNames);
-    state.goal.progress = randInt(5, 30);
-    state.goal.blocker = pick(goalBlockers);
+function connectSSE() {
+  if (eventSource) {
+    eventSource.close();
   }
-  emit('goal', state.goal);
-}
 
-function updatePrediction() {
-  state.prediction = pick(predictions);
-  emit('prediction', state.prediction);
-}
+  try {
+    eventSource = new EventSource(`${API_BASE}/events`);
 
-function updateTasks() {
-  const idx = state.tasks.findIndex(t => t.status === 'pending');
-  if (idx >= 0 && Math.random() > 0.5) {
-    state.tasks[idx] = { ...state.tasks[idx], status: 'active' };
+    eventSource.onmessage = (e) => {
+      try {
+        const data = JSON.parse(e.data);
+        handleStreamEvent(data);
+      } catch {
+        // Ignore parse errors (heartbeat comments, etc.)
+      }
+    };
+
+    eventSource.onerror = () => {
+      state.connected = false;
+      emit('connection', false);
+      eventSource.close();
+      eventSource = null;
+      // Reconnect after 3s
+      reconnectTimer = setTimeout(connectSSE, 3000);
+    };
+
+    eventSource.addEventListener('open', () => {
+      state.connected = true;
+      emit('connection', true);
+    });
+  } catch {
+    // SSE not available (browser doesn't support it or API not running)
+    state.connected = false;
+    emit('connection', false);
+    reconnectTimer = setTimeout(connectSSE, 5000);
   }
-  const activeIdx = state.tasks.findIndex(t => t.status === 'active');
-  if (activeIdx >= 0 && Math.random() > 0.7) {
-    state.tasks[activeIdx] = { ...state.tasks[activeIdx], status: 'done' };
-  }
-  emit('tasks', state.tasks);
 }
 
-function updateMemories() {
-  if (Math.random() > 0.6) {
-    const newMem = pick(memoryTemplates);
-    state.memories = [newMem, ...state.memories.slice(0, 4)];
+// ─── Stream Event Handler ───
+function handleStreamEvent(data) {
+  if (data.type === 'snapshot' || data.type === 'tick') {
+    state.connected = true;
+
+    // Update runtime state
+    if (data.state) {
+      state.cpu = Math.min(100, Math.max(0, Math.round((data.state.memorySize || 0) * 2)));
+      state.pipelineStage = data.tickNumber ? ((data.tickNumber % 14) + 1) : state.pipelineStage;
+    }
+
+    // Update cognition from pipeline result
+    if (data.pipelineResult) {
+      updateCognitionFromPipeline(data.pipelineResult);
+    }
+
+    // Update goals
+    if (data.goals && data.goals.length > 0) {
+      const active = data.goals.find(g => g.status === 'active' || g.status === 'in_progress') || data.goals[0];
+      state.goal = {
+        name: active.title,
+        progress: active.progress || 0,
+        blocker: '',
+      };
+      emit('goal', state.goal);
+    }
+
+    // Update world model
+    if (data.worldState) {
+      updateWorldModelFromState(data.worldState);
+    }
+
+    // Update sensors from snapshots
+    if (data.sensorSnapshots) {
+      updateSensorsFromSnapshots(data.sensorSnapshots);
+    }
+
+    // Update thoughts from recent pipeline thoughts
+    if (data.recentThoughts && data.recentThoughts.length > 0) {
+      updateThoughtsFromRuntime(data.recentThoughts);
+    }
+
+    // Update memories from pipeline opportunities
+    if (data.pipelineResult && data.pipelineResult.opportunities) {
+      updateMemoriesFromOpportunities(data.pipelineResult.opportunities);
+    }
+
+    // Update prediction from user intent
+    if (data.pipelineResult && data.pipelineResult.userIntent) {
+      const intent = data.pipelineResult.userIntent;
+      state.prediction = {
+        text: intent.primaryIntent,
+        confidence: Math.round(intent.confidence * 100),
+      };
+      emit('prediction', state.prediction);
+    }
+
+    // Update confidence from pipeline
+    if (data.pipelineResult && data.pipelineResult.selectedAction) {
+      const action = data.pipelineResult.selectedAction;
+      state.confidence = {
+        belief: action.reasoning,
+        primary: Math.round(action.confidence * 100),
+        alt: data.pipelineResult.userIntent?.primaryIntent || 'Unknown',
+        altValue: Math.round((1 - action.confidence) * 100),
+      };
+      emit('confidence', state.confidence);
+    }
+
+    // Update mood from pipeline stage and thought count
+    if (data.pipelineResult) {
+      updateMoodFromPipeline(data.pipelineResult);
+    }
+
+    // Update focus from world model paths
+    if (data.worldState && data.worldState.project) {
+      const project = data.worldState.project;
+      if (project.recentFiles && project.recentFiles.length > 0) {
+        state.focus = project.recentFiles.slice(0, 3);
+        emit('focus', state.focus);
+      }
+    }
+
+    // Emit all updates
+    emit('time', state.time);
+    emit('cpu', state.cpu);
+    emit('cognition', state.cognition);
+    emit('sensors', state.sensors);
+    emit('worldModel', state.worldModel);
+    emit('mood', state.mood);
+    emit('tasks', state.tasks);
     emit('memories', state.memories);
   }
 }
 
-function updateSensors() {
-  const idx = randInt(0, state.sensors.length - 1);
-  const statuses = ['healthy', 'healthy', 'healthy', 'busy', 'offline'];
-  state.sensors[idx] = {
-    ...state.sensors[idx],
-    status: pick(statuses),
-    lastEvent: pick(state.sensors[idx].events),
-  };
-  emit('sensors', state.sensors);
+// ─── Data Mapping Functions ───
+
+function updateCognitionFromPipeline(result) {
+  if (result.stages && result.stages.length > 0) {
+    const lastStage = result.stages[result.stages.length - 1];
+    state.cognition = `Stage ${result.stages.length}/14: ${lastStage.name}`;
+    state.pipelineStage = result.stages.length;
+  } else if (result.thoughts && result.thoughts.length > 0) {
+    const latest = result.thoughts[result.thoughts.length - 1];
+    state.cognition = latest.content.slice(0, 80);
+  }
+  emit('cognition', state.cognition);
 }
 
-function addThought() {
-  const type = pick(thoughtTypes);
-  const text = pick(thoughtTexts);
-  const thought = { type, text, time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }) };
-  state.thoughts = [thought, ...state.thoughts.slice(0, 19)];
-  emit('thought', thought);
-}
+function updateWorldModelFromState(worldState) {
+  const nodes = [];
 
-function updateWorldModel() {
-  const idx = randInt(0, state.worldModel.length - 1);
-  const node = worldNodes[idx];
-  state.worldModel[idx] = { name: node.name, status: pick(node.statuses) };
+  // Project state
+  if (worldState.project) {
+    nodes.push({ name: 'Project', status: worldState.project.buildStatus || 'healthy' });
+  }
+
+  // Application state
+  if (worldState.application) {
+    nodes.push({ name: 'Application', status: worldState.application.status || 'running' });
+    if (worldState.application.memoryUsage) {
+      nodes.push({ name: 'Memory', status: worldState.application.memoryUsage > 80 ? 'busy' : 'healthy' });
+    }
+  }
+
+  // System state
+  if (worldState.system) {
+    nodes.push({ name: 'System', status: worldState.system.load > 0.8 ? 'busy' : 'healthy' });
+    nodes.push({ name: 'CPU', status: worldState.system.load > 0.9 ? 'critical' : worldState.system.load > 0.7 ? 'busy' : 'healthy' });
+  }
+
+  // Add fixed nodes based on runtime state
+  nodes.push({ name: 'Runtime', status: 'healthy' });
+  nodes.push({ name: 'Sensors', status: 'healthy' });
+  nodes.push({ name: 'Cognition', status: 'busy' });
+
+  state.worldModel = nodes;
   emit('worldModel', state.worldModel);
 }
 
-function updateMood() {
-  state.mood = pick(moodStates);
+function updateSensorsFromSnapshots(snapshots) {
+  const sensorDefs = [
+    { name: 'Git', icon: '\u{1F4CC}', id: 'git' },
+    { name: 'Filesystem', icon: '\u{1F4C1}', id: 'filesystem' },
+    { name: 'Clipboard', icon: '\u{1F4CB}', id: 'clipboard' },
+    { name: 'Docker', icon: '\u{1F433}', id: 'docker' },
+    { name: 'Battery', icon: '\u{1F50B}', id: 'battery' },
+    { name: 'Audio', icon: '\u{1F3B5}', id: 'audio' },
+    { name: 'Notifications', icon: '\u{1F514}', id: 'notifications' },
+    { name: 'Spotify', icon: '\u{1F3B5}', id: 'spotify' },
+    { name: 'Idle', icon: '\u{23F1}', id: 'idle' },
+  ];
+
+  state.sensors = sensorDefs.map(def => {
+    const snap = snapshots[def.id];
+    let status = 'healthy';
+    let lastEvent = 'No data';
+
+    if (snap) {
+      // Determine status and last event from snapshot
+      switch (def.id) {
+        case 'git':
+          if (snap.branch) {
+            lastEvent = `Branch: ${snap.branch}`;
+            status = snap.isDirty ? 'busy' : 'healthy';
+          }
+          break;
+        case 'docker':
+          if (snap.runningCount !== undefined) {
+            lastEvent = `${snap.runningCount} containers running`;
+            status = snap.stoppedCount > 0 ? 'busy' : 'healthy';
+          }
+          break;
+        case 'battery':
+          if (snap.level !== undefined) {
+            lastEvent = `${snap.level}%${snap.isCharging ? ' (charging)' : ''}`;
+            status = snap.level < 20 ? 'offline' : 'healthy';
+          }
+          break;
+        case 'clipboard':
+          if (snap.text) {
+            lastEvent = snap.text.slice(0, 40);
+            status = 'healthy';
+          }
+          break;
+        case 'spotify':
+          if (snap.isPlaying !== undefined) {
+            lastEvent = snap.isPlaying ? `${snap.track || 'Playing'}` : 'Paused';
+            status = 'healthy';
+          }
+          break;
+        case 'idle':
+          if (snap.isIdle !== undefined) {
+            lastEvent = snap.isIdle ? `Idle ${snap.idleSeconds || ''}s` : 'Active';
+            status = snap.isIdle ? 'busy' : 'healthy';
+          }
+          break;
+        case 'audio':
+          if (snap.outputVolume !== undefined) {
+            lastEvent = `Volume ${Math.round(snap.outputVolume * 100)}%`;
+            status = snap.isMuted ? 'offline' : 'healthy';
+          }
+          break;
+        case 'notifications':
+          if (snap.recentNotifications) {
+            lastEvent = `${snap.recentNotifications.length} recent`;
+            status = snap.recentNotifications.length > 0 ? 'busy' : 'healthy';
+          }
+          break;
+        default:
+          lastEvent = 'Connected';
+      }
+    }
+
+    return { name: def.name, icon: def.icon, status, lastEvent };
+  });
+
+  emit('sensors', state.sensors);
+}
+
+function updateThoughtsFromRuntime(thoughts) {
+  // Take the most recent 10 and convert to UI format
+  const recent = thoughts.slice(-10).reverse();
+  state.thoughts = recent.map(t => ({
+    type: t.type || 'thought',
+    text: t.content.slice(0, 80),
+    time: new Date(t.timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }),
+  }));
+  emit('thought', state.thoughts);
+}
+
+function updateMemoriesFromOpportunities(opportunities) {
+  if (opportunities.length === 0) return;
+
+  const newMems = opportunities.slice(-3).map(o => ({
+    badge: o.type === 'learning' ? 'insight' : o.type === 'automation' ? 'reflection' : 'remember',
+    text: o.description.slice(0, 60),
+  }));
+
+  state.memories = [...newMems, ...state.memories].slice(0, 8);
+  emit('memories', state.memories);
+}
+
+function updateMoodFromPipeline(result) {
+  if (!result.stages || result.stages.length === 0) return;
+
+  const stageCount = result.stages.length;
+  const thoughtCount = result.thoughts?.length || 0;
+
+  if (stageCount <= 3) {
+    state.mood = { icon: '\u{1F50D}', label: 'Observing', sub: 'Gathering data' };
+  } else if (stageCount <= 7) {
+    state.mood = { icon: '\u{1F9E0}', label: 'Thinking', sub: 'Processing observations' };
+  } else if (stageCount <= 10) {
+    state.mood = { icon: '\u{1F4CB}', label: 'Planning', sub: 'Evaluating options' };
+  } else if (stageCount <= 13) {
+    state.mood = { icon: '\u{2699}\uFE0F', label: 'Deciding', sub: 'Selecting action' };
+  } else {
+    state.mood = { icon: '\u{1F4AA}', label: 'Executing', sub: 'Running pipeline' };
+  }
+
+  if (thoughtCount > 5) {
+    state.mood = { icon: '\u{1F3A8}', label: 'Creative', sub: 'Multiple ideas generated' };
+  }
+
   emit('mood', state.mood);
 }
 
-function updateConfidence() {
-  state.confidence.primary = Math.min(99, Math.max(50, state.confidence.primary + randInt(-5, 5)));
-  state.confidence.altValue = 100 - state.confidence.primary;
-  emit('confidence', state.confidence);
-}
-
-function updateFocus() {
-  state.focus = pick(focusAreas);
-  emit('focus', state.focus);
+// ─── Time Update (always real) ───
+function updateTime() {
+  const now = new Date();
+  state.time = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+  emit('time', state.time);
 }
 
 // ─── Start Data Engine ───
@@ -257,22 +361,31 @@ export function startDataEngine() {
   updateTime();
   intervals = [
     setInterval(updateTime, 1000),
-    setInterval(updateCpu, 3000),
-    setInterval(updateCognition, 4000),
-    setInterval(updateGoal, 5000),
-    setInterval(updatePrediction, 6000),
-    setInterval(updateTasks, 3500),
-    setInterval(updateMemories, 7000),
-    setInterval(updateSensors, 2500),
-    setInterval(addThought, 3000),
-    setInterval(updateWorldModel, 5500),
-    setInterval(updateMood, 8000),
-    setInterval(updateConfidence, 4500),
-    setInterval(updateFocus, 6500),
   ];
+
+  // Connect to SSE stream
+  connectSSE();
+
+  // If no connection after 2s, populate with minimal defaults
+  setTimeout(() => {
+    if (!state.connected) {
+      state.cognition = 'Awaiting runtime connection...';
+      state.mood = { icon: '\u{1F4E1}', label: 'Connecting', sub: 'Waiting for API server' };
+      emit('cognition', state.cognition);
+      emit('mood', state.mood);
+    }
+  }, 2000);
 }
 
 export function stopDataEngine() {
   intervals.forEach(clearInterval);
   intervals = [];
+  if (eventSource) {
+    eventSource.close();
+    eventSource = null;
+  }
+  if (reconnectTimer) {
+    clearTimeout(reconnectTimer);
+    reconnectTimer = null;
+  }
 }

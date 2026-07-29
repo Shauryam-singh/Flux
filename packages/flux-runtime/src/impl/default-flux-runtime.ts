@@ -69,6 +69,10 @@ export class DefaultFluxRuntime implements FluxRuntime {
   private lastScreenApp = "";
   private lastScreenTitle = "";
   private lastPipelineDurationMs: number | null = null;
+  private lastPipelineResult: CognitionResult | null = null;
+  private recentThoughts: Array<{ type: string; content: string; confidence: number; timestamp: number }> = [];
+  private recentActions: Array<{ type: string; reasoning: string; confidence: number; timestamp: number }> = [];
+  private recentSensorEvents: Array<{ sensorId: string; type: string; timestamp: number; priority: string }> = [];
 
   constructor(config: FluxRuntimeConfig) {
     this.config = config;
@@ -137,8 +141,24 @@ export class DefaultFluxRuntime implements FluxRuntime {
       interruptController,
       {
         llmProvider: this.llmProvider,
-        onAction: () => {},
-        onThought: () => {},
+        onAction: (decision) => {
+          this.recentActions.push({
+            type: decision.action.type,
+            reasoning: decision.reasoning,
+            confidence: decision.action.confidence,
+            timestamp: decision.timestamp,
+          });
+          if (this.recentActions.length > 50) this.recentActions.shift();
+        },
+        onThought: (thought) => {
+          this.recentThoughts.push({
+            type: thought.type,
+            content: thought.content,
+            confidence: thought.confidence,
+            timestamp: thought.timestamp,
+          });
+          if (this.recentThoughts.length > 50) this.recentThoughts.shift();
+        },
       },
     );
 
@@ -192,6 +212,15 @@ export class DefaultFluxRuntime implements FluxRuntime {
 
     // Wire sensor events to attention system
     this.sensors.onEvent((event) => {
+      // Track recent sensor events for streaming
+      this.recentSensorEvents.push({
+        sensorId: event.sensorId,
+        type: event.type,
+        timestamp: event.timestamp,
+        priority: event.priority,
+      });
+      if (this.recentSensorEvents.length > 100) this.recentSensorEvents.shift();
+
       if (this.cognitiveReady && this.running) {
         const observation = {
           id: `${event.sensorId}_${event.timestamp}`,
@@ -236,11 +265,11 @@ export class DefaultFluxRuntime implements FluxRuntime {
     // Start our observation gathering loop
     const tickMs = this.config.backgroundTickMs ?? 5000;
     this.backgroundTimer = setInterval(() => {
-      this.runTick();
+      void this.runTick();
     }, tickMs);
 
     // Run first tick immediately
-    this.runTick();
+    void this.runTick();
   }
 
   stop(): void {
@@ -284,7 +313,7 @@ export class DefaultFluxRuntime implements FluxRuntime {
     return this.thoughtGraph.getStrongestThoughts(limit);
   }
 
-  private runTick(): void {
+  private async runTick(): Promise<void> {
     if (!this.running) return;
 
     const tickStart = Date.now();
@@ -301,13 +330,33 @@ export class DefaultFluxRuntime implements FluxRuntime {
     // Run the 14-stage cognition pipeline
     let pipelineResult: CognitionResult | undefined;
     try {
-      // Use a synchronous wrapper for the async pipeline
-      this.pipeline.runTick().then((result) => {
-        this.lastPipelineDurationMs = result.durationMs;
-        pipelineResult = result;
-      }).catch(() => {
-        // Pipeline errors are non-fatal
-      });
+      pipelineResult = await this.pipeline.runTick();
+      this.lastPipelineDurationMs = pipelineResult.durationMs;
+      this.lastPipelineResult = pipelineResult;
+
+      // Extract thoughts from pipeline result for streaming
+      for (const thought of pipelineResult.thoughts) {
+        this.recentThoughts.push({
+          type: thought.type,
+          content: thought.content,
+          confidence: thought.confidence.value,
+          timestamp: thought.timestamp,
+        });
+      }
+      if (this.recentThoughts.length > 50) {
+        this.recentThoughts = this.recentThoughts.slice(-50);
+      }
+
+      // Extract selected action
+      if (pipelineResult.selectedAction) {
+        this.recentActions.push({
+          type: pipelineResult.selectedAction.type,
+          reasoning: pipelineResult.selectedAction.reasoning,
+          confidence: pipelineResult.selectedAction.confidence,
+          timestamp: Date.now(),
+        });
+        if (this.recentActions.length > 50) this.recentActions.shift();
+      }
     } catch {
       // Pipeline errors are non-fatal
     }
@@ -320,6 +369,7 @@ export class DefaultFluxRuntime implements FluxRuntime {
       observations: observationsGathered,
       cognitiveCycleRan: true,
       duration: Date.now() - tickStart,
+      pipelineResult,
     };
 
     // Notify tick handlers
@@ -619,6 +669,49 @@ export class DefaultFluxRuntime implements FluxRuntime {
       totalSensorEvents: sensorState.totalEvents,
       cognitiveMemoryCount: memStats.totalMemories,
       memoryStats: memStats,
+    };
+  }
+
+  async getStreamingSnapshot(): Promise<{
+    readonly state: FluxRuntimeState;
+    readonly pipelineResult: CognitionResult | null;
+    readonly recentThoughts: ReadonlyArray<{ type: string; content: string; confidence: number; timestamp: number }>;
+    readonly recentActions: ReadonlyArray<{ type: string; reasoning: string; confidence: number; timestamp: number }>;
+    readonly recentSensorEvents: ReadonlyArray<{ sensorId: string; type: string; timestamp: number; priority: string }>;
+    readonly goals: ReadonlyArray<{ id: string; title: string; status: string; progress: number }>;
+    readonly worldState: ReturnType<DefaultWorldModel["getState"]>;
+    readonly sensorSnapshots: Record<string, unknown>;
+  }> {
+    const goals = this.goalManager.getAll().map((g) => ({
+      id: g.id,
+      title: g.title,
+      status: g.status,
+      progress: g.progress,
+    }));
+
+    // Gather sensor snapshots
+    const sensorSnapshots: Record<string, unknown> = {};
+    for (const sensorId of ["git", "docker", "battery", "idle", "clipboard", "spotify", "audio", "notifications"] as const) {
+      try {
+        const sensor = this.sensors.get(sensorId);
+        if (sensor) {
+          const snap = await sensor.snapshot();
+          if (snap) sensorSnapshots[sensorId] = snap;
+        }
+      } catch {
+        // Best-effort
+      }
+    }
+
+    return {
+      state: this.getState(),
+      pipelineResult: this.lastPipelineResult,
+      recentThoughts: this.recentThoughts.slice(-20),
+      recentActions: this.recentActions.slice(-10),
+      recentSensorEvents: this.recentSensorEvents.slice(-30),
+      goals,
+      worldState: this.worldModel.getState(),
+      sensorSnapshots,
     };
   }
 

@@ -146,6 +146,60 @@ const server = createServer(async (req, res) => {
     return;
   }
 
+  // ─── SSE Event Stream ──────────────────────────────────────────
+  if (req.method === "GET" && req.url === "/events") {
+    res.writeHead(200, {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      "Connection": "keep-alive",
+      "Access-Control-Allow-Origin": "*",
+    });
+
+    // Send initial snapshot
+    try {
+      const snapshot = await flux.runtime.getStreamingSnapshot();
+      res.write(`data: ${JSON.stringify({ type: "snapshot", ...snapshot })}\n\n`);
+    } catch {
+      // Best-effort
+    }
+
+    // Subscribe to tick events
+    const unsubscribe = flux.runtime.onTick(async (event) => {
+      try {
+        const snapshot = await flux.runtime.getStreamingSnapshot();
+        res.write(`data: ${JSON.stringify({ type: "tick", tickNumber: event.tickNumber, timestamp: event.timestamp, duration: event.duration, observations: event.observations, ...snapshot })}\n\n`);
+      } catch {
+        // Best-effort — send minimal tick data
+        res.write(`data: ${JSON.stringify({ type: "tick", tickNumber: event.tickNumber, timestamp: event.timestamp, duration: event.duration, observations: event.observations })}\n\n`);
+      }
+    });
+
+    // Heartbeat every 15s to keep connection alive
+    const heartbeat = setInterval(() => {
+      res.write(`: heartbeat\n\n`);
+    }, 15000);
+
+    // Cleanup on disconnect
+    req.on("close", () => {
+      unsubscribe();
+      clearInterval(heartbeat);
+    });
+
+    return;
+  }
+
+  // ─── One-shot state fetch ──────────────────────────────────────
+  if (req.method === "GET" && req.url === "/state") {
+    try {
+      const snapshot = await flux.runtime.getStreamingSnapshot();
+      sendJson(res, 200, snapshot);
+    } catch (err) {
+      const error = err instanceof Error ? err.message : String(err);
+      sendJson(res, 500, { error });
+    }
+    return;
+  }
+
   if (req.method === "POST" && req.url === "/chat") {
     try {
       const body = await parseBody(req);
@@ -371,6 +425,8 @@ server.listen(PORT, () => {
   console.log(`Endpoints:`);
   console.log(`  POST /chat                - Send a message`);
   console.log(`  POST /chat/stream         - Send a message (SSE streaming)`);
+  console.log(`  GET  /events              - SSE event stream (runtime events)`);
+  console.log(`  GET  /state               - One-shot state snapshot`);
   console.log(`  POST /voice/transcribe    - Transcribe audio (base64 WAV)`);
   console.log(`  POST /voice/speak         - Text to speech (returns WAV)`);
   console.log(`  POST /attention/process   - Process an observation event`);

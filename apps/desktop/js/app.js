@@ -172,7 +172,9 @@ async function startVoice() {
           });
           const data = await resp.json();
           if (data.text) {
-            UI.showToast(`Transcribed: "${data.text}"`, 'success', 4000);
+            UI.showToast(`You said: "${data.text}"`, 'success', 3000);
+            // Send as chat and speak reply
+            await sendChatMessageDirect(data.text, true);
           } else {
             UI.showToast('No speech detected', 'warning', 3000);
           }
@@ -198,7 +200,9 @@ async function stopVoice() {
   // Try Tauri first
   const tauriResult = await invokeTauri('stop_recording');
   if (tauriResult && tauriResult !== null) {
-    UI.showToast(`Transcribed: "${tauriResult}"`, 'success', 4000);
+    UI.showToast(`You said: "${tauriResult}"`, 'success', 3000);
+    // Send as chat and speak reply
+    await sendChatMessageDirect(tauriResult, true);
     return;
   }
 
@@ -385,6 +389,56 @@ function switchTab(tabName) {
     UI.renderMemoryPage();
   } else if (tabName === 'graph') {
     startGraph();
+  } else if (tabName === 'goals') {
+    fetchAndRenderGoals();
+  } else if (tabName === 'projects') {
+    fetchAndRenderProjects();
+  } else if (tabName === 'agents') {
+    fetchAndRenderAgents();
+  } else if (tabName === 'timeline') {
+    fetchAndRenderTimeline();
+  } else if (tabName === 'settings') {
+    UI.renderSettingsDetail();
+  }
+}
+
+async function fetchAndRenderGoals() {
+  try {
+    const resp = await fetch('http://localhost:3141/goals');
+    const data = await resp.json();
+    UI.renderGoalsDetail(data.goals || []);
+  } catch {
+    UI.renderGoalsDetail([]);
+  }
+}
+
+async function fetchAndRenderProjects() {
+  try {
+    const resp = await fetch('http://localhost:3141/projects');
+    const data = await resp.json();
+    UI.renderProjectsDetail(data.projects || []);
+  } catch {
+    UI.renderProjectsDetail([]);
+  }
+}
+
+async function fetchAndRenderAgents() {
+  try {
+    const resp = await fetch('http://localhost:3141/agents');
+    const data = await resp.json();
+    UI.renderAgentsDetail(data.agents || []);
+  } catch {
+    UI.renderAgentsDetail([]);
+  }
+}
+
+async function fetchAndRenderTimeline() {
+  try {
+    const resp = await fetch('http://localhost:3141/timeline?limit=30');
+    const data = await resp.json();
+    UI.renderTimelineDetail(data.events || []);
+  } catch {
+    UI.renderTimelineDetail([]);
   }
 }
 
@@ -525,13 +579,14 @@ async function sendChatMessage() {
   await sendChatMessageDirect(message);
 }
 
-async function sendChatMessageDirect(message) {
+async function sendChatMessageDirect(message, speak = false) {
   UI.showToast('Sending...', 'info', 2000);
 
   // Try Tauri first
   const tauriResult = await invokeTauri('send_message', { message });
   if (tauriResult !== null) {
     UI.showToast(`Flux: ${tauriResult}`, 'success', 5000);
+    if (speak) await speakText(tauriResult);
     return;
   }
 
@@ -545,6 +600,7 @@ async function sendChatMessageDirect(message) {
     const data = await resp.json();
     if (data.reply) {
       UI.showToast(`Flux: ${data.reply}`, 'success', 5000);
+      if (speak) await speakText(data.reply);
     } else {
       UI.showToast('No response from Flux', 'warning', 3000);
     }
@@ -583,6 +639,87 @@ function init() {
   startDataEngine();
   startParticles();
   setMode('dormant');
+  // Show startup briefing after a short delay
+  setTimeout(showStartupBriefing, 2500);
+}
+
+// ─── Startup Briefing ───
+
+async function showStartupBriefing() {
+  let briefingData;
+  try {
+    const resp = await fetch('http://localhost:3141/briefing');
+    if (!resp.ok) return;
+    briefingData = await resp.json();
+  } catch {
+    return; // API not running, skip briefing
+  }
+
+  const { episodic = [], reflections = [], goals = [], experiences = [], memoryStats } = briefingData;
+
+  // Build briefing text
+  const lines = [];
+  lines.push('Good ' + getGreeting() + '. Here\'s where things stand:\n');
+
+  // Yesterday's activity
+  if (episodic.length > 0) {
+    lines.push('<strong>Recent Activity:</strong>');
+    episodic.slice(0, 5).forEach(e => {
+      lines.push(`\u2022 ${escapeHtml(e.event || e.content || '')}`);
+    });
+    lines.push('');
+  }
+
+  // Goals
+  const activeGoals = goals.filter(g => g.status === 'active' || g.status === 'in_progress');
+  if (activeGoals.length > 0) {
+    lines.push('<strong>Active Goals:</strong>');
+    activeGoals.forEach(g => {
+      lines.push(`\u2022 ${escapeHtml(g.title || g.name)} — ${g.progress || 0}%`);
+    });
+    lines.push('');
+  }
+
+  // Reflections
+  if (reflections.length > 0) {
+    lines.push('<strong>Reflections:</strong>');
+    reflections.slice(0, 3).forEach(r => {
+      lines.push(`\u2022 ${escapeHtml(r.content || '')}`);
+    });
+    lines.push('');
+  }
+
+  // Memory stats
+  if (memoryStats) {
+    lines.push(`<strong>Memory:</strong> ${memoryStats.totalMemories || 0} memories stored`);
+  }
+
+  if (lines.length <= 2) return; // Nothing to show
+
+  const modal = document.createElement('div');
+  modal.id = 'briefing-modal';
+  modal.innerHTML = `
+    <div class="palette-backdrop" style="position:fixed;inset:0;background:rgba(0,0,0,0.5);backdrop-filter:blur(4px);z-index:999;"></div>
+    <div style="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:480px;max-height:70vh;overflow-y:auto;background:rgba(25,30,40,0.95);backdrop-filter:blur(24px);border:1px solid rgba(85,214,255,0.15);border-radius:16px;padding:24px;z-index:1000;box-shadow:0 8px 32px rgba(0,0,0,0.5);">
+      <h2 style="font-size:16px;font-weight:600;color:#55D6FF;margin-bottom:16px;">\u{1F44B} Briefing</h2>
+      <div style="font-size:13px;color:#F5F7FA;line-height:1.7;white-space:pre-line;">${lines.join('\n')}</div>
+      <button id="briefing-close-btn" style="width:100%;padding:10px;margin-top:16px;border-radius:8px;background:rgba(85,214,255,0.1);border:1px solid rgba(85,214,255,0.2);color:#55D6FF;font-size:12px;cursor:pointer;">Got it</button>
+    </div>
+  `;
+  document.body.appendChild(modal);
+
+  document.getElementById('briefing-close-btn').addEventListener('click', () => modal.remove());
+  modal.querySelector('.palette-backdrop').addEventListener('click', () => modal.remove());
+
+  // Auto-dismiss after 15s
+  setTimeout(() => { if (modal.parentNode) modal.remove(); }, 15000);
+}
+
+function getGreeting() {
+  const h = new Date().getHours();
+  if (h < 12) return 'morning';
+  if (h < 17) return 'afternoon';
+  return 'evening';
 }
 
 if (document.readyState === 'loading') {

@@ -6,6 +6,15 @@ import type { LlmProvider } from "@ai-agent/services-core";
 import type { DefaultThoughtGraph, CognitionResult } from "@ai-agent/thought-graph";
 import type { SensorManager } from "@ai-agent/sensors";
 import type { MemoryManager } from "@ai-agent/cognitive-memory";
+import type { DefaultGoalManager } from "@ai-agent/goals";
+import type { DefaultWorldModel } from "@ai-agent/world-model";
+import type { DefaultWorkingMemory } from "@ai-agent/working-memory";
+import type { DefaultExperienceDatabase } from "@ai-agent/experience-db";
+import type { DefaultMetaCognitionEngine } from "@ai-agent/meta-cognition";
+import type { DefaultStrategyLibrary } from "@ai-agent/strategy-library";
+import type { DefaultConfidenceCalibration } from "@ai-agent/confidence-calibration";
+import type { DefaultKnowledgeConsolidation } from "@ai-agent/knowledge-consolidation";
+import type { DefaultHabitDiscovery } from "@ai-agent/habit-discovery";
 
 export interface FluxRuntimeConfig {
   readonly provider: ProviderName;
@@ -53,6 +62,15 @@ export interface FluxRuntime {
   readonly thoughtGraph: DefaultThoughtGraph;
   readonly sensors: SensorManager;
   readonly memory: MemoryManager;
+  readonly goalManager: DefaultGoalManager;
+  readonly worldModel: InstanceType<typeof DefaultWorldModel>;
+  readonly workingMemory: InstanceType<typeof DefaultWorkingMemory>;
+  readonly experienceDb: DefaultExperienceDatabase;
+  readonly metaCognition: DefaultMetaCognitionEngine;
+  readonly strategyLibrary: DefaultStrategyLibrary;
+  readonly confidenceCalibration: DefaultConfidenceCalibration;
+  readonly knowledge: DefaultKnowledgeConsolidation;
+  readonly habits: DefaultHabitDiscovery;
   process(input: string): Promise<FluxRuntimeResult>;
   processEvent(event: { source: ObservationSource; title: string; detail: string }): {
     readonly action: "ignore" | "buffer" | "immediate" | "summarize";

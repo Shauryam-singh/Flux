@@ -207,6 +207,277 @@ export function renderMemoryPage() {
   });
 }
 
+// ─── Dashboard Goals Detail ───
+
+export function renderGoalsDetail(goals) {
+  const el = document.getElementById('goals-detail');
+  if (!el) return;
+
+  if (!goals || goals.length === 0) {
+    el.innerHTML = '<div class="empty-state">No goals yet. Flux will create goals as it observes your work.</div>';
+    return;
+  }
+
+  el.innerHTML = goals.map(g => {
+    const statusClass = g.status === 'completed' ? 'success' : g.status === 'blocked' ? 'error' : g.status === 'active' || g.status === 'in_progress' ? 'accent' : 'muted';
+    const progress = g.progress || 0;
+    const blockers = (g.blockers || []).filter(b => !b.resolvedAt);
+    return `
+      <div class="goal-card">
+        <div class="goal-card-header">
+          <span class="goal-card-title">${escapeHtml(g.title || g.name || 'Untitled')}</span>
+          <span class="goal-card-status ${statusClass}">${escapeHtml(g.status)}</span>
+        </div>
+        ${g.description ? `<div class="goal-card-desc">${escapeHtml(g.description)}</div>` : ''}
+        <div class="goal-card-progress">
+          <div class="progress-track"><div class="progress-fill" style="width:${progress}%"></div></div>
+          <span class="goal-card-percent">${progress}%</span>
+        </div>
+        ${blockers.length > 0 ? `<div class="goal-card-blockers">${blockers.map(b => `<span class="blocker-tag">\u26A0 ${escapeHtml(b.description)}</span>`).join('')}</div>` : ''}
+        <div class="goal-card-meta">
+          <span>Priority: ${g.priority || 'normal'}</span>
+          <span>Source: ${escapeHtml(g.source || 'unknown')}</span>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+// ─── Dashboard Projects Detail ───
+
+export function renderProjectsDetail(projects) {
+  const el = document.getElementById('projects-detail');
+  if (!el) return;
+
+  if (!projects || projects.length === 0) {
+    el.innerHTML = '<div class="empty-state">No projects tracked yet.</div>';
+    return;
+  }
+
+  el.innerHTML = projects.map(p => `
+    <div class="project-card">
+      <div class="project-card-header">
+        <span class="project-card-name">${escapeHtml(p.name)}</span>
+        <span class="project-card-status ${p.status === 'active' ? 'accent' : 'muted'}">${escapeHtml(p.status)}</span>
+      </div>
+      <div class="project-card-desc">${escapeHtml(p.description || '')}</div>
+      <div class="project-card-meta">
+        ${p.packages ? `<span>${p.packages} packages</span>` : ''}
+        <span>Last: ${timeAgo(p.lastActivity)}</span>
+      </div>
+    </div>
+  `).join('');
+}
+
+// ─── Dashboard Agents Detail ───
+
+export function renderAgentsDetail(agents) {
+  const el = document.getElementById('agents-detail');
+  if (!el) return;
+
+  if (!agents || agents.length === 0) {
+    el.innerHTML = '<div class="empty-state">No agents registered.</div>';
+    return;
+  }
+
+  el.innerHTML = agents.map(a => {
+    const statusClass = a.status === 'active' ? 'success' : a.status === 'idle' ? 'accent' : 'muted';
+    return `
+      <div class="agent-card">
+        <div class="agent-card-header">
+          <span class="agent-card-name">${escapeHtml(a.name)}</span>
+          <span class="agent-card-status ${statusClass}">${escapeHtml(a.status)}</span>
+        </div>
+        <div class="agent-card-caps">${(a.capabilities || []).map(c => `<span class="cap-tag">${escapeHtml(c)}</span>`).join('')}</div>
+        <div class="agent-card-meta">
+          <span>Tasks: ${a.tasks || 0}/${a.maxTasks || 1}</span>
+          <span>Success: ${Math.round((a.successRate || 0) * 100)}%</span>
+          <span>Priority: ${a.priority || '-'}</span>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+// ─── Dashboard Timeline Detail ───
+
+export function renderTimelineDetail(events) {
+  const el = document.getElementById('timeline-detail');
+  if (!el) return;
+
+  if (!events || events.length === 0) {
+    el.innerHTML = '<div class="empty-state">No timeline events yet. Flux will record events as it runs.</div>';
+    return;
+  }
+
+  el.innerHTML = `<div class="timeline-list">${events.map(e => {
+    const icon = getTimelineIcon(e.type || e.category);
+    return `
+      <div class="timeline-entry">
+        <div class="timeline-dot"></div>
+        <div class="timeline-content">
+          <div class="timeline-title">${icon} ${escapeHtml(e.event || e.content || e.title || '')}</div>
+          <div class="timeline-detail">${escapeHtml(e.context || e.detail || '')}</div>
+          <div class="timeline-time">${timeAgo(e.timestamp)}</div>
+        </div>
+      </div>
+    `;
+  }).join('')}</div>`;
+}
+
+// ─── Dashboard Settings Detail ───
+
+export function renderSettingsDetail() {
+  const el = document.getElementById('settings-detail');
+  if (!el) return;
+
+  el.innerHTML = `
+    <div class="settings-grid">
+      <div class="settings-section">
+        <h3 class="settings-section-title">Model</h3>
+        <div class="settings-row">
+          <label class="settings-label">LLM Model</label>
+          <select id="setting-model" class="settings-select">
+            <option value="qwen2.5-coder:7b" selected>qwen2.5-coder:7b</option>
+            <option value="qwen2.5-coder:14b">qwen2.5-coder:14b</option>
+            <option value="qwen2.5-coder:32b">qwen2.5-coder:32b</option>
+            <option value="llama3.1:8b">llama3.1:8b</option>
+            <option value="llama3.1:70b">llama3.1:70b</option>
+            <option value="deepseek-coder:6.7b">deepseek-coder:6.7b</option>
+            <option value="codellama:13b">codellama:13b</option>
+          </select>
+        </div>
+        <div class="settings-row">
+          <label class="settings-label">Ollama URL</label>
+          <input type="text" id="setting-ollama-url" class="settings-input" value="http://localhost:11434" />
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <h3 class="settings-section-title">Voice</h3>
+        <div class="settings-row">
+          <label class="settings-label">Auto-speak replies</label>
+          <label class="settings-toggle">
+            <input type="checkbox" id="setting-voice-autospeak" checked>
+            <span class="settings-toggle-slider"></span>
+          </label>
+        </div>
+        <div class="settings-row">
+          <label class="settings-label">Voice wake word</label>
+          <label class="settings-toggle">
+            <input type="checkbox" id="setting-voice-wake" checked>
+            <span class="settings-toggle-slider"></span>
+          </label>
+        </div>
+        <div class="settings-row">
+          <label class="settings-label">Speech rate</label>
+          <input type="range" id="setting-speech-rate" class="settings-range" min="0.5" max="2" step="0.1" value="1">
+          <span id="setting-speech-rate-val" class="settings-range-val">1.0x</span>
+        </div>
+        <div class="settings-row">
+          <label class="settings-label">Speech pitch</label>
+          <input type="range" id="setting-speech-pitch" class="settings-range" min="0.5" max="1.5" step="0.1" value="0.9">
+          <span id="setting-speech-pitch-val" class="settings-range-val">0.9</span>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <h3 class="settings-section-title">Cognition</h3>
+        <div class="settings-row">
+          <label class="settings-label">Background tick interval</label>
+          <select id="setting-tick-interval" class="settings-select">
+            <option value="2000">2s (fast)</option>
+            <option value="5000" selected>5s (normal)</option>
+            <option value="10000">10s (slow)</option>
+            <option value="30000">30s (minimal)</option>
+          </select>
+        </div>
+        <div class="settings-row">
+          <label class="settings-label">Max memory capacity</label>
+          <select id="setting-memory-cap" class="settings-select">
+            <option value="50">50 entries</option>
+            <option value="100" selected>100 entries</option>
+            <option value="500">500 entries</option>
+            <option value="1000">1000 entries</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <h3 class="settings-section-title">Sensors</h3>
+        <div class="settings-row">
+          <label class="settings-label">Git</label>
+          <label class="settings-toggle"><input type="checkbox" id="sensor-git" checked><span class="settings-toggle-slider"></span></label>
+        </div>
+        <div class="settings-row">
+          <label class="settings-label">Filesystem</label>
+          <label class="settings-toggle"><input type="checkbox" id="sensor-fs" checked><span class="settings-toggle-slider"></span></label>
+        </div>
+        <div class="settings-row">
+          <label class="settings-label">Clipboard</label>
+          <label class="settings-toggle"><input type="checkbox" id="sensor-clipboard" checked><span class="settings-toggle-slider"></span></label>
+        </div>
+        <div class="settings-row">
+          <label class="settings-label">Docker</label>
+          <label class="settings-toggle"><input type="checkbox" id="sensor-docker" checked><span class="settings-toggle-slider"></span></label>
+        </div>
+        <div class="settings-row">
+          <label class="settings-label">Battery</label>
+          <label class="settings-toggle"><input type="checkbox" id="sensor-battery" checked><span class="settings-toggle-slider"></span></label>
+        </div>
+        <div class="settings-row">
+          <label class="settings-label">Audio</label>
+          <label class="settings-toggle"><input type="checkbox" id="sensor-audio" checked><span class="settings-toggle-slider"></span></label>
+        </div>
+        <div class="settings-row">
+          <label class="settings-label">Notifications</label>
+          <label class="settings-toggle"><input type="checkbox" id="sensor-notif" checked><span class="settings-toggle-slider"></span></label>
+        </div>
+        <div class="settings-row">
+          <label class="settings-label">Spotify</label>
+          <label class="settings-toggle"><input type="checkbox" id="sensor-spotify" checked><span class="settings-toggle-slider"></span></label>
+        </div>
+        <div class="settings-row">
+          <label class="settings-label">Idle detection</label>
+          <label class="settings-toggle"><input type="checkbox" id="sensor-idle" checked><span class="settings-toggle-slider"></span></label>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <h3 class="settings-section-title">Appearance</h3>
+        <div class="settings-row">
+          <label class="settings-label">Particle effects</label>
+          <label class="settings-toggle"><input type="checkbox" id="setting-particles" checked><span class="settings-toggle-slider"></span></label>
+        </div>
+        <div class="settings-row">
+          <label class="settings-label">Always on top</label>
+          <label class="settings-toggle"><input type="checkbox" id="setting-always-top" checked><span class="settings-toggle-slider"></span></label>
+        </div>
+        <div class="settings-row">
+          <label class="settings-label">Start minimized</label>
+          <label class="settings-toggle"><input type="checkbox" id="setting-start-min"><span class="settings-toggle-slider"></span></label>
+        </div>
+      </div>
+    </div>
+    <div class="settings-actions">
+      <button id="settings-save" class="settings-btn primary">Save Settings</button>
+      <button id="settings-reset" class="settings-btn">Reset to Defaults</button>
+    </div>
+  `;
+
+  // Wire up range sliders
+  const rateSlider = document.getElementById('setting-speech-rate');
+  const rateVal = document.getElementById('setting-speech-rate-val');
+  if (rateSlider && rateVal) {
+    rateSlider.addEventListener('input', () => { rateVal.textContent = rateSlider.value + 'x'; });
+  }
+  const pitchSlider = document.getElementById('setting-speech-pitch');
+  const pitchVal = document.getElementById('setting-speech-pitch-val');
+  if (pitchSlider && pitchVal) {
+    pitchSlider.addEventListener('input', () => { pitchVal.textContent = pitchSlider.value; });
+  }
+}
+
 // ─── Voice Recording Indicator ───
 
 export function setVoiceRecording(recording) {
@@ -296,4 +567,30 @@ function getStageName(stage) {
     'Store', 'Explain', 'Sleep',
   ];
   return stages[stage - 1] || 'Unknown';
+}
+
+function timeAgo(ts) {
+  if (!ts) return 'Unknown';
+  const diff = Date.now() - ts;
+  if (diff < 60000) return 'Just now';
+  if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
+  if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
+  return `${Math.floor(diff / 86400000)}d ago`;
+}
+
+function getTimelineIcon(type) {
+  const icons = {
+    interaction: '\u{1F4AC}',
+    observation: '\u{1F441}',
+    reflection: '\u{1F914}',
+    milestone: '\u{1F3C6}',
+    suggestion: '\u{1F4A1}',
+    error: '\u{26A0}',
+    commit: '\u{1F4DD}',
+    goal: '\u{1F3AF}',
+    conversation: '\u{1F5E3}',
+    build: '\u{1F527}',
+    test: '\u{2705}',
+  };
+  return icons[type] || '\u{2022}';
 }

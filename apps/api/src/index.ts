@@ -417,6 +417,127 @@ const server = createServer(async (req, res) => {
     return;
   }
 
+  // ─── Goals (full detail) ────────────────────────────────────────
+  if (req.method === "GET" && req.url === "/goals") {
+    const goals = flux.runtime.goalManager.getAll();
+    sendJson(res, 200, { goals });
+    return;
+  }
+
+  // ─── Memory stats ──────────────────────────────────────────────
+  if (req.method === "GET" && req.url === "/memory/stats") {
+    const stats = flux.runtime.memory.getStats();
+    sendJson(res, 200, stats);
+    return;
+  }
+
+  // ─── Episodic memories (for briefing) ──────────────────────────
+  if (req.method === "GET" && req.url === "/memory/episodic") {
+    const url = new URL(req.url ?? "/", `http://localhost:${PORT}`);
+    const maxAgeMs = parseInt(url.searchParams.get("maxAge") ?? String(24 * 60 * 60 * 1000), 10);
+    const limit = parseInt(url.searchParams.get("limit") ?? "20", 10);
+    const result = flux.runtime.memory.query({
+      types: ["episodic"],
+      maxAge: maxAgeMs,
+      sortBy: "recency",
+      limit,
+    });
+    sendJson(res, 200, { memories: result.memories, total: result.totalMatches });
+    return;
+  }
+
+  // ─── Timeline (from memory) ────────────────────────────────────
+  if (req.method === "GET" && req.url === "/timeline") {
+    const url = new URL(req.url ?? "/", `http://localhost:${PORT}`);
+    const limit = parseInt(url.searchParams.get("limit") ?? "30", 10);
+    const timelineMems = flux.runtime.memory.getTimeline();
+    sendJson(res, 200, { events: timelineMems.slice(0, limit) });
+    return;
+  }
+
+  // ─── Habits ────────────────────────────────────────────────────
+  if (req.method === "GET" && req.url === "/habits") {
+    const habits = flux.runtime.habits.getAll();
+    sendJson(res, 200, { habits });
+    return;
+  }
+
+  // ─── Experiences ───────────────────────────────────────────────
+  if (req.method === "GET" && req.url === "/experiences") {
+    const url = new URL(req.url ?? "/", `http://localhost:${PORT}`);
+    const limit = parseInt(url.searchParams.get("limit") ?? "20", 10);
+    const experiences = flux.runtime.experienceDb.getRecent(limit);
+    sendJson(res, 200, { experiences });
+    return;
+  }
+
+  // ─── Agents (built-in agent definitions) ───────────────────────
+  if (req.method === "GET" && req.url === "/agents") {
+    const agents = [
+      { id: "coder", name: "Code Agent", status: "active", capabilities: ["code_generation", "refactoring", "debugging"], priority: 1, successRate: 0.85, tasks: 0, maxTasks: 3 },
+      { id: "researcher", name: "Research Agent", status: "active", capabilities: ["web_search", "documentation", "analysis"], priority: 2, successRate: 0.80, tasks: 0, maxTasks: 2 },
+      { id: "reviewer", name: "Review Agent", status: "idle", capabilities: ["code_review", "security_audit", "performance"], priority: 3, successRate: 0.90, tasks: 0, maxTasks: 2 },
+      { id: "planner", name: "Planning Agent", status: "active", capabilities: ["task_decomposition", "scheduling", "prioritization"], priority: 1, successRate: 0.88, tasks: 0, maxTasks: 1 },
+      { id: "monitor", name: "Monitor Agent", status: "active", capabilities: ["system_monitoring", "alerting", "diagnostics"], priority: 2, successRate: 0.92, tasks: 0, maxTasks: 5 },
+    ];
+    sendJson(res, 200, { agents });
+    return;
+  }
+
+  // ─── Projects ──────────────────────────────────────────────────
+  if (req.method === "GET" && req.url === "/projects") {
+    const projectMems = flux.runtime.memory.getProject();
+    const projects = [
+      { name: "Flux AI OS", description: "AI operating system with 6 architectural phases", status: "active", packages: 86, lastActivity: Date.now() },
+      ...projectMems.map((m) => ({
+        name: m.projectName || "Unknown",
+        description: m.content?.slice(0, 100) || "",
+        status: "active" as const,
+        packages: 0,
+        lastActivity: m.timestamp,
+      })),
+    ];
+    // Deduplicate by name
+    const seen = new Set<string>();
+    const unique = projects.filter((p) => {
+      if (seen.has(p.name)) return false;
+      seen.add(p.name);
+      return true;
+    });
+    sendJson(res, 200, { projects: unique.slice(0, 10) });
+    return;
+  }
+
+  // ─── Briefing (yesterday's summary) ────────────────────────────
+  if (req.method === "GET" && req.url === "/briefing") {
+    const oneDayMs = 24 * 60 * 60 * 1000;
+    const episodic = flux.runtime.memory.query({
+      types: ["episodic"],
+      maxAge: oneDayMs,
+      sortBy: "recency",
+      limit: 15,
+    });
+    const reflections = flux.runtime.memory.query({
+      types: ["reflection"],
+      maxAge: oneDayMs,
+      sortBy: "recency",
+      limit: 5,
+    });
+    const goals = flux.runtime.goalManager.getAll();
+    const experiences = flux.runtime.experienceDb.getRecent(10);
+    const stats = flux.runtime.memory.getStats();
+
+    sendJson(res, 200, {
+      episodic: episodic.memories,
+      reflections: reflections.memories,
+      goals,
+      experiences,
+      memoryStats: stats,
+      uptime: Date.now() - flux.runtime.getState().uptime,
+    });
+    return;
+  }
+
   sendJson(res, 404, { error: "Not found" });
 });
 
@@ -427,6 +548,15 @@ server.listen(PORT, () => {
   console.log(`  POST /chat/stream         - Send a message (SSE streaming)`);
   console.log(`  GET  /events              - SSE event stream (runtime events)`);
   console.log(`  GET  /state               - One-shot state snapshot`);
+  console.log(`  GET  /goals               - All goals`);
+  console.log(`  GET  /agents              - Agent definitions`);
+  console.log(`  GET  /projects            - Project data`);
+  console.log(`  GET  /timeline            - Timeline events`);
+  console.log(`  GET  /memory/stats        - Memory statistics`);
+  console.log(`  GET  /memory/episodic     - Recent episodic memories`);
+  console.log(`  GET  /habits              - Detected habits`);
+  console.log(`  GET  /experiences         - Past experiences`);
+  console.log(`  GET  /briefing            - Yesterday's summary`);
   console.log(`  POST /voice/transcribe    - Transcribe audio (base64 WAV)`);
   console.log(`  POST /voice/speak         - Text to speech (returns WAV)`);
   console.log(`  POST /attention/process   - Process an observation event`);

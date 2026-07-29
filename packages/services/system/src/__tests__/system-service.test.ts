@@ -46,7 +46,7 @@ describe("system service", () => {
   it("should return system info", async () => {
     const result = await service.execute("Show system info", ctx);
     expect(result.text).toContain("System Information");
-    expect(result.text).toContain("Platform");
+    expect(result.text).toContain("Hostname");
   });
 
   it("should handle volume commands", async () => {

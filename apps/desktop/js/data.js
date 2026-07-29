@@ -126,9 +126,65 @@ function handleStreamEvent(data) {
       if (newTasks.length > 0) state.tasks = newTasks;
     }
 
-    // Update cognition from pipeline result
+    // Update cognition from pipeline result, or use recentThoughts as fallback
     if (data.pipelineResult) {
       updateCognitionFromPipeline(data.pipelineResult);
+    } else if (data.recentThoughts && data.recentThoughts.length > 0) {
+      // Pipeline hasn't run yet — use recentThoughts to populate dashboard
+      updateThoughtsFromRuntime(data.recentThoughts);
+
+      // Set cognition text from latest thought
+      const latest = data.recentThoughts[data.recentThoughts.length - 1];
+      state.cognition = latest.content.slice(0, 100);
+      emit("cognition", state.cognition);
+
+      // Set confidence from latest thought
+      state.confidence = {
+        belief: latest.content.slice(0, 60),
+        primary: Math.round((latest.confidence || 0.5) * 100),
+        alt: "Waiting for pipeline",
+        altValue: 50,
+      };
+      emit("confidence", state.confidence);
+
+      // Set mood from recent thought types
+      const typeCounts = {};
+      for (const t of data.recentThoughts) {
+        const type = t.type || "unknown";
+        typeCounts[type] = (typeCounts[type] || 0) + 1;
+      }
+      if (typeCounts.concern > 0) {
+        state.mood = { icon: "⚠️", label: "Concerned", sub: `${typeCounts.concern} issue(s) detected` };
+      } else if (typeCounts.pattern_recognition > 1) {
+        state.mood = { icon: "🎨", label: "Insightful", sub: "Patterns recognized" };
+      } else if (typeCounts.observation_interpretation > 0) {
+        state.mood = { icon: "🧠", label: "Thinking", sub: "Processing observations" };
+      } else {
+        state.mood = { icon: "📡", label: "Observing", sub: "Gathering context" };
+      }
+      emit("mood", state.mood);
+
+      // Set memories from recent thoughts
+      state.memories = data.recentThoughts.slice(-3).map((t) => ({
+        badge: t.type === "concern" ? "reflection" : "insight",
+        text: t.content.slice(0, 60),
+      }));
+      emit("memories", state.memories);
+    } else {
+      // No pipeline result and no recent thoughts — show warming up state
+      if (data.type === "snapshot") {
+        state.cognition = "Warming up — first tick pending...";
+        emit("cognition", state.cognition);
+
+        state.mood = { icon: "📡", label: "Connecting", sub: "Starting cognition loop" };
+        emit("mood", state.mood);
+
+        state.confidence = { belief: "No data yet", primary: 0, alt: "Awaiting pipeline", altValue: 0 };
+        emit("confidence", state.confidence);
+
+        state.memories = [{ badge: "insight", text: "Cognition pipeline initializing..." }];
+        emit("memories", state.memories);
+      }
     }
 
     // Update goals
@@ -171,8 +227,8 @@ function handleStreamEvent(data) {
     emit("worldModel", state.worldModel);
     emit("tasks", state.tasks);
 
-    // Fetch supplementary data periodically (not every tick)
-    if (data.tickNumber && data.tickNumber % 5 === 0) {
+    // Fetch supplementary data — on snapshot (initial) and periodically
+    if (data.type === "snapshot" || (data.tickNumber && data.tickNumber % 5 === 0)) {
       fetchTimeline();
       fetchMemoryStats();
     }

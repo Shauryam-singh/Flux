@@ -1,121 +1,117 @@
 // Priority-ordered rules. First match wins.
 // Each rule: [regex, service name]
+// Rules use \b or flexible matching (no ^) to detect intent anywhere in input.
 const RULES: [RegExp, string][] = [
   // ── Notifications (highest priority — alert commands) ──
   [
-    /^(send|create|new|add)\s+(a\s+)?(notification|alert|notify)/i,
+    /\b(send|create|new|add)\s+(a\s+)?(notification|alert|notify)\b/i,
     "notifications",
   ],
   [
-    /^(show|list|view|get|what('s| did))\s*(my\s+)?(unread\s+)?(notifications?|alerts?|messages?)/i,
+    /\b(show|list|view|get|what('s| did))\s*(my\s+)?(unread\s+)?(notifications?|alerts?|messages?)\b/i,
     "notifications",
   ],
-  [/^(what did i miss|any alerts|unread)/i, "notifications"],
-  [/^(mark|set)\s+(all\s+)?(as\s+)?read/i, "notifications"],
+  [/\b(what did i miss|any alerts|unread)\b/i, "notifications"],
+  [/\b(mark|set)\s+(all\s+)?(as\s+)?read\b/i, "notifications"],
   [
-    /^(clear|dismiss|delete)\s+(all\s+)?(notifications?|alerts?)/i,
+    /\b(clear|dismiss|delete)\s+(all\s+)?(notifications?|alerts?)\b/i,
     "notifications",
   ],
   [
-    /^(speak|read aloud|tell me)\s+(my\s+)?(unread\s+)?(notifications?|alerts?)/i,
+    /\b(speak|read aloud|tell me)\s+(my\s+)?(unread\s+)?(notifications?|alerts?)\b/i,
     "notifications",
   ],
 
   // ── Monitor (system health commands) ──
   [
-    /^(show|list|get|what)\s+(my\s+)?(monitor\s+)?(rules?|watches?|alerts?|thresholds?)/i,
+    /\b(show|list|get|what)\s+(my\s+)?(monitor\s+)?(rules?|watches?|alerts?|thresholds?)\b/i,
     "monitor",
   ],
-  [/^(add|create|set|new)\s+(a\s+)?monitor/i, "monitor"],
-  [/^(remove|delete|disable)\s+(rule|monitor|watch)\s*(\d+)?/i, "monitor"],
-  [/^(enable|disable)\s+(rule|monitor|watch)\s*(\d+)?/i, "monitor"],
-  [/^(check|scan|status|health)$/i, "monitor"],
+  [/\b(add|create|set|new)\s+(a\s+)?monitor\b/i, "monitor"],
+  [/\b(remove|delete|disable)\s+(rule|monitor|watch)\s*(\d+)?\b/i, "monitor"],
+  [/\b(enable|disable)\s+(rule|monitor|watch)\s*(\d+)?\b/i, "monitor"],
+  [/\b(check|scan|status|health)\b/i, "monitor"],
 
   // ── Automations (trigger→action rules) ──
   [
-    /^(show|list|get|what)\s+(my\s+)?(automations?|chains?|rules?)/i,
+    /\b(show|list|get|what)\s+(my\s+)?(automations?|chains?|rules?)\b/i,
     "automations",
   ],
-  [/^(add|create|new|set)\s+(an?\s+)?automation/i, "automations"],
+  [/\b(add|create|new|set)\s+(an?\s+)?automation\b/i, "automations"],
   [
-    /^(remove|delete|disable)\s+(automation|chain|rule)\s*(\d+)?/i,
+    /\b(remove|delete|disable)\s+(automation|chain|rule)\s*(\d+)?\b/i,
     "automations",
   ],
-  [/^(enable|disable)\s+(automation|chain|rule)\s*(\d+)?/i, "automations"],
-  [/^(run|trigger|execute)\s+(automation|chain|rule)\s*(\d+)?/i, "automations"],
-  [/^(automate|every\s+|when\s+|at\s+)/i, "automations"],
+  [/\b(enable|disable)\s+(automation|chain|rule)\s*(\d+)?\b/i, "automations"],
+  [/\b(run|trigger|execute)\s+(automation|chain|rule)\s*(\d+)?\b/i, "automations"],
+  [/\b(automate|every\s+|when\s+|at\s+)\b/i, "automations"],
 
   // ── Reminders: task-specific "open" (before system "open") ──
   [
-    /^(open|show|list)\s+(my\s+)?(open\s+)?(reminders?|notes?|tasks?|todos?)/i,
+    /\b(open|show|list)\s+(my\s+)?(open\s+)?(reminders?|notes?|tasks?|todos?)\b/i,
     "reminders",
   ],
 
-  // ── System (highest priority — action commands) ──
-  [/^(open|launch|start|run)\s+\S+/i, "system"],
-  [/^(close|quit|kill)\s+\S+/i, "system"],
-  [/^(set|change|adjust)\s+(volume|brightness)/i, "system"],
-  [/^(get|show|what)\s+(volume|brightness)/i, "system"],
+  // ── System (action commands) ──
+  [/\b(open|launch|start|run)\s+\S+/i, "system"],
+  [/\b(close|quit|kill)\s+\S+/i, "system"],
+  [/\b(set|change|adjust)\s+(volume|brightness)\b/i, "system"],
+  [/\b(get|show|what)\s+(volume|brightness)\b/i, "system"],
   [
-    /^(show|get|what)\s+(system\s+info|hostname|uptime|cpu|memory|disk|battery|wifi|bluetooth|kernel|platform|info)/i,
+    /\b(show|get|what)\s+(system\s+info|hostname|uptime|cpu|memory|disk|battery|wifi|bluetooth|kernel|platform|info)\b/i,
     "system",
   ],
   [
-    /^(what|how)\s+(is|about)\s+(my\s+|the\s+)?(uptime|hostname|cpu|memory|disk|battery|system)/i,
+    /\b(what|how)\s+(is|about)\s+(my\s+|the\s+)?(uptime|hostname|cpu|memory|disk|battery|system)\b/i,
     "system",
   ],
-  [/^(system\s+info|hostname|uptime|kernel)$/i, "system"],
-  [/^(shutdown|restart|reboot|sleep|lock|suspend)/i, "system"],
-  [/^(screenshot|take\s+(a\s+)?screenshot)/i, "system"],
+  [/\b(system\s+info|hostname|uptime|kernel)\b/i, "system"],
+  [/\b(shutdown|restart|reboot|sleep|lock|suspend)\b/i, "system"],
+  [/\b(screenshot|take\s+(a\s+)?screenshot)\b/i, "system"],
 
   // ── Search (factual questions — NOT identity/conversation) ──
-  // Exclude: who are you, what's your name, how are you, etc.
-  [/^(search|look\s*up|find|google|research)\s+/i, "search"],
-  [/^(tell\s+me\s+about|explain|describe)\s+/i, "search"],
+  [/\b(search|look\s*up|find|google|research)\s+/i, "search"],
+  [/\b(tell\s+me\s+about|explain|describe)\s+/i, "search"],
   [
-    /^(what|where|when|why|how)\s+(is|are|was|were|do|does|did|can|could|should|would)\s+(?!you\b|your\b|about you)/i,
+    /\b(what|where|when|why|how)\s+(is|are|was|were|do|does|did|can|could|should|would)\s+(?!you\b|your\b|about you)/i,
     "search",
   ],
-  // "who" questions that are NOT "who are you" — search for facts
-  [/^who\s+(is|are|was|were)\s+(?!you\b|your\b)/i, "search"],
-  // "what is" for things — but not "what's your name"
+  [/\bwho\s+(is|are|was|were)\s+(?!you\b|your\b)/i, "search"],
   [
-    /^(what('s| is| are))\s+(?!you\b|your\b|up\b|going on\b|happening\b)/i,
+    /\b(what('s| is| are))\s+(?!you\b|your\b|up\b|going on\b|happening\b)/i,
     "search",
   ],
-  [/^(latest|current|recent|news)\s+/i, "search"],
+  [/\b(latest|current|recent|news)\s+/i, "search"],
 
   // ── Coding (code actions — before general "create" in reminders) ──
   [
-    /^(create|write|make|generate)\s+(a\s+)?(\w+\s+)*(file|function|class|component|module|script|test|project|app|application|website|page)/i,
+    /\b(create|write|make|generate)\s+(a\s+)?(\w+\s+)*(file|function|class|component|module|script|test|project|app|application|website|page)\b/i,
     "coding",
   ],
   [
-    /^(edit|modify|update|change|fix|debug|refactor)\s+(\w+\s+)*(file|function|code|bug|error|issue|problem|module|component|service|test|class|app)/i,
+    /\b(edit|modify|update|change|fix|debug|refactor)\s+(\w+\s+)*(file|function|code|bug|error|issue|problem|module|component|service|test|class|app)\b/i,
     "coding",
   ],
   [
-    /^(git|commit|push|pull|branch|merge|checkout|status|diff|log)\s*/i,
+    /\b(git|commit|push|pull|branch|merge|checkout|status|diff|log)\b/i,
     "coding",
   ],
   [
-    /^(run|execute|build|compile|test|lint|format)\s+(the\s+)?(project|code|tests?|script|command)/i,
+    /\b(run|execute|build|compile|test|lint|format)\s+(the\s+)?(project|code|tests?|script|command)\b/i,
     "coding",
   ],
-  [/^(read|show|cat)\s+(the\s+)?file/i, "coding"],
+  [/\b(read|show|cat)\s+(the\s+)?file\b/i, "coding"],
 
   // ── Reminders (task/note commands — general "create" after coding) ──
-  [/^(add|create|new|save)\s+(a\s+)?(reminder|note|task|todo)/i, "reminders"],
-  [/^(add|create|new|save)\s+(a\s+)?\w+/i, "reminders"],
+  [/\b(add|create|new|save)\s+(a\s+)?(reminder|note|task|todo)\b/i, "reminders"],
   [
-    /^(list|show)\s+(my\s+)?(open\s+)?(reminders?|notes?|tasks?|todos?)/i,
+    /\b(list|show)\s+(my\s+)?(open\s+)?(reminders?|notes?|tasks?|todos?)\b/i,
     "reminders",
   ],
+  [/\b(remind\s+me|remember)\s+/i, "reminders"],
+  [/\b(complete|done|finish|mark)\s+(a\s+)?(task|reminder|todo)\b/i, "reminders"],
+  [/\b(delete|remove|clear)\s+(a\s+)?(task|reminder|note|todo)\b/i, "reminders"],
   [/^(my\s+)?(open\s+)?(reminders?|notes?|tasks?|todos?)\s*$/i, "reminders"],
-  [/^(show|list)\s+my\s+/i, "reminders"],
-  [/^(complete|done|finish|mark)\s+(a\s+)?(task|reminder|todo)/i, "reminders"],
-  [/^(delete|remove|clear)\s+(a\s+)?(task|reminder|note|todo)/i, "reminders"],
-  [/^(remind\s+me|remember)\s+/i, "reminders"],
 ];
 
 export function classifyIntent(input: string): string | null {

@@ -413,6 +413,13 @@ async function openApplication(appName: string): Promise<string> {
     "browser": "firefox", "web": "firefox", "internet": "firefox",
     "obsidian": "obsidian", "notion": "notion",
     "codeium": "codeium", "zed": "zed",
+    "brave": "brave-browser", "brave browser": "brave-browser",
+    "thunderbird": "thunderbird", "email": "thunderbird",
+    "dolphin": "dolphin", "konsole": "konsole",
+    "hyprland": "kitty", "foot": "foot", "warp": "warp",
+    "libreoffice": "libreoffice", "office": "libreoffice",
+    "gimp": "gimp", "blender": "blender", "vim": "kitty",
+    "neovim": "kitty", "nvim": "kitty", "htop": "kitty",
   };
 
   const resolved = appMap[appName.toLowerCase()] ?? appName;

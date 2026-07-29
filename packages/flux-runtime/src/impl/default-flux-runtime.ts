@@ -531,6 +531,44 @@ export class DefaultFluxRuntime implements FluxRuntime {
     this.cognitive.message(input);
 
     // Step 4: Process through service orchestrator (intent classification + routing)
+    const getSystemContext = async () => {
+      const sensorSnapshots: Record<string, unknown> = {};
+      for (const sensorId of ["git", "docker", "battery", "idle", "clipboard", "spotify", "audio", "notifications"] as const) {
+        try {
+          const sensor = this.sensors.get(sensorId);
+          if (sensor) {
+            const snap = await sensor.snapshot();
+            if (snap) sensorSnapshots[sensorId] = snap;
+          }
+        } catch {}
+      }
+
+      const batterySnap = sensorSnapshots.battery as { level?: number; charging?: boolean; timeRemaining?: number } | undefined;
+      const recentActivity: string[] = [];
+      for (const event of this.recentSensorEvents.slice(0, 5)) {
+        recentActivity.push(`[${event.sensorId}] ${event.type}`);
+      }
+      for (const thought of this.recentThoughts.slice(-3)) {
+        recentActivity.push(`Thought: ${thought.content.slice(0, 80)}`);
+      }
+
+      const goals = this.goalManager.getAll().filter(g => g.status === 'active' || g.status === 'in_progress').map(g => ({
+        name: g.title,
+        progress: g.progress,
+        status: g.status as string,
+      }));
+
+      return {
+        battery: batterySnap ? { level: batterySnap.level ?? 0, charging: batterySnap.charging ?? false, ...(batterySnap.timeRemaining != null ? { timeRemaining: batterySnap.timeRemaining } : {}) } : null,
+        sensors: sensorSnapshots,
+        goals,
+        recentActivity,
+        memoryStats: null,
+        currentTime: new Date().toLocaleString(),
+        platform: process.platform,
+      };
+    };
+
     const result = await this.orchestrator.process(input, {
       sessionId: this.session.id,
       memory: this.session.memory,
@@ -538,6 +576,7 @@ export class DefaultFluxRuntime implements FluxRuntime {
       reply: () => {},
       speak: () => {},
       emit: () => {},
+      getSystemContext,
     });
 
     const responseText = result.text;

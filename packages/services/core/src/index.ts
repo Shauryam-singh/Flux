@@ -1,5 +1,5 @@
 export type { Service } from "./interfaces/service.js";
-export type { ServiceContext, LlmProvider } from "./interfaces/service-context.js";
+export type { ServiceContext, LlmProvider, SystemContext } from "./interfaces/service-context.js";
 export type { ServiceResponse, ServiceAction } from "./interfaces/service-response.js";
 export type { ServiceRegistry } from "./interfaces/service-registry.js";
 

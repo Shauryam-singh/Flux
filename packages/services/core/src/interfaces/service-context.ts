@@ -8,6 +8,16 @@ export interface LlmProvider {
   }): Promise<{ text: string }>;
 }
 
+export interface SystemContext {
+  battery: { level: number; charging: boolean; timeRemaining?: number } | null;
+  sensors: Record<string, unknown>;
+  goals: Array<{ name: string; progress: number; status: string }>;
+  recentActivity: string[];
+  memoryStats: { totalMemories: number } | null;
+  currentTime: string;
+  platform: string;
+}
+
 export interface ServiceContext {
   sessionId: string;
   memory: Memory;
@@ -15,4 +25,5 @@ export interface ServiceContext {
   reply(text: string): void;
   speak(text: string): void;
   emit(event: string, data: unknown): void;
+  getSystemContext?: (() => Promise<SystemContext>) | undefined;
 }

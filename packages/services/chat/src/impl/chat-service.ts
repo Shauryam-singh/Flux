@@ -1,5 +1,5 @@
 import type { Service } from "@ai-agent/services-core";
-import type { ServiceContext } from "@ai-agent/services-core";
+import type { ServiceContext, SystemContext } from "@ai-agent/services-core";
 import type { ServiceResponse } from "@ai-agent/services-core";
 
 export interface ChatServiceOptions {
@@ -48,6 +48,50 @@ NEVER:
 - Never be sycophantic or overly agreeable. Have a spine.
 - Never use phrases like "I'd be happy to help!" or "Great question!" or "Let me assist you with that."`;
 
+function buildSystemContextPrompt(ctx?: SystemContext): string {
+  if (!ctx) return '';
+
+  const parts: string[] = ['\n\nCURRENT SYSTEM STATE:'];
+
+  // Time
+  parts.push(`- Time: ${ctx.currentTime}`);
+  parts.push(`- Platform: ${ctx.platform}`);
+
+  // Battery
+  if (ctx.battery) {
+    const bat = ctx.battery;
+    const pct = Math.round(bat.level * 100);
+    parts.push(`- Battery: ${pct}%${bat.charging ? ' (charging)' : ''}${bat.timeRemaining ? `, ~${Math.round(bat.timeRemaining / 60)}min remaining` : ''}`);
+  }
+
+  // Active sensors
+  const activeSensors = Object.entries(ctx.sensors)
+    .filter(([, data]) => data !== null && data !== undefined)
+    .map(([id]) => id);
+  if (activeSensors.length > 0) {
+    parts.push(`- Active sensors: ${activeSensors.join(', ')}`);
+  }
+
+  // Goals
+  if (ctx.goals.length > 0) {
+    const goalList = ctx.goals.map(g => `${g.name} (${g.progress}% ${g.status})`).join('; ');
+    parts.push(`- Goals: ${goalList}`);
+  }
+
+  // Recent activity
+  if (ctx.recentActivity.length > 0) {
+    parts.push(`- Recent activity:`);
+    ctx.recentActivity.slice(0, 5).forEach(a => parts.push(`  * ${a}`));
+  }
+
+  // Memory
+  if (ctx.memoryStats) {
+    parts.push(`- Memory: ${ctx.memoryStats.totalMemories} memories stored`);
+  }
+
+  return parts.join('\n');
+}
+
 export function createChatService(options?: ChatServiceOptions): Service {
   const personality = options?.personality ?? JARVIS_PERSONALITY;
 
@@ -56,7 +100,6 @@ export function createChatService(options?: ChatServiceOptions): Service {
     description: "General conversational AI for questions, discussion, and everyday tasks",
 
     async canHandle(_input: string): Promise<boolean> {
-      // Chat is the LAST resort — only handle when no other service matches
       return true;
     },
 
@@ -66,13 +109,23 @@ export function createChatService(options?: ChatServiceOptions): Service {
       const history = await ctx.memory.history();
       const messages = history.map((m) => `${m.role}: ${m.content}`).join("\n");
 
-      const prompt = `${personality}\n\nConversation:\n${messages}\n\nFlux:`;
+      // Get system context for the prompt
+      let systemContextPrompt = '';
+      if (ctx.getSystemContext) {
+        try {
+          const sysCtx = await ctx.getSystemContext();
+          systemContextPrompt = buildSystemContextPrompt(sysCtx);
+        } catch {
+          // System context unavailable — continue without it
+        }
+      }
+
+      const prompt = `${personality}${systemContextPrompt}\n\nConversation:\n${messages}\n\nFlux:`;
 
       if (!ctx.provider) {
         return { text: "Chat provider not configured." };
       }
 
-      // No maxTokens — let Ollama decide based on the model's context window
       const response = await ctx.provider.complete({
         model: "default",
         prompt,

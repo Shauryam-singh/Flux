@@ -1,6 +1,6 @@
 import type { Memory } from "@ai-agent/agent";
 import type { Service } from "../interfaces/service.js";
-import type { ServiceContext, LlmProvider } from "../interfaces/service-context.js";
+import type { ServiceContext, LlmProvider, SystemContext } from "../interfaces/service-context.js";
 import type { ServiceRegistry } from "../interfaces/service-registry.js";
 import type { ServiceResponse } from "../interfaces/service-response.js";
 import { classifyIntent } from "./intent-classifier.js";
@@ -16,6 +16,7 @@ export interface OrchestratorContext {
   reply(text: string): void;
   speak(text: string): void;
   emit(event: string, data: unknown): void;
+  getSystemContext?: (() => Promise<SystemContext>) | undefined;
 }
 
 export class Orchestrator {
@@ -57,6 +58,7 @@ export class Orchestrator {
       reply: ctx.reply,
       speak: ctx.speak,
       emit: ctx.emit,
+      getSystemContext: ctx.getSystemContext,
     };
 
     return service.execute(input, serviceCtx);

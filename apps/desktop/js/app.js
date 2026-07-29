@@ -250,8 +250,23 @@ async function speakText(text) {
         const url = URL.createObjectURL(blob);
         const audio = new Audio(url);
         audio.volume = settings.volume;
+
+        // Wait for user interaction to enable audio playback
+        const playPromise = audio.play();
+        if (playPromise !== undefined) {
+          playPromise.catch(() => {
+            // Autoplay blocked — retry on next user interaction
+            const retryPlay = () => {
+              audio.play().catch(() => {});
+              document.removeEventListener('click', retryPlay);
+              document.removeEventListener('keydown', retryPlay);
+            };
+            document.addEventListener('click', retryPlay, { once: true });
+            document.addEventListener('keydown', retryPlay, { once: true });
+          });
+        }
+
         audio.onended = () => URL.revokeObjectURL(url);
-        await audio.play();
         return;
       }
     }
@@ -640,30 +655,44 @@ async function sendChatMessage() {
 async function sendChatMessageDirect(message, speak = false) {
   UI.showToast('Sending...', 'info', 2000);
 
+  let reply = null;
+
   // Try Tauri first
-  const tauriResult = await invokeTauri('send_message', { message });
-  if (tauriResult !== null) {
-    UI.showToast(`Flux: ${tauriResult}`, 'success', 5000);
-    if (speak) await speakText(tauriResult);
-    return;
+  try {
+    const tauriResult = await invokeTauri('send_message', { message });
+    if (tauriResult !== null && tauriResult !== undefined) {
+      reply = tauriResult;
+    }
+  } catch {
+    // Tauri not available
   }
 
   // Fallback: direct API call
-  try {
-    const resp = await fetch('http://localhost:3141/chat', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message }),
-    });
-    const data = await resp.json();
-    if (data.reply) {
-      UI.showToast(`Flux: ${data.reply}`, 'success', 5000);
-      if (speak) await speakText(data.reply);
-    } else {
-      UI.showToast('No response from Flux', 'warning', 3000);
+  if (!reply) {
+    try {
+      const resp = await fetch('http://localhost:3141/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message }),
+      });
+      const data = await resp.json();
+      reply = data.reply || null;
+    } catch {
+      // API not running
     }
-  } catch (err) {
-    UI.showToast('API not running', 'error', 3000);
+  }
+
+  if (reply) {
+    UI.showToast(`Flux: ${reply}`, 'success', 5000);
+    if (speak) {
+      try {
+        await speakText(reply);
+      } catch (e) {
+        console.warn('[Flux] speakText failed:', e);
+      }
+    }
+  } else {
+    UI.showToast('No response from Flux', 'warning', 3000);
   }
 }
 
@@ -771,6 +800,33 @@ async function showStartupBriefing() {
 
   // Auto-dismiss after 15s
   setTimeout(() => { if (modal.parentNode) modal.remove(); }, 15000);
+
+  // Speak the briefing
+  try {
+    const speakLines = [];
+    speakLines.push('Good ' + getGreeting() + '.');
+    if (episodic.length > 0) {
+      speakLines.push('Here is what happened recently.');
+      episodic.slice(0, 3).forEach(e => {
+        const text = (e.event || e.content || '').replace(/[•\-\*]/g, '').trim();
+        if (text) speakLines.push(text);
+      });
+    }
+    const activeGoals = goals.filter(g => g.status === 'active' || g.status === 'in_progress');
+    if (activeGoals.length > 0) {
+      speakLines.push('You have ' + activeGoals.length + ' active goal' + (activeGoals.length > 1 ? 's' : '') + '.');
+      activeGoals.slice(0, 2).forEach(g => {
+        speakLines.push((g.title || g.name || '') + ' at ' + (g.progress || 0) + ' percent.');
+      });
+    }
+    if (reflections.length > 0) {
+      speakLines.push('A recent reflection: ' + (reflections[0].content || '').slice(0, 80));
+    }
+    speakLines.push('How can I help you today?');
+    await speakText(speakLines.join(' '));
+  } catch {
+    // Voice briefing is optional
+  }
 }
 
 function getGreeting() {

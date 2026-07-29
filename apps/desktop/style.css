@@ -763,6 +763,11 @@ ul, ol {
   background: var(--error-dim);
   animation: glow-pulse 1s ease-in-out infinite;
 }
+.action-btn.active {
+  color: var(--success);
+  border-color: rgba(73, 227, 138, 0.3);
+  background: var(--success-dim);
+}
 
 /* ─── MISSION CONTROL — Full Dashboard ─── */
 #mode-dashboard {

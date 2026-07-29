@@ -6,6 +6,8 @@ import { state, on, startDataEngine } from './data.js';
 import * as UI from './components.js';
 import { startParticles, startGraph, stopGraph } from './animations.js';
 
+const API = 'http://localhost:3141';
+
 // ─── Tauri IPC Helper ───
 
 async function invokeTauri(cmd, args = {}) {
@@ -68,7 +70,7 @@ async function resizeWindow(mode) {
         await win.center();
         break;
     }
-  } catch (e) {
+  } catch {
     // Not in Tauri
   }
 }
@@ -78,12 +80,6 @@ async function resizeWindow(mode) {
 function initDrag() {
   let isDragging = false;
   let startX, startY;
-
-  const getDragElements = () => [
-    document.querySelector('.hud-topbar'),
-    document.querySelector('.dash-header'),
-    document.querySelector('.orb-container'),
-  ].filter(Boolean);
 
   function onMouseDown(e) {
     if (e.target.closest('button, input, textarea, .action-btn, .tab, .palette-item')) return;
@@ -104,9 +100,7 @@ function initDrag() {
       await win.setPosition({ x: pos.x + dx, y: pos.y + dy });
       startX = e.screenX;
       startY = e.screenY;
-    } catch (err) {
-      // Fallback: do nothing
-    }
+    } catch {}
   }
 
   function onMouseUp() {
@@ -119,7 +113,28 @@ function initDrag() {
   document.addEventListener('mouseup', onMouseUp);
 }
 
-// ─── Voice ───
+// ─── Settings Helpers ───
+
+function getAutoSpeak() {
+  return localStorage.getItem('flux-auto-speak') === 'true';
+}
+
+function setAutoSpeak(val) {
+  localStorage.setItem('flux-auto-speak', String(val));
+  updateAutoSpeakUI();
+}
+
+function updateAutoSpeakUI() {
+  const btn = document.getElementById('auto-speak-toggle');
+  if (btn) {
+    const on = getAutoSpeak();
+    btn.classList.toggle('active', on);
+    btn.title = on ? 'Auto-speak: ON' : 'Auto-speak: OFF';
+    btn.textContent = on ? '\u{1F50A}' : '\u{1F507}';
+  }
+}
+
+// ─── Voice (Push-to-Talk) ───
 
 let isRecording = false;
 let mediaRecorder = null;
@@ -136,7 +151,7 @@ async function toggleVoice() {
 async function startVoice() {
   isRecording = true;
   UI.setVoiceRecording(true);
-  UI.showToast('Recording started...', 'info', 2000);
+  UI.showToast('Recording... speak now', 'info', 2000);
 
   // Try Tauri first (native arecord)
   const tauriResult = await invokeTauri('start_recording');
@@ -165,7 +180,7 @@ async function startVoice() {
       reader.onloadend = async () => {
         const base64 = reader.result.split(',')[1];
         try {
-          const resp = await fetch('http://localhost:3141/voice/transcribe', {
+          const resp = await fetch(`${API}/voice/transcribe`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ audio: base64, sampleRate: 48000 }),
@@ -173,20 +188,19 @@ async function startVoice() {
           const data = await resp.json();
           if (data.text) {
             UI.showToast(`You said: "${data.text}"`, 'success', 3000);
-            // Send as chat and speak reply
             await sendChatMessageDirect(data.text, true);
           } else {
             UI.showToast('No speech detected', 'warning', 3000);
           }
-        } catch (err) {
-          UI.showToast('Transcription unavailable (API not running)', 'warning', 3000);
+        } catch {
+          UI.showToast('Transcription unavailable', 'warning', 3000);
         }
       };
       reader.readAsDataURL(blob);
     };
 
     mediaRecorder.start();
-  } catch (err) {
+  } catch {
     UI.showToast('Microphone access denied', 'error', 3000);
     isRecording = false;
     UI.setVoiceRecording(false);
@@ -197,26 +211,191 @@ async function stopVoice() {
   isRecording = false;
   UI.setVoiceRecording(false);
 
-  // Try Tauri with timeout
   try {
     const tauriResult = await Promise.race([
       invokeTauri('stop_recording'),
       new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 8000)),
     ]);
-    if (tauriResult && tauriResult !== null) {
+    if (tauriResult) {
       UI.showToast(`You said: "${tauriResult}"`, 'success', 3000);
       await sendChatMessageDirect(tauriResult, true);
       return;
     }
-  } catch {
-    // Tauri not available or timed out
-  }
+  } catch {}
 
-  // Fallback: browser MediaRecorder
   if (mediaRecorder && mediaRecorder.state !== 'inactive') {
     mediaRecorder.stop();
   }
 }
+
+// ─── Wake Word Listener ───
+
+let wakeRecognition = null;
+let wakeListening = false;
+let wakeCommandRecording = false;
+let wakeCommandRecorder = null;
+let wakeCommandChunks = [];
+
+function isWakeWordEnabled() {
+  return localStorage.getItem('flux-wake-word') === 'true';
+}
+
+function setWakeWordEnabled(val) {
+  localStorage.setItem('flux-wake-word', String(val));
+  if (val) startWakeWord();
+  else stopWakeWord();
+  updateWakeWordUI();
+}
+
+function updateWakeWordUI() {
+  const btn = document.getElementById('wake-word-toggle');
+  if (btn) {
+    const on = isWakeWordEnabled();
+    btn.classList.toggle('active', on);
+    btn.title = on ? 'Wake word: Listening for "Flux"' : 'Wake word: OFF';
+    btn.textContent = on ? '\u{1F399}\uFE0F' : '\u{1F515}';
+  }
+}
+
+function startWakeWord() {
+  if (wakeListening) return;
+
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognition) {
+    UI.showToast('Speech recognition not supported in this browser', 'warning', 3000);
+    setWakeWordEnabled(false);
+    return;
+  }
+
+  wakeRecognition = new SpeechRecognition();
+  wakeRecognition.continuous = true;
+  wakeRecognition.interimResults = true;
+  wakeRecognition.lang = 'en-US';
+
+  wakeRecognition.onresult = (event) => {
+    for (let i = event.resultIndex; i < event.results.length; i++) {
+      const transcript = event.results[i][0].transcript.toLowerCase().trim();
+
+      // Check for wake word "flux"
+      if (transcript.includes('flux') && !wakeCommandRecording) {
+        console.log('[Flux] Wake word detected!');
+        UI.showToast('Wake word detected! Listening for command...', 'success', 2000);
+        startWakeCommandRecording();
+        return;
+      }
+    }
+  };
+
+  wakeRecognition.onerror = (event) => {
+    if (event.error !== 'no-speech' && event.error !== 'aborted') {
+      console.warn('[Flux] Wake word error:', event.error);
+    }
+  };
+
+  wakeRecognition.onend = () => {
+    // Restart if still enabled
+    if (isWakeWordEnabled() && wakeListening) {
+      try {
+        wakeRecognition.start();
+      } catch {}
+    }
+  };
+
+  try {
+    wakeRecognition.start();
+    wakeListening = true;
+    UI.showToast('Wake word active — say "Flux"', 'info', 3000);
+  } catch (e) {
+    console.warn('[Flux] Could not start wake word:', e);
+  }
+}
+
+function stopWakeWord() {
+  wakeListening = false;
+  if (wakeRecognition) {
+    try {
+      wakeRecognition.stop();
+    } catch {}
+    wakeRecognition = null;
+  }
+}
+
+function startWakeCommandRecording() {
+  wakeCommandRecording = true;
+
+  // Pause wake word recognition while recording command
+  if (wakeRecognition) {
+    try { wakeRecognition.stop(); } catch {}
+  }
+
+  navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
+    wakeCommandRecorder = new MediaRecorder(stream);
+    wakeCommandChunks = [];
+
+    wakeCommandRecorder.ondataavailable = (e) => {
+      if (e.data.size > 0) wakeCommandChunks.push(e.data);
+    };
+
+    wakeCommandRecorder.onstop = async () => {
+      stream.getTracks().forEach(t => t.stop());
+      wakeCommandRecording = false;
+
+      if (wakeCommandChunks.length === 0) {
+        restartWakeWord();
+        return;
+      }
+
+      UI.showToast('Processing command...', 'info', 2000);
+      const blob = new Blob(wakeCommandChunks, { type: 'audio/webm' });
+      const reader = new FileReader();
+      reader.onloadend = async () => {
+        const base64 = reader.result.split(',')[1];
+        try {
+          const resp = await fetch(`${API}/voice/transcribe`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ audio: base64, sampleRate: 48000 }),
+          });
+          const data = await resp.json();
+          if (data.text) {
+            UI.showToast(`Command: "${data.text}"`, 'success', 3000);
+            await sendChatMessageDirect(data.text, true);
+          } else {
+            UI.showToast('No command detected', 'warning', 3000);
+          }
+        } catch {
+          UI.showToast('Transcription unavailable', 'warning', 3000);
+        }
+        restartWakeWord();
+      };
+      reader.readAsDataURL(blob);
+    };
+
+    wakeCommandRecorder.start();
+
+    // Auto-stop after 8 seconds of command recording
+    setTimeout(() => {
+      if (wakeCommandRecorder && wakeCommandRecorder.state !== 'inactive') {
+        wakeCommandRecorder.stop();
+      }
+    }, 8000);
+  }).catch(() => {
+    wakeCommandRecording = false;
+    restartWakeWord();
+  });
+}
+
+function restartWakeWord() {
+  if (isWakeWordEnabled()) {
+    setTimeout(() => {
+      if (isWakeWordEnabled() && !wakeListening) {
+        startWakeWord();
+      }
+    }, 500);
+  }
+}
+
+// ─── TTS ───
 
 async function speakText(text) {
   if (!text) return;
@@ -240,12 +419,11 @@ async function speakText(text) {
     .trim();
   if (!clean) return;
 
-  // Load voice settings from localStorage
   const settings = getVoiceSettings();
 
-  // Try API TTS directly — fetch WAV and play via browser Audio
+  // Try API TTS
   try {
-    const resp = await fetch('http://localhost:3141/voice/speak', {
+    const resp = await fetch(`${API}/voice/speak`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ text: clean, voice: settings.voice, speed: settings.speed, pitch: settings.pitch }),
@@ -256,12 +434,9 @@ async function speakText(text) {
         const url = URL.createObjectURL(blob);
         const audio = new Audio(url);
         audio.volume = settings.volume;
-
-        // Wait for user interaction to enable audio playback
         const playPromise = audio.play();
         if (playPromise !== undefined) {
           playPromise.catch(() => {
-            // Autoplay blocked — retry on next user interaction
             const retryPlay = () => {
               audio.play().catch(() => {});
               document.removeEventListener('click', retryPlay);
@@ -271,20 +446,17 @@ async function speakText(text) {
             document.addEventListener('keydown', retryPlay, { once: true });
           });
         }
-
         audio.onended = () => URL.revokeObjectURL(url);
         return;
       }
     }
-  } catch {
-    // API not running, try Tauri
-  }
+  } catch {}
 
-  // Fallback: Tauri native TTS
+  // Fallback: Tauri
   const tauriResult = await invokeTauri('speak', { text: clean });
   if (tauriResult === 'spoken') return;
 
-  // Last resort: Web Speech API
+  // Last resort: Web Speech
   if ('speechSynthesis' in window) {
     speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(clean);
@@ -309,8 +481,58 @@ function getVoiceSettings() {
   }
 }
 
-function saveVoiceSettings(settings) {
-  localStorage.setItem('flux-voice-settings', JSON.stringify(settings));
+// ─── Chat Message Sending ───
+
+async function sendChatMessage() {
+  const input = document.getElementById('chat-input');
+  if (!input) return;
+  const message = input.value.trim();
+  if (!message) return;
+
+  input.value = '';
+  const shouldSpeak = getAutoSpeak();
+  await sendChatMessageDirect(message, shouldSpeak);
+}
+
+async function sendChatMessageDirect(message, speak = false) {
+  UI.showToast('Sending...', 'info', 2000);
+
+  let reply = null;
+
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15000);
+    const resp = await fetch(`${API}/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message }),
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+    const data = await resp.json();
+    reply = data.reply || null;
+  } catch {
+    try {
+      const tauriResult = await Promise.race([
+        invokeTauri('send_message', { message }),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 10000)),
+      ]);
+      if (tauriResult) reply = tauriResult;
+    } catch {}
+  }
+
+  if (reply) {
+    UI.showToast(`Flux: ${reply}`, 'success', 5000);
+    if (speak) {
+      try {
+        await speakText(reply);
+      } catch (e) {
+        console.warn('[Flux] speakText failed:', e);
+      }
+    }
+  } else {
+    UI.showToast('No response from Flux', 'warning', 3000);
+  }
 }
 
 // ─── Event Listeners ───
@@ -345,6 +567,12 @@ function initEventListeners() {
           break;
         case 'voice':
           toggleVoice();
+          break;
+        case 'wake-word':
+          setWakeWordEnabled(!isWakeWordEnabled());
+          break;
+        case 'auto-speak':
+          setAutoSpeak(!getAutoSpeak());
           break;
         case 'settings':
           setMode('dashboard');
@@ -387,16 +615,14 @@ function initEventListeners() {
         if (selected) {
           selected.click();
         } else if (paletteInput.value.trim()) {
-          // No matching command — send as chat message
           const msg = paletteInput.value.trim();
           toggleCommandPalette();
-          sendChatMessageDirect(msg);
+          sendChatMessageDirect(msg, getAutoSpeak());
         }
       }
     });
   }
 
-  // Command palette backdrop click
   const backdrop = document.getElementById('palette-backdrop');
   if (backdrop) {
     backdrop.addEventListener('click', toggleCommandPalette);
@@ -424,6 +650,13 @@ function initEventListeners() {
       return;
     }
 
+    // Ctrl+Shift+V → Push-to-talk voice
+    if (e.ctrlKey && e.shiftKey && e.key === 'V') {
+      e.preventDefault();
+      toggleVoice();
+      return;
+    }
+
     // Escape → close palette or navigate back
     if (e.key === 'Escape') {
       const palette = document.getElementById('command-palette');
@@ -437,7 +670,7 @@ function initEventListeners() {
       return;
     }
 
-    // Number keys for quick mode switch (only when not in input)
+    // Number keys for quick mode switch
     if (!isInputFocused()) {
       if (e.key === '1') setMode('dormant');
       if (e.key === '2') setMode('hud');
@@ -483,7 +716,7 @@ function switchTab(tabName) {
 
 async function fetchAndRenderGoals() {
   try {
-    const resp = await fetch('http://localhost:3141/goals');
+    const resp = await fetch(`${API}/goals`);
     const data = await resp.json();
     UI.renderGoalsDetail(data.goals || []);
   } catch {
@@ -493,7 +726,7 @@ async function fetchAndRenderGoals() {
 
 async function fetchAndRenderProjects() {
   try {
-    const resp = await fetch('http://localhost:3141/projects');
+    const resp = await fetch(`${API}/projects`);
     const data = await resp.json();
     UI.renderProjectsDetail(data.projects || []);
   } catch {
@@ -503,7 +736,7 @@ async function fetchAndRenderProjects() {
 
 async function fetchAndRenderAgents() {
   try {
-    const resp = await fetch('http://localhost:3141/agents');
+    const resp = await fetch(`${API}/agents`);
     const data = await resp.json();
     UI.renderAgentsDetail(data.agents || []);
   } catch {
@@ -513,7 +746,7 @@ async function fetchAndRenderAgents() {
 
 async function fetchAndRenderTimeline() {
   try {
-    const resp = await fetch('http://localhost:3141/timeline?limit=30');
+    const resp = await fetch(`${API}/timeline?limit=30`);
     const data = await resp.json();
     UI.renderTimelineDetail(data.events || []);
   } catch {
@@ -634,7 +867,6 @@ function showExplain() {
   `;
   document.body.appendChild(modal);
 
-  // Use proper event listener instead of inline onclick
   document.getElementById('explain-close-btn').addEventListener('click', () => modal.remove());
   modal.querySelector('.palette-backdrop').addEventListener('click', () => modal.remove());
 }
@@ -644,63 +876,6 @@ function showExplain() {
 function escapeHtml(str) {
   if (!str) return '';
   return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-}
-
-// ─── Chat Message Sending ───
-
-async function sendChatMessage() {
-  const input = document.getElementById('chat-input');
-  if (!input) return;
-  const message = input.value.trim();
-  if (!message) return;
-
-  input.value = '';
-  await sendChatMessageDirect(message);
-}
-
-async function sendChatMessageDirect(message, speak = false) {
-  UI.showToast('Sending...', 'info', 2000);
-
-  let reply = null;
-
-  // Always call API directly — Tauri send_message is a slow blocking HTTP proxy
-  try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 15000);
-    const resp = await fetch('http://localhost:3141/chat', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message }),
-      signal: controller.signal,
-    });
-    clearTimeout(timeout);
-    const data = await resp.json();
-    reply = data.reply || null;
-  } catch {
-    // API not running — try Tauri as last resort
-    try {
-      const tauriResult = await Promise.race([
-        invokeTauri('send_message', { message }),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 10000)),
-      ]);
-      if (tauriResult) reply = tauriResult;
-    } catch {
-      // Both failed
-    }
-  }
-
-  if (reply) {
-    UI.showToast(`Flux: ${reply}`, 'success', 5000);
-    if (speak) {
-      try {
-        await speakText(reply);
-      } catch (e) {
-        console.warn('[Flux] speakText failed:', e);
-      }
-    }
-  } else {
-    UI.showToast('No response from Flux', 'warning', 3000);
-  }
 }
 
 // ─── Subscribe to Data Events ───
@@ -733,8 +908,21 @@ function init() {
   startDataEngine();
   startParticles();
   setMode('dormant');
-  // Show startup briefing after a short delay
-  setTimeout(showStartupBriefing, 2500);
+
+  // Update toggle states
+  updateAutoSpeakUI();
+  updateWakeWordUI();
+
+  // Start wake word if enabled
+  if (isWakeWordEnabled()) {
+    startWakeWord();
+  }
+
+  // Show startup briefing — switch to HUD first so modal is visible
+  setTimeout(async () => {
+    setMode('hud');
+    await showStartupBriefing();
+  }, 2500);
 }
 
 // ─── Startup Briefing ───
@@ -742,20 +930,18 @@ function init() {
 async function showStartupBriefing() {
   let briefingData;
   try {
-    const resp = await fetch('http://localhost:3141/briefing');
+    const resp = await fetch(`${API}/briefing`);
     if (!resp.ok) return;
     briefingData = await resp.json();
   } catch {
-    return; // API not running, skip briefing
+    return;
   }
 
   const { episodic = [], reflections = [], goals = [], experiences = [], memoryStats } = briefingData;
 
-  // Build briefing text
   const lines = [];
   lines.push('Good ' + getGreeting() + '. Here\'s where things stand:\n');
 
-  // Yesterday's activity
   if (episodic.length > 0) {
     lines.push('<strong>Recent Activity:</strong>');
     episodic.slice(0, 5).forEach(e => {
@@ -764,7 +950,6 @@ async function showStartupBriefing() {
     lines.push('');
   }
 
-  // Goals
   const activeGoals = goals.filter(g => g.status === 'active' || g.status === 'in_progress');
   if (activeGoals.length > 0) {
     lines.push('<strong>Active Goals:</strong>');
@@ -774,7 +959,6 @@ async function showStartupBriefing() {
     lines.push('');
   }
 
-  // Reflections
   if (reflections.length > 0) {
     lines.push('<strong>Reflections:</strong>');
     reflections.slice(0, 3).forEach(r => {
@@ -783,12 +967,11 @@ async function showStartupBriefing() {
     lines.push('');
   }
 
-  // Memory stats
   if (memoryStats) {
     lines.push(`<strong>Memory:</strong> ${memoryStats.totalMemories || 0} memories stored`);
   }
 
-  if (lines.length <= 2) return; // Nothing to show
+  if (lines.length <= 2) return;
 
   const modal = document.createElement('div');
   modal.id = 'briefing-modal';
@@ -804,8 +987,6 @@ async function showStartupBriefing() {
 
   document.getElementById('briefing-close-btn').addEventListener('click', () => modal.remove());
   modal.querySelector('.palette-backdrop').addEventListener('click', () => modal.remove());
-
-  // Auto-dismiss after 15s
   setTimeout(() => { if (modal.parentNode) modal.remove(); }, 15000);
 
   // Speak the briefing
@@ -815,8 +996,8 @@ async function showStartupBriefing() {
     if (episodic.length > 0) {
       speakLines.push('Here is what happened recently.');
       episodic.slice(0, 3).forEach(e => {
-        const text = (e.event || e.content || '').replace(/[•\-\*]/g, '').trim();
-        if (text) speakLines.push(text);
+        const t = (e.event || e.content || '').replace(/[\u2022\-\*]/g, '').trim();
+        if (t) speakLines.push(t);
       });
     }
     const activeGoals = goals.filter(g => g.status === 'active' || g.status === 'in_progress');
@@ -831,9 +1012,7 @@ async function showStartupBriefing() {
     }
     speakLines.push('How can I help you today?');
     await speakText(speakLines.join(' '));
-  } catch {
-    // Voice briefing is optional
-  }
+  } catch {}
 }
 
 function getGreeting() {

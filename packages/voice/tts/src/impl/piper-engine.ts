@@ -95,8 +95,8 @@ export class PiperEngine implements TTSEngine {
       // Write to temp file, then read back (avoids /dev/stdout issues with execSync)
       const safeText = text.replace(/"/g, '\\"').replace(/\$/g, '\\$');
       for (const cmd of [
-        `espeak-ng -w ${wavPath} "${safeText}"`,
-        `espeak -w ${wavPath} "${safeText}"`,
+        `espeak-ng -v en-us -s 155 -p 40 -a 180 -w ${wavPath} "${safeText}"`,
+        `espeak -v en-us -s 155 -p 40 -a 180 -w ${wavPath} "${safeText}"`,
       ]) {
         try {
           execSync(`${cmd} 2>/dev/null`, { stdio: "pipe", timeout: 30000 });

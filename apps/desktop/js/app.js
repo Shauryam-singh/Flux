@@ -215,35 +215,48 @@ async function stopVoice() {
 async function speakText(text) {
   if (!text) return;
 
-  // Try Tauri first (Piper/espeak)
-  const tauriResult = await invokeTauri('speak', { text });
+  const clean = text.replace(/```[\s\S]*?```/g, 'code block')
+    .replace(/`[^`]+`/g, 'code')
+    .replace(/[#*_~>]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!clean) return;
+
+  // Try API TTS directly — fetch WAV and play via browser Audio
+  try {
+    const resp = await fetch('http://localhost:3141/voice/speak', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: clean }),
+    });
+    if (resp.ok) {
+      const blob = await resp.blob();
+      if (blob.size > 100) {
+        const url = URL.createObjectURL(blob);
+        const audio = new Audio(url);
+        audio.onended = () => URL.revokeObjectURL(url);
+        await audio.play();
+        return;
+      }
+    }
+  } catch {
+    // API not running, try Tauri
+  }
+
+  // Fallback: Tauri native TTS
+  const tauriResult = await invokeTauri('speak', { text: clean });
   if (tauriResult === 'spoken') return;
-  // If tauri returned something but not 'spoken' (e.g. 'no_audio'), fall through
 
-  // Fallback: browser Web Speech API
+  // Last resort: Web Speech API (may not work on Linux/WebKitGTK)
   if ('speechSynthesis' in window) {
-    // Cancel any ongoing speech
     speechSynthesis.cancel();
-
-    const clean = text.replace(/```[\s\S]*?```/g, 'code block')
-      .replace(/`[^`]+`/g, 'code')
-      .replace(/[#*_~>]/g, '')
-      .replace(/\s+/g, ' ')
-      .trim();
-    if (!clean) return;
-
     const utterance = new SpeechSynthesisUtterance(clean);
     utterance.rate = 1;
     utterance.pitch = 0.9;
     utterance.lang = 'en-US';
-
-    // Try to pick a good English voice
     const voices = speechSynthesis.getVoices();
     const english = voices.filter(v => v.lang.startsWith('en'));
-    if (english.length > 0) {
-      utterance.voice = english[0];
-    }
-
+    if (english.length > 0) utterance.voice = english[0];
     speechSynthesis.speak(utterance);
   }
 }

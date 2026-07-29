@@ -93,10 +93,17 @@ export class PiperEngine implements TTSEngine {
         return Buffer.alloc(0);
       }
 
-      // Linux/macOS: use espeak
-      const cmd = `espeak -w /dev/stdout "${text.replace(/"/g, '\\"')}" 2>/dev/null`;
-      const result = execSync(cmd, { stdio: "pipe", timeout: 30000 });
-      return Buffer.from(result);
+      // Linux/macOS: try espeak-ng first (modern), then espeak (legacy)
+      const safeText = text.replace(/"/g, '\\"').replace(/\$/g, '\\$');
+      for (const cmd of [`espeak-ng -w /dev/stdout "${safeText}"`, `espeak -w /dev/stdout "${safeText}"`, `spd-say -w -o std ${JSON.stringify(text)}`]) {
+        try {
+          const result = execSync(`${cmd} 2>/dev/null`, { stdio: "pipe", timeout: 30000 });
+          if (result.length > 44) return Buffer.from(result); // More than just WAV header
+        } catch {
+          // Try next
+        }
+      }
+      return Buffer.alloc(0);
     } catch {
       return Buffer.alloc(0);
     }

@@ -138,7 +138,7 @@ fn speak(text: String, state: tauri::State<ApiState>) -> Result<String, String> 
     let audio_bytes = response.bytes().map_err(|e| e.to_string())?;
 
     if audio_bytes.is_empty() {
-        return Ok("no_audio".to_string());
+        return Err("No audio returned from TTS engine".to_string());
     }
 
     let temp_dir = std::env::temp_dir();
@@ -149,18 +149,26 @@ fn speak(text: String, state: tauri::State<ApiState>) -> Result<String, String> 
         .map_err(|e| e.to_string())?;
     drop(file);
 
-    let play_result = Command::new("play")
-        .args(["-t", "wav", file_path.to_str().unwrap()])
+    let play_result = Command::new("paplay")
+        .arg(file_path.to_str().unwrap())
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .status();
 
     if play_result.is_err() {
-        let _ = Command::new("aplay")
-            .arg(file_path.to_str().unwrap())
+        let play_result2 = Command::new("play")
+            .args(["-t", "wav", file_path.to_str().unwrap()])
             .stdout(Stdio::null())
             .stderr(Stdio::null())
             .status();
+
+        if play_result2.is_err() {
+            let _ = Command::new("aplay")
+                .arg(file_path.to_str().unwrap())
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .status();
+        }
     }
 
     let _ = fs::remove_file(&file_path);

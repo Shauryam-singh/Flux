@@ -218,18 +218,32 @@ async function speakText(text) {
   // Try Tauri first (Piper/espeak)
   const tauriResult = await invokeTauri('speak', { text });
   if (tauriResult === 'spoken') return;
+  // If tauri returned something but not 'spoken' (e.g. 'no_audio'), fall through
 
   // Fallback: browser Web Speech API
   if ('speechSynthesis' in window) {
+    // Cancel any ongoing speech
+    speechSynthesis.cancel();
+
     const clean = text.replace(/```[\s\S]*?```/g, 'code block')
       .replace(/`[^`]+`/g, 'code')
       .replace(/[#*_~>]/g, '')
       .replace(/\s+/g, ' ')
       .trim();
+    if (!clean) return;
+
     const utterance = new SpeechSynthesisUtterance(clean);
     utterance.rate = 1;
     utterance.pitch = 0.9;
     utterance.lang = 'en-US';
+
+    // Try to pick a good English voice
+    const voices = speechSynthesis.getVoices();
+    const english = voices.filter(v => v.lang.startsWith('en'));
+    if (english.length > 0) {
+      utterance.voice = english[0];
+    }
+
     speechSynthesis.speak(utterance);
   }
 }

@@ -254,16 +254,37 @@ const server = createServer(async (req, res) => {
   if (req.method === "POST" && req.url === "/voice/speak") {
     try {
       const body = await parseBody(req);
-      const { text } = JSON.parse(body.toString()) as { text?: string };
+      const json = JSON.parse(body.toString()) as { text?: string; voice?: string; speed?: number; pitch?: number; volume?: number };
 
-      if (!text || typeof text !== "string") {
+      if (!json.text || typeof json.text !== "string") {
         sendJson(res, 400, { error: "text is required" });
         return;
       }
 
       await tts.initialize();
 
-      const audio = await tts.synthesize(text);
+      // Strip emoji from text before TTS
+      const cleanText = json.text
+        .replace(/[\u{1F600}-\u{1F64F}]/gu, "")
+        .replace(/[\u{1F300}-\u{1F5FF}]/gu, "")
+        .replace(/[\u{1F680}-\u{1F6FF}]/gu, "")
+        .replace(/[\u{1F1E0}-\u{1F1FF}]/gu, "")
+        .replace(/[\u{2600}-\u{26FF}]/gu, "")
+        .replace(/[\u{2700}-\u{27BF}]/gu, "")
+        .replace(/[\u{FE00}-\u{FE0F}]/gu, "")
+        .replace(/[\u{200D}]/gu, "")
+        .replace(/[\u{1F900}-\u{1F9FF}]/gu, "")
+        .replace(/[\u{1FA00}-\u{1FAFF}]/gu, "")
+        .replace(/[\u{2300}-\u{23FF}]/gu, "")
+        .replace(/\s{2,}/g, " ")
+        .trim();
+
+      const audio = await tts.synthesize(cleanText, {
+        ...(json.voice != null ? { voice: json.voice } : {}),
+        ...(json.speed != null ? { speed: json.speed } : {}),
+        ...(json.pitch != null ? { pitch: json.pitch } : {}),
+        ...(json.volume != null ? { volume: json.volume } : {}),
+      });
 
       res.writeHead(200, {
         "Content-Type": "audio/wav",

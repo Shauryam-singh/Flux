@@ -218,22 +218,38 @@ async function speakText(text) {
   const clean = text.replace(/```[\s\S]*?```/g, 'code block')
     .replace(/`[^`]+`/g, 'code')
     .replace(/[#*_~>]/g, '')
-    .replace(/\s+/g, ' ')
+    .replace(/[\u{1F600}-\u{1F64F}]/gu, '')
+    .replace(/[\u{1F300}-\u{1F5FF}]/gu, '')
+    .replace(/[\u{1F680}-\u{1F6FF}]/gu, '')
+    .replace(/[\u{1F1E0}-\u{1F1FF}]/gu, '')
+    .replace(/[\u{2600}-\u{26FF}]/gu, '')
+    .replace(/[\u{2700}-\u{27BF}]/gu, '')
+    .replace(/[\u{FE00}-\u{FE0F}]/gu, '')
+    .replace(/[\u{200D}]/gu, '')
+    .replace(/[\u{1F900}-\u{1F9FF}]/gu, '')
+    .replace(/[\u{1FA00}-\u{1FAFF}]/gu, '')
+    .replace(/[\u{2300}-\u{23FF}]/gu, '')
+    .replace(/[\u{2B50}-\u{2B55}]/gu, '')
+    .replace(/\s{2,}/g, ' ')
     .trim();
   if (!clean) return;
+
+  // Load voice settings from localStorage
+  const settings = getVoiceSettings();
 
   // Try API TTS directly — fetch WAV and play via browser Audio
   try {
     const resp = await fetch('http://localhost:3141/voice/speak', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: clean }),
+      body: JSON.stringify({ text: clean, voice: settings.voice, speed: settings.speed, pitch: settings.pitch }),
     });
     if (resp.ok) {
       const blob = await resp.blob();
       if (blob.size > 100) {
         const url = URL.createObjectURL(blob);
         const audio = new Audio(url);
+        audio.volume = settings.volume;
         audio.onended = () => URL.revokeObjectURL(url);
         await audio.play();
         return;
@@ -247,18 +263,33 @@ async function speakText(text) {
   const tauriResult = await invokeTauri('speak', { text: clean });
   if (tauriResult === 'spoken') return;
 
-  // Last resort: Web Speech API (may not work on Linux/WebKitGTK)
+  // Last resort: Web Speech API
   if ('speechSynthesis' in window) {
     speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(clean);
-    utterance.rate = 1;
-    utterance.pitch = 0.9;
+    utterance.rate = settings.speed;
+    utterance.pitch = settings.pitch;
+    utterance.volume = settings.volume;
     utterance.lang = 'en-US';
     const voices = speechSynthesis.getVoices();
     const english = voices.filter(v => v.lang.startsWith('en'));
     if (english.length > 0) utterance.voice = english[0];
     speechSynthesis.speak(utterance);
   }
+}
+
+function getVoiceSettings() {
+  const defaults = { voice: 'en-us+m3', speed: 1.0, pitch: 0.9, volume: 1.0 };
+  try {
+    const saved = JSON.parse(localStorage.getItem('flux-voice-settings') || '{}');
+    return { ...defaults, ...saved };
+  } catch {
+    return defaults;
+  }
+}
+
+function saveVoiceSettings(settings) {
+  localStorage.setItem('flux-voice-settings', JSON.stringify(settings));
 }
 
 // ─── Event Listeners ───

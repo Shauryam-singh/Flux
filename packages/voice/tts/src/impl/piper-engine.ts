@@ -1,5 +1,5 @@
 import { execSync, execFileSync } from "node:child_process";
-import { existsSync, mkdirSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
 import type { TTSEngine } from "../interfaces/tts-engine.js";
@@ -75,7 +75,6 @@ export class PiperEngine implements TTSEngine {
         { stdio: "pipe", timeout: 30000 },
       );
 
-      const { readFileSync } = await import("node:fs");
       return readFileSync(wavPath);
     } catch {
       return this.synthesizeWithEspeak(text);
@@ -83,22 +82,31 @@ export class PiperEngine implements TTSEngine {
   }
 
   private async synthesizeWithEspeak(text: string): Promise<Buffer> {
-    const platform = getPlatform();
+    const cacheDir = getCacheDir();
+    const wavPath = join(cacheDir, "tts_output.wav");
 
     try {
-      if (platform === "win32") {
-        // Windows: use PowerShell SpeechSynthesis
+      if (getPlatform() === "win32") {
         const psScript = `Add-Type -AssemblyName System.Speech; $synth = New-Object System.Speech.Synthesis.SpeechSynthesizer; $synth.Speak(${JSON.stringify(text)})`;
         execSync(`powershell -Command "${psScript}"`, { stdio: "pipe", timeout: 30000 });
         return Buffer.alloc(0);
       }
 
-      // Linux/macOS: try espeak-ng first (modern), then espeak (legacy)
+      // Write to temp file, then read back (avoids /dev/stdout issues with execSync)
       const safeText = text.replace(/"/g, '\\"').replace(/\$/g, '\\$');
-      for (const cmd of [`espeak-ng -w /dev/stdout "${safeText}"`, `espeak -w /dev/stdout "${safeText}"`, `spd-say -w -o std ${JSON.stringify(text)}`]) {
+      for (const cmd of [
+        `espeak-ng -w ${wavPath} "${safeText}"`,
+        `espeak -w ${wavPath} "${safeText}"`,
+      ]) {
         try {
-          const result = execSync(`${cmd} 2>/dev/null`, { stdio: "pipe", timeout: 30000 });
-          if (result.length > 44) return Buffer.from(result); // More than just WAV header
+          execSync(`${cmd} 2>/dev/null`, { stdio: "pipe", timeout: 30000 });
+          if (existsSync(wavPath)) {
+            const buf = readFileSync(wavPath);
+            if (buf.length > 44) {
+              try { unlinkSync(wavPath); } catch { /* ignore */ }
+              return buf;
+            }
+          }
         } catch {
           // Try next
         }

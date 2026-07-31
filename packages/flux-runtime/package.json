@@ -41,6 +41,10 @@
     "@ai-agent/habit-discovery": "workspace:*",
     "@ai-agent/thought-graph": "workspace:*",
     "@ai-agent/sensors": "workspace:*",
-    "@ai-agent/cognitive-memory": "workspace:*"
+    "@ai-agent/cognitive-memory": "workspace:*",
+    "@ai-agent/plugins": "workspace:*",
+    "@ai-agent/knowledge-base": "workspace:*",
+    "@ai-agent/multi-agent": "workspace:*",
+    "@ai-agent/cross-device": "workspace:*"
   }
 }

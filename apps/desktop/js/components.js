@@ -627,6 +627,34 @@ export function renderSettingsDetail() {
       </div>
 
       <div class="settings-section">
+        <h3 class="settings-section-title">Speech Behavior</h3>
+        <div class="settings-row">
+          <label class="settings-label">Verbosity</label>
+          <select id="setting-verbosity" class="settings-select">
+            <option value="minimal" ${settings.verbosity === "minimal" ? "selected" : ""}>Minimal — only when asked</option>
+            <option value="normal" ${settings.verbosity === "normal" ? "selected" : ""}>Normal — balanced</option>
+            <option value="verbose" ${settings.verbosity === "verbose" ? "selected" : ""}>Verbose — explain everything</option>
+          </select>
+        </div>
+        <div class="settings-row">
+          <label class="settings-label">Proactive speech</label>
+          <label class="settings-toggle"><input type="checkbox" id="setting-proactive-speech" ${settings.proactiveSpeech ? "checked" : ""}><span class="settings-toggle-slider"></span></label>
+        </div>
+        <div class="settings-row">
+          <label class="settings-label">Proactive frequency</label>
+          <select id="setting-proactive-freq" class="settings-select">
+            <option value="low" ${settings.proactiveFrequency === "low" ? "selected" : ""}>Low — only important</option>
+            <option value="medium" ${settings.proactiveFrequency === "medium" ? "selected" : ""}>Medium — suggestions welcome</option>
+            <option value="high" ${settings.proactiveFrequency === "high" ? "selected" : ""}>High — talk to me often</option>
+          </select>
+        </div>
+        <div class="settings-row">
+          <label class="settings-label">Max proactive messages/hr</label>
+          <input type="number" id="setting-max-proactive" class="settings-input" min="0" max="20" value="${settings.maxProactivePerHour}">
+        </div>
+      </div>
+
+      <div class="settings-section">
         <h3 class="settings-section-title">Sensors</h3>
         ${[
           ["Git", "sensor-git"],
@@ -755,6 +783,11 @@ export function renderSettingsDetail() {
         alwaysOnTop:
           document.getElementById("setting-always-top")?.checked ?? true,
         sensors: {},
+        // Speech behavior
+        verbosity: document.getElementById("setting-verbosity")?.value || "normal",
+        proactiveSpeech: document.getElementById("setting-proactive-speech")?.checked ?? true,
+        proactiveFrequency: document.getElementById("setting-proactive-freq")?.value || "low",
+        maxProactivePerHour: parseInt(document.getElementById("setting-max-proactive")?.value || "3", 10),
       };
       [
         "sensor-git",
@@ -809,6 +842,11 @@ function getStoredSettings() {
     particles: true,
     alwaysOnTop: true,
     sensors: {},
+    // Speech behavior settings
+    verbosity: "normal", // minimal | normal | verbose
+    proactiveSpeech: true, // Flux speaks unprompted (suggestions, alerts)
+    proactiveFrequency: "low", // low | medium | high — how often Flux initiates
+    maxProactivePerHour: 3, // max unprompted messages per hour
   };
   try {
     const saved = JSON.parse(localStorage.getItem("flux-settings") || "{}");

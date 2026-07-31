@@ -36,6 +36,10 @@
     { "path": "../../packages/habit-discovery" },
     { "path": "../../packages/thought-graph" },
     { "path": "../../packages/sensors" },
-    { "path": "../../packages/cognitive-memory" }
+    { "path": "../../packages/cognitive-memory" },
+    { "path": "../../packages/plugins" },
+    { "path": "../../packages/knowledge-base" },
+    { "path": "../../packages/multi-agent" },
+    { "path": "../../packages/cross-device" }
   ]
 }

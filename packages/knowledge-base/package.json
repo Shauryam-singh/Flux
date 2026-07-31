@@ -1,0 +1,24 @@
+{
+  "name": "@ai-agent/knowledge-base",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@ai-agent/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "@ai-agent/config": "workspace:*",
+    "typescript": "^6.0.3",
+    "vitest": "^3.2.6",
+    "@types/node": "^26.1.0"
+  }
+}

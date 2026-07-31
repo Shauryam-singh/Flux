@@ -51,6 +51,10 @@ import { createProactiveService } from "@ai-agent/services-proactive";
 import { createRemindersService } from "@ai-agent/services-reminders";
 import { createSearchService } from "@ai-agent/services-search";
 import { createSystemService } from "@ai-agent/services-system";
+import { DefaultPluginLoader, type FluxPlugin } from "@ai-agent/plugins";
+import { DefaultKnowledgeBase } from "@ai-agent/knowledge-base";
+import { DefaultMultiAgentCoordinator } from "@ai-agent/multi-agent";
+import { DefaultCrossDeviceSync } from "@ai-agent/cross-device";
 import { DefaultStrategyLibrary } from "@ai-agent/strategy-library";
 import {
   type CognitionResult,
@@ -118,6 +122,11 @@ export class DefaultFluxRuntime implements FluxRuntime {
   readonly thoughtGraph: DefaultThoughtGraph;
   readonly sensors: DefaultSensorManager;
   readonly memory: DefaultMemoryManager;
+  readonly pluginLoader: DefaultPluginLoader;
+  readonly knowledgeBase: DefaultKnowledgeBase;
+  readonly multiAgent: DefaultMultiAgentCoordinator;
+  readonly crossDevice: DefaultCrossDeviceSync;
+  private loadedPlugins: FluxPlugin[] = [];
   private readonly pipeline: CognitionPipeline;
 
   private totalInteractions = 0;
@@ -156,6 +165,8 @@ export class DefaultFluxRuntime implements FluxRuntime {
     priority: string;
   }> = [];
   private lastSuggestionCheck = 0;
+  private lastScreenAppForSuggestions = "";
+  private appVisitCount: Map<string, number> = new Map();
 
   constructor(config: FluxRuntimeConfig) {
     this.config = config;
@@ -311,6 +322,12 @@ export class DefaultFluxRuntime implements FluxRuntime {
     this.sensors.register(new SSHSensor());
     this.sensors.register(new AudioSensor());
 
+    // --- Layer 9.5: Plugin System ---
+    this.pluginLoader = new DefaultPluginLoader(this.sensors);
+    this.knowledgeBase = new DefaultKnowledgeBase();
+    this.multiAgent = new DefaultMultiAgentCoordinator();
+    this.crossDevice = new DefaultCrossDeviceSync();
+
     // Wire sensor events to attention system
     this.sensors.onEvent((event) => {
       // Track recent sensor events for streaming
@@ -362,6 +379,19 @@ export class DefaultFluxRuntime implements FluxRuntime {
     if (this.running) return;
     this.running = true;
 
+    // Load plugins from ~/.flux/plugins/
+    void this.pluginLoader.loadAll().then((plugins) => {
+      this.loadedPlugins = plugins as FluxPlugin[];
+    });
+
+    // Index project files into knowledge base
+    void this.knowledgeBase.indexDirectory(process.cwd(), {
+      extensions: [".ts", ".js", ".json", ".md", ".py"],
+      excludeDirs: ["node_modules", ".git", "dist", ".turbo", "__pycache__", "target"],
+      maxFileSize: 50_000,
+      chunkSize: 30,
+    });
+
     // Start the cognitive system's internal timers (5s think cycle, 30min reflection)
     this.cognitive.start();
 
@@ -389,6 +419,14 @@ export class DefaultFluxRuntime implements FluxRuntime {
 
     // Stop sensors
     void this.sensors.stopAll();
+
+    // Unload plugins
+    for (const plugin of this.loadedPlugins) {
+      if (plugin.destroy) {
+        void plugin.destroy();
+      }
+    }
+    this.loadedPlugins = [];
 
     // Stop our background loop
     if (this.backgroundTimer) {
@@ -444,6 +482,53 @@ export class DefaultFluxRuntime implements FluxRuntime {
       const fsSnap = await this.sensors.get("filesystem")?.snapshot() as { recentChanges?: unknown[] } | null;
       if (fsSnap?.recentChanges && fsSnap.recentChanges.length > 10) {
         this.addSuggestion("fs_many_changes", "info", `${fsSnap.recentChanges.length} recent file changes — consider committing`, "medium");
+      }
+
+      // Detect active application and suggest context-aware actions
+      const screenObs = await this.gatherScreenObservation();
+      if (screenObs) {
+        const app = screenObs.title.toLowerCase();
+        const fullApp = screenObs.title;
+
+        // Track app visits
+        const count = (this.appVisitCount.get(app) ?? 0) + 1;
+        this.appVisitCount.set(app, count);
+
+        // VS Code detected — suggest project-related actions
+        if ((app.includes("visual studio code") || app.includes("vscode") || app.includes("code")) && this.lastScreenAppForSuggestions !== app) {
+          // Extract project name from window title (format: "filename — ProjectName")
+          const parts = fullApp.split(" — ");
+          const projectName = parts.length > 1 && parts[parts.length - 1] != null ? parts[parts.length - 1]!.trim() : null;
+          if (projectName) {
+            this.addSuggestion("vscode_project", "info", `Working on "${projectName}" — want me to add it to your projects?`, "low");
+          } else {
+            this.addSuggestion("vscode_help", "info", "VS Code is open — need help with code, debugging, or git?", "low");
+          }
+        }
+
+        // Terminal detected — offer system commands
+        if ((app.includes("terminal") || app.includes("kitty") || app.includes("alacritty") || app.includes("wezterm") || app.includes("foot")) && this.lastScreenAppForSuggestions !== app) {
+          this.addSuggestion("terminal_help", "info", "Terminal open — need help running commands or monitoring processes?", "low");
+        }
+
+        // Browser detected — offer search/web help
+        if ((app.includes("firefox") || app.includes("chrome") || app.includes("brave") || app.includes("chromium") || app.includes("browser")) && this.lastScreenAppForSuggestions !== app) {
+          this.addSuggestion("browser_help", "info", "Browser open — need me to search for something or look up docs?", "low");
+        }
+
+        // Repeated app usage — offer automation
+        if (count === 5) {
+          this.addSuggestion("app_pattern", "info", `You've been using ${fullApp} a lot — want me to set up automation for it?`, "low");
+        }
+
+        this.lastScreenAppForSuggestions = app;
+      }
+
+      // Idle detection — suggest taking a break or resuming work
+      const idleSnap = await this.sensors.get("idle")?.snapshot() as { isIdle?: boolean; idleSeconds?: number } | null;
+      if (idleSnap?.isIdle && idleSnap.idleSeconds && idleSnap.idleSeconds > 600) {
+        const mins = Math.round(idleSnap.idleSeconds / 60);
+        this.addSuggestion("idle_long", "info", `Idle for ${mins} minutes — want me to pause background tasks?`, "low");
       }
     } catch {
       // Best-effort

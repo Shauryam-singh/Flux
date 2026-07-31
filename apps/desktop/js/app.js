@@ -524,7 +524,8 @@ async function sendChatMessage() {
 }
 
 async function sendChatMessageDirect(message, speak = false) {
-  UI.showToast("Sending...", "info", 2000);
+  // Add user message to conversation thread
+  addChatMessage("user", message);
 
   let reply = null;
 
@@ -538,9 +539,23 @@ async function sendChatMessageDirect(message, speak = false) {
       signal: controller.signal,
     });
     clearTimeout(timeout);
+
+    if (!resp.ok) {
+      const errData = await resp.json().catch(() => ({}));
+      const errMsg = errData.error || `Server error (${resp.status})`;
+      UI.showToast(`Error: ${errMsg}`, "error", 5000);
+      addChatMessage("system", `Error: ${errMsg}`);
+      return;
+    }
+
     const data = await resp.json();
     reply = data.reply || null;
-  } catch {
+  } catch (e) {
+    const msg = e?.name === "AbortError" ? "Request timed out (15s)" : "API not reachable";
+    UI.showToast(`Error: ${msg}`, "error", 5000);
+    addChatMessage("system", `Error: ${msg}`);
+
+    // Try Tauri fallback
     try {
       const tauriResult = await Promise.race([
         invokeTauri("send_message", { message }),
@@ -553,16 +568,70 @@ async function sendChatMessageDirect(message, speak = false) {
   }
 
   if (reply) {
-    UI.showToast(`Flux: ${reply}`, "success", 5000);
+    addChatMessage("assistant", reply);
     if (speak) {
       try {
         await speakText(reply);
+        // Multi-turn: after speaking, listen for follow-up
+        if (getWakeWordEnabled()) {
+          setTimeout(() => {
+            if (isWakeWordRunning()) return; // Already listening
+            startFollowUpListen();
+          }, 500);
+        }
       } catch (e) {
         console.warn("[Flux] speakText failed:", e);
       }
     }
-  } else {
-    UI.showToast("No response from Flux", "warning", 3000);
+  }
+}
+
+// ─── Conversation Thread ───
+
+function addChatMessage(role, content) {
+  const container = document.getElementById("chat-messages");
+  if (!container) return;
+
+  const div = document.createElement("div");
+  div.className = `chat-msg chat-${role}`;
+
+  const icon = role === "user" ? "👤" : role === "assistant" ? "🤖" : "⚠️";
+  const text = content.length > 500 ? content.slice(0, 500) + "..." : content;
+  div.innerHTML = `<span class="chat-icon">${icon}</span><span class="chat-text">${escapeHtmlSimple(text)}</span>`;
+
+  container.appendChild(div);
+  container.scrollTop = container.scrollHeight;
+
+  // Keep only last 50 messages in DOM
+  while (container.children.length > 50) {
+    container.removeChild(container.firstChild);
+  }
+}
+
+function escapeHtmlSimple(str) {
+  if (!str) return "";
+  return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+// ─── Multi-turn Voice ───
+
+let followUpTimer = null;
+
+function startFollowUpListen() {
+  // Listen for 5 seconds after speaking
+  clearFollowUpTimer();
+  if (typeof startVoice === "function") {
+    startVoice();
+    followUpTimer = setTimeout(() => {
+      if (typeof stopVoice === "function") stopVoice();
+    }, 5000);
+  }
+}
+
+function clearFollowUpTimer() {
+  if (followUpTimer) {
+    clearTimeout(followUpTimer);
+    followUpTimer = null;
   }
 }
 
@@ -1006,6 +1075,22 @@ function bindDataEvents() {
   on("model", UI.updateModel);
   on("timeline", UI.updateTimeline);
   on("dashMemory", UI.updateDashMemory);
+  on("suggestions", (suggestions) => {
+    if (suggestions && suggestions.length > 0) {
+      const latest = suggestions[0];
+      UI.showToast(`💡 ${latest.message}`, latest.priority === "high" ? "warning" : "info", 6000);
+    }
+  });
+  on("chatHistory", (messages) => {
+    // Populate conversation thread from history
+    const container = document.getElementById("chat-messages");
+    if (container && container.children.length === 0 && messages.length > 0) {
+      const recent = messages.slice(-20);
+      for (const m of recent) {
+        addChatMessage(m.role, m.content);
+      }
+    }
+  });
 }
 
 // ─── Initialize ───

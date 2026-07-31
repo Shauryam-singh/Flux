@@ -245,6 +245,21 @@ const server = createServer(async (req, res) => {
     return;
   }
 
+  // ─── Chat History ────────────────────────────────────────────────
+  if (req.method === "GET" && req.url?.startsWith("/chat/history")) {
+    try {
+      const url = new URL(req.url ?? "/", `http://localhost:${PORT}`);
+      const limit = parseInt(url.searchParams.get("limit") ?? "40", 10);
+      const history = await flux.session.memory.history();
+      const recent = history.slice(-limit);
+      sendJson(res, 200, { messages: recent });
+    } catch (err) {
+      const error = err instanceof Error ? err.message : String(err);
+      sendJson(res, 500, { error });
+    }
+    return;
+  }
+
   if (req.method === "POST" && req.url === "/voice/transcribe") {
     try {
       const body = await parseBody(req);

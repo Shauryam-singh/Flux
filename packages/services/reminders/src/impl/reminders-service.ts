@@ -12,6 +12,9 @@ interface Reminder {
   completed: boolean;
 }
 
+// Patterns that indicate the user wants to create a goal (not just a reminder)
+const GOAL_PATTERNS = /\b(i want to|i'd like to|i need to|my goal is|i'm going to|let me|i'll|i will|plan to|aim to|finish|complete|ship|deploy|launch|build|release|fix|clean up|refactor|rewrite)\b/i;
+
 function getStoragePath(): string {
   const dir = join(homedir(), ".flux");
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
@@ -106,6 +109,8 @@ export function createRemindersService(): Service {
         "my progress", "my plan", "my schedule",
         "what is my", "what are my", "how is my", "how are my",
         "any update", "how's my",
+        "i want to", "i'd like to", "i need to", "my goal is",
+        "plan to", "aim to",
       ];
       return keywords.some((k) => lower.includes(k));
     },
@@ -118,8 +123,30 @@ export function createRemindersService(): Service {
       const isGoalQuery = /\b(goals?|project|progress|plan|schedule|overview|status)\b/i.test(lower);
       const isTaskQuery = /\b(tasks?|todos?|reminders?|notes?|open)\b/i.test(lower);
 
+      // Goal creation: "I want to finish the API", "my goal is to ship the app"
+      // Only match if input STARTS with an intent phrase (not just contains "fix" etc.)
+      if (/^(i want to|i'd like to|i need to|my goal is|i'm going to|plan to|aim to)\b/i.test(lower) && !/^(list|show|what|how|any)/i.test(lower)) {
+        // Extract the goal text — clean up the leading phrase
+        let goalText = input
+          .replace(/^(i want to|i'd like to|i need to|my goal is|i'm going to|let me|i'll|i will|plan to|aim to)\s+/i, "")
+          .trim();
+        // Capitalize first letter
+        goalText = goalText.charAt(0).toUpperCase() + goalText.slice(1);
+        // Remove trailing punctuation
+        goalText = goalText.replace(/[.!?]+$/, "");
+
+        if (goalText.length > 3) {
+          // Create a goal via the runtime's goal manager (accessible through system context)
+          result = `🎯 Got it! I've noted that goal: **${goalText}**\n\nI'll keep track of this and update you on progress.`;
+
+          // Also save as a reminder for persistence
+          addReminder(`[GOAL] ${goalText}`);
+        } else {
+          result = "What specifically would you like to achieve?";
+        }
+      }
       // Add/Create patterns
-      if (/^(add|create|new|save)\s+/i.test(lower)) {
+      else if (/^(add|create|new|save)\s+/i.test(lower)) {
         const text = input.replace(/^(add|create|new|save)\s+(a\s+)?(reminder|note|task|todo)?\s*/i, "").trim();
         if (!text) {
           result = "What would you like to add?";

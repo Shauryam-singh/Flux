@@ -171,7 +171,9 @@ export function createChatService(options?: ChatServiceOptions): Service {
       await ctx.memory.add("user", input);
 
       const history = await ctx.memory.history();
-      const messages = history.map((m) => `${m.role}: ${m.content}`).join("\n");
+      // Limit to last 20 turns to prevent context overflow
+      const recentHistory = history.slice(-40);
+      const messages = recentHistory.map((m) => `${m.role}: ${m.content}`).join("\n");
 
       // Get system context for the prompt
       let systemContextPrompt = "";

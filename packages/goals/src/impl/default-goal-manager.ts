@@ -1,11 +1,51 @@
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import type { GoalManager } from "../interfaces/goal-manager.js";
 import type { Goal, GoalUpdate, Blocker } from "../types/goal.js";
 import type { WorldState } from "@ai-agent/world-model";
+
+const GOALS_DIR = join(process.env.HOME ?? "/tmp", ".flux");
+const GOALS_FILE = join(GOALS_DIR, "goals.json");
 
 export class DefaultGoalManager implements GoalManager {
   private goals: Goal[] = [];
   private idCounter = 0;
   private handlers: Array<(goal: Goal, change: "created" | "updated" | "completed" | "blocked") => void> = [];
+
+  constructor() {
+    this.load();
+  }
+
+  private load(): void {
+    try {
+      if (existsSync(GOALS_FILE)) {
+        const raw = readFileSync(GOALS_FILE, "utf-8");
+        const data = JSON.parse(raw) as { goals?: Goal[]; idCounter?: number };
+        if (Array.isArray(data.goals)) {
+          this.goals = data.goals;
+        }
+        if (typeof data.idCounter === "number") {
+          this.idCounter = data.idCounter;
+        }
+      }
+    } catch {
+      this.goals = [];
+    }
+  }
+
+  private save(): void {
+    try {
+      if (!existsSync(GOALS_DIR)) {
+        mkdirSync(GOALS_DIR, { recursive: true });
+      }
+      writeFileSync(
+        GOALS_FILE,
+        JSON.stringify({ goals: this.goals, idCounter: this.idCounter }, null, 2),
+      );
+    } catch {
+      // Best-effort
+    }
+  }
 
   create(data: Omit<Goal, "id" | "createdAt" | "updatedAt" | "completedAt" | "subGoalIds">): Goal {
     const now = Date.now();
@@ -22,11 +62,13 @@ export class DefaultGoalManager implements GoalManager {
     if (goal.status === "active" || (goal.status === "created" && !this.getActive())) {
       const activated = this.setStatus(goal.id, "active");
       if (activated) {
+        this.save();
         this.emit(activated, "created");
         return activated;
       }
     }
 
+    this.save();
     this.emit(goal, "created");
     return goal;
   }
@@ -37,6 +79,12 @@ export class DefaultGoalManager implements GoalManager {
 
   getAll(): ReadonlyArray<Goal> {
     return this.goals;
+  }
+
+  clear(): void {
+    this.goals = [];
+    this.idCounter = 0;
+    this.save();
   }
 
   getById(id: string): Goal | null {
@@ -65,6 +113,7 @@ export class DefaultGoalManager implements GoalManager {
       this.goals[idx] = { ...updated, completedAt: Date.now() };
     }
 
+    this.save();
     this.emit(this.goals[idx]!, change);
     return this.goals[idx]!;
   }

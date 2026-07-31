@@ -679,6 +679,42 @@ ul, ol {
 .sensor-status.error { background: var(--error); box-shadow: 0 0 4px var(--error); }
 .sensor-status.offline { background: var(--muted); }
 
+/* ─── Chat Thread ─── */
+.chat-thread {
+  flex: 1;
+  overflow-y: auto;
+  padding: 6px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 0;
+  max-height: 300px;
+  border-top: 1px solid var(--border);
+}
+
+.chat-msg {
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+  font-size: 11px;
+  line-height: 1.4;
+  animation: fade-in 0.15s ease;
+}
+
+.chat-icon {
+  flex-shrink: 0;
+  font-size: 12px;
+}
+
+.chat-text {
+  color: var(--text);
+  word-break: break-word;
+}
+
+.chat-user .chat-text { color: var(--accent); }
+.chat-assistant .chat-text { color: var(--text); }
+.chat-system .chat-text { color: var(--warning); font-style: italic; }
+
 /* HUD Bottom Actions */
 /* ─── HUD Chat Input ─── */
 .hud-chat {

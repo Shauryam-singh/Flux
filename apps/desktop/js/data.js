@@ -37,6 +37,8 @@ export const state = {
   pipelineStage: 0,
   pipelineStageName: "",
   connected: false,
+  suggestions: [],
+  chatHistory: [],
 };
 
 // ─── SSE Connection ───
@@ -227,10 +229,27 @@ function handleStreamEvent(data) {
     emit("worldModel", state.worldModel);
     emit("tasks", state.tasks);
 
+    // Handle proactive suggestions
+    if (data.proactiveSuggestions && data.proactiveSuggestions.length > 0) {
+      const newSuggestions = data.proactiveSuggestions.filter(
+        (s) => !state.suggestions.some((existing) => existing.id === s.id && existing.timestamp === s.timestamp),
+      );
+      if (newSuggestions.length > 0) {
+        state.suggestions = [...newSuggestions, ...state.suggestions].slice(0, 10);
+        emit("suggestions", state.suggestions);
+      }
+    }
+
     // Fetch supplementary data — on snapshot (initial) and periodically
-    if (data.type === "snapshot" || (data.tickNumber && data.tickNumber % 5 === 0)) {
+    if (data.type === "snapshot" || (data.tickNumber && data.tickNumber % 3 === 0)) {
       fetchTimeline();
       fetchMemoryStats();
+      fetchGoals();
+    }
+
+    // Fetch chat history on initial snapshot
+    if (data.type === "snapshot") {
+      fetchChatHistory();
     }
   }
 }
@@ -252,6 +271,32 @@ async function fetchMemoryStats() {
     if (!resp.ok) return;
     const stats = await resp.json();
     emit("dashMemory", stats);
+  } catch {}
+}
+
+async function fetchGoals() {
+  try {
+    const resp = await fetch(`${API_BASE}/goals`);
+    if (!resp.ok) return;
+    const data = await resp.json();
+    if (data.goals && data.goals.length > 0) {
+      const active = data.goals.find((g) => g.status === "active" || g.status === "in_progress") || data.goals[0];
+      state.goal = { name: active.title, progress: active.progress || 0, blocker: "" };
+      emit("goal", state.goal);
+    }
+    emit("goalsList", data.goals || []);
+  } catch {}
+}
+
+async function fetchChatHistory() {
+  try {
+    const resp = await fetch(`${API_BASE}/chat/history?limit=40`);
+    if (!resp.ok) return;
+    const data = await resp.json();
+    if (data.messages && data.messages.length > 0) {
+      state.chatHistory = data.messages;
+      emit("chatHistory", state.chatHistory);
+    }
   } catch {}
 }
 

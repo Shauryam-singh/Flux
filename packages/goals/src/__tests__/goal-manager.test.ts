@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { DefaultGoalManager } from "../impl/default-goal-manager.js";
 import type { WorldState } from "@ai-agent/world-model";
 import { DEFAULT_APPLICATION_STATE, DEFAULT_SYSTEM_STATE } from "@ai-agent/world-model";
@@ -15,8 +15,14 @@ function makeWorldState(overrides?: Partial<WorldState>): WorldState {
 }
 
 describe("DefaultGoalManager", () => {
+  let gm: DefaultGoalManager;
+
+  beforeEach(() => {
+    gm = new DefaultGoalManager();
+    gm.clear();
+  });
+
   it("should create goals", () => {
-    const gm = new DefaultGoalManager();
     const goal = gm.create({
       title: "Implement feature",
       description: "Build the thing",
@@ -35,7 +41,6 @@ describe("DefaultGoalManager", () => {
   });
 
   it("should activate first goal", () => {
-    const gm = new DefaultGoalManager();
     gm.create({
       title: "Goal 1",
       description: "",
@@ -53,28 +58,24 @@ describe("DefaultGoalManager", () => {
   });
 
   it("should get all goals", () => {
-    const gm = new DefaultGoalManager();
     gm.create({ title: "G1", description: "", status: "active", priority: 80, progress: 0, source: "user_request", parentGoalId: null, blockers: [], dependencies: [], estimatedCompletion: null });
     gm.create({ title: "G2", description: "", status: "active", priority: 80, progress: 0, source: "user_request", parentGoalId: null, blockers: [], dependencies: [], estimatedCompletion: null });
     expect(gm.getAll()).toHaveLength(2);
   });
 
   it("should get goal by id", () => {
-    const gm = new DefaultGoalManager();
     const goal = gm.create({ title: "G1", description: "", status: "active", priority: 80, progress: 0, source: "user_request", parentGoalId: null, blockers: [], dependencies: [], estimatedCompletion: null });
     expect(gm.getById(goal.id)).not.toBeNull();
     expect(gm.getById("nonexistent")).toBeNull();
   });
 
   it("should update goals", () => {
-    const gm = new DefaultGoalManager();
     const goal = gm.create({ title: "G1", description: "", status: "active", priority: 80, progress: 0, source: "user_request", parentGoalId: null, blockers: [], dependencies: [], estimatedCompletion: null });
     const updated = gm.update({ goalId: goal.id, changes: { progress: 50 } });
     expect(updated.progress).toBe(50);
   });
 
   it("should complete goals", () => {
-    const gm = new DefaultGoalManager();
     const goal = gm.create({ title: "G1", description: "", status: "active", priority: 80, progress: 0, source: "user_request", parentGoalId: null, blockers: [], dependencies: [], estimatedCompletion: null });
     const completed = gm.complete(goal.id);
     expect(completed.status).toBe("completed");
@@ -82,7 +83,6 @@ describe("DefaultGoalManager", () => {
   });
 
   it("should add sub-goals", () => {
-    const gm = new DefaultGoalManager();
     const parent = gm.create({ title: "Parent", description: "", status: "active", priority: 80, progress: 0, source: "user_request", parentGoalId: null, blockers: [], dependencies: [], estimatedCompletion: null });
     const child = gm.addSubGoal(parent.id, {
       title: "Child",
@@ -101,7 +101,6 @@ describe("DefaultGoalManager", () => {
   });
 
   it("should detect blockers from world state", () => {
-    const gm = new DefaultGoalManager();
     gm.create({ title: "G1", description: "", status: "active", priority: 80, progress: 0, source: "user_request", parentGoalId: null, blockers: [], dependencies: [], estimatedCompletion: null });
     const worldState = makeWorldState({
       system: { ...DEFAULT_SYSTEM_STATE, openErrors: [{ source: "build", message: "TS2345", timestamp: Date.now() }] },
@@ -111,7 +110,6 @@ describe("DefaultGoalManager", () => {
   });
 
   it("should emit onChange on create", () => {
-    const gm = new DefaultGoalManager();
     const handler = vi.fn();
     gm.onChange(handler);
     gm.create({ title: "G1", description: "", status: "active", priority: 80, progress: 0, source: "user_request", parentGoalId: null, blockers: [], dependencies: [], estimatedCompletion: null });
@@ -119,7 +117,6 @@ describe("DefaultGoalManager", () => {
   });
 
   it("should emit onChange on update", () => {
-    const gm = new DefaultGoalManager();
     const goal = gm.create({ title: "G1", description: "", status: "active", priority: 80, progress: 0, source: "user_request", parentGoalId: null, blockers: [], dependencies: [], estimatedCompletion: null });
     const handler = vi.fn();
     gm.onChange(handler);
@@ -128,7 +125,6 @@ describe("DefaultGoalManager", () => {
   });
 
   it("should throw for nonexistent goal update", () => {
-    const gm = new DefaultGoalManager();
     expect(() => gm.update({ goalId: "nonexistent", changes: { progress: 50 } })).toThrow();
   });
 });

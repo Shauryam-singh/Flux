@@ -148,6 +148,14 @@ export class DefaultFluxRuntime implements FluxRuntime {
     timestamp: number;
     priority: string;
   }> = [];
+  private proactiveSuggestions: Array<{
+    id: string;
+    type: string;
+    message: string;
+    timestamp: number;
+    priority: string;
+  }> = [];
+  private lastSuggestionCheck = 0;
 
   constructor(config: FluxRuntimeConfig) {
     this.config = config;
@@ -413,6 +421,49 @@ export class DefaultFluxRuntime implements FluxRuntime {
     return this.thoughtGraph.getStrongestThoughts(limit);
   }
 
+  private async generateProactiveSuggestions(): Promise<void> {
+    const now = Date.now();
+    // Only check every 30 seconds
+    if (now - this.lastSuggestionCheck < 30000) return;
+    this.lastSuggestionCheck = now;
+
+    try {
+      // Check battery
+      const batterySnap = await this.sensors.get("battery")?.snapshot() as { level?: number; isCharging?: boolean } | null;
+      if (batterySnap?.level != null && batterySnap.level < 20 && !batterySnap.isCharging) {
+        this.addSuggestion("battery_low", "warning", `Battery is low at ${batterySnap.level}% — consider plugging in`, "high");
+      }
+
+      // Check git status
+      const gitSnap = await this.sensors.get("git")?.snapshot() as { branch?: string; isDirty?: boolean } | null;
+      if (gitSnap?.isDirty && gitSnap?.branch) {
+        this.addSuggestion("git_dirty", "info", `Git branch "${gitSnap.branch}" has uncommitted changes`, "medium");
+      }
+
+      // Check filesystem changes
+      const fsSnap = await this.sensors.get("filesystem")?.snapshot() as { recentChanges?: unknown[] } | null;
+      if (fsSnap?.recentChanges && fsSnap.recentChanges.length > 10) {
+        this.addSuggestion("fs_many_changes", "info", `${fsSnap.recentChanges.length} recent file changes — consider committing`, "medium");
+      }
+    } catch {
+      // Best-effort
+    }
+  }
+
+  private addSuggestion(id: string, type: string, message: string, priority: string): void {
+    // Deduplicate — don't add the same suggestion within 5 minutes
+    const recent = this.proactiveSuggestions.find(
+      (s) => s.id === id && Date.now() - s.timestamp < 300000,
+    );
+    if (recent) return;
+
+    this.proactiveSuggestions.push({ id, type, message, timestamp: Date.now(), priority });
+    // Keep only last 20 suggestions
+    if (this.proactiveSuggestions.length > 20) {
+      this.proactiveSuggestions = this.proactiveSuggestions.slice(-20);
+    }
+  }
+
   private async runTick(): Promise<void> {
     if (!this.running) return;
 
@@ -425,6 +476,13 @@ export class DefaultFluxRuntime implements FluxRuntime {
       observationsGathered = await this.gatherObservations();
     } catch {
       // Observation gathering is best-effort
+    }
+
+    // Generate proactive suggestions from sensor data
+    try {
+      await this.generateProactiveSuggestions();
+    } catch {
+      // Best-effort
     }
 
     // Run the 14-stage cognition pipeline
@@ -836,7 +894,7 @@ export class DefaultFluxRuntime implements FluxRuntime {
         sensors: sensorSnapshots,
         goals,
         recentActivity,
-        memoryStats: null,
+        memoryStats: { totalMemories: this.memory.getStats().totalMemories },
         currentTime: new Date().toLocaleString(),
         platform: process.platform,
       };
@@ -1036,6 +1094,13 @@ export class DefaultFluxRuntime implements FluxRuntime {
     }>;
     readonly worldState: ReturnType<DefaultWorldModel["getState"]>;
     readonly sensorSnapshots: Record<string, unknown>;
+    readonly proactiveSuggestions: ReadonlyArray<{
+      id: string;
+      type: string;
+      message: string;
+      timestamp: number;
+      priority: string;
+    }>;
   }> {
     const goals = this.goalManager.getAll().map((g) => ({
       id: g.id,
@@ -1087,6 +1152,7 @@ export class DefaultFluxRuntime implements FluxRuntime {
       goals,
       worldState: this.worldModel.getState(),
       sensorSnapshots,
+      proactiveSuggestions: this.proactiveSuggestions.slice(-10),
     };
   }
 

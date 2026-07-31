@@ -1,7 +1,8 @@
 // Priority-ordered rules. First match wins.
-// Each rule: [regex, service name]
+// Each rule: [regex, service name, optional elevation/depression context]
 // Rules use \b or flexible matching (no ^) to detect intent anywhere in input.
-const RULES: [RegExp, string][] = [
+type RuleEntry = [RegExp, string] | [RegExp, string, { elevation?: string[]; depression?: string[] }];
+const RULES: RuleEntry[] = [
   // ── Notifications (highest priority — alert commands) ──
   [
     /\b(send|create|new|add)\s+(a\s+)?(notification|alert|notify)\b/i,
@@ -145,14 +146,67 @@ const RULES: [RegExp, string][] = [
   [/^(my\s+)?(open\s+)?(reminders?|notes?|tasks?|todos?)\s*$/i, "reminders"],
 ];
 
-export function classifyIntent(input: string): string | null {
+export interface IntentContext {
+  readonly isCoding?: boolean;
+  readonly isBrowsing?: boolean;
+  readonly isTerminal?: boolean;
+  readonly dockerRunning?: boolean;
+  readonly k8sActive?: boolean;
+  readonly gitDirty?: boolean;
+  readonly cpuHigh?: boolean;
+}
+
+/**
+ * Classify user intent from input text.
+ * Optional context allows elevating/depressing intents based on sensor state.
+ */
+export function classifyIntent(
+  input: string,
+  context?: IntentContext,
+): string | null {
   const trimmed = input.trim();
 
-  for (const [regex, service] of RULES) {
+  for (const rule of RULES) {
+    const [regex, service, opts] = rule;
     if (regex.test(trimmed)) {
+      // Apply context-aware adjustments
+      if (opts && context) {
+        // Elevate: if context matches elevation rules, boost this service
+        if (opts.elevation) {
+          for (const condition of opts.elevation) {
+            if (matchesContext(condition, context)) {
+              return service; // Elevated — return immediately
+            }
+          }
+        }
+        // Depress: if context matches depression rules, skip this service
+        if (opts.depression) {
+          let suppressed = false;
+          for (const condition of opts.depression) {
+            if (matchesContext(condition, context)) {
+              suppressed = true;
+              break;
+            }
+          }
+          if (suppressed) continue; // Depression active — try next rule
+        }
+      }
       return service;
     }
   }
 
   return null;
+}
+
+function matchesContext(condition: string, context: IntentContext): boolean {
+  switch (condition) {
+    case "isCoding": return context.isCoding === true;
+    case "isBrowsing": return context.isBrowsing === true;
+    case "isTerminal": return context.isTerminal === true;
+    case "dockerRunning": return context.dockerRunning === true;
+    case "k8sActive": return context.k8sActive === true;
+    case "gitDirty": return context.gitDirty === true;
+    case "cpuHigh": return context.cpuHigh === true;
+    default: return false;
+  }
 }

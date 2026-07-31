@@ -153,6 +153,15 @@ export interface FluxRuntime {
     event: string;
     context?: Record<string, unknown>;
   }): Promise<void>;
+  recordSuggestionDismissal(suggestionId: string, message: string): void;
+  getDismissalStats(): {
+    readonly totalDismissals: number;
+    readonly activeSuppressions: number;
+    readonly suppressedPatterns: ReadonlyArray<string>;
+  };
+  getCorrelations(
+    limit?: number,
+  ): ReadonlyArray<import("../impl/sensor-correlator.js").Correlation>;
   shutdown(): Promise<void>;
 }
 

@@ -99,6 +99,9 @@ import type {
   TickEvent,
 } from "../interfaces/flux-runtime.js";
 import { CognitionPipeline } from "./cognition-pipeline.js";
+import { SensorCorrelator } from "./sensor-correlator.js";
+import { DismissalTracker } from "./dismissal-tracker.js";
+import { TimeAwareEngine } from "./time-aware-engine.js";
 
 export class DefaultFluxRuntime implements FluxRuntime {
   private readonly config: FluxRuntimeConfig;
@@ -201,6 +204,12 @@ export class DefaultFluxRuntime implements FluxRuntime {
   private lastSSHSessionSuggestion = 0;
   private lastClipboardAnalysisSuggestion = 0;
   private lastNotificationSuggestion = 0;
+  // Tier 3: Intelligence
+  private readonly sensorCorrelator: SensorCorrelator;
+  private readonly dismissalTracker: DismissalTracker;
+  private readonly timeAwareEngine: TimeAwareEngine;
+  private lastCorrelationCheck = 0;
+  private lastTimeAwareCheck = 0;
 
   constructor(config: FluxRuntimeConfig) {
     this.config = config;
@@ -367,6 +376,11 @@ export class DefaultFluxRuntime implements FluxRuntime {
     this.windowTracker = new WindowTracker();
     this.browserContext = new BrowserContextSensor();
     this.codingSession = new CodingSessionTracker();
+
+    // Tier 3: Intelligence
+    this.sensorCorrelator = new SensorCorrelator();
+    this.dismissalTracker = new DismissalTracker();
+    this.timeAwareEngine = new TimeAwareEngine();
 
     // Wire sensor events to attention system
     this.sensors.onEvent((event) => {
@@ -824,12 +838,82 @@ export class DefaultFluxRuntime implements FluxRuntime {
       if (windowState.switchesLast5Min > 15) {
         this.addSuggestion("context_switching", "info", "You've switched apps 15+ times in 5 minutes — want me to focus mode?", "low");
       }
+
+      // ══════════════════════════════════════════════════════════════
+      // TIER 3: INTELLIGENCE
+      // ══════════════════════════════════════════════════════════════
+
+      // ── 16. Cross-Sensor Correlation (every 30s) ────────────────
+      if (now - this.lastCorrelationCheck > 30_000) {
+        this.lastCorrelationCheck = now;
+        try {
+          const allSnapshots: Record<string, unknown> = {};
+          for (const sid of ["git", "docker", "kubernetes", "system-health", "spotify", "audio", "battery", "clipboard", "ssh", "idle", "notifications"] as const) {
+            const snap = await this.sensors.get(sid)?.snapshot();
+            if (snap) allSnapshots[sid] = snap;
+          }
+          const windowInf = this.windowTracker.poll();
+          const wState = this.windowTracker.getState();
+          if (wState.current) {
+            allSnapshots.window = { app: wState.current.className, title: wState.current.title, isCoding: wState.isCoding };
+          }
+          const browserCtx = this.browserContext.getLastContext();
+          if (browserCtx) {
+            allSnapshots.browser = browserCtx;
+          }
+
+          const correlations = this.sensorCorrelator.analyze(allSnapshots);
+          for (const corr of correlations) {
+            // Check dismissal suppression
+            if (!this.dismissalTracker.shouldSuppress(corr.id)) {
+              this.addSuggestion(corr.id, corr.type, `${corr.insight} — ${corr.suggestedAction}`, corr.priority);
+            }
+          }
+        } catch {
+          // Best-effort
+        }
+      }
+
+      // ── 17. Time-Aware Suggestions (every 5 minutes) ────────────
+      if (now - this.lastTimeAwareCheck > 300_000) {
+        this.lastTimeAwareCheck = now;
+        try {
+          const gitSnap2 = await this.sensors.get("git")?.snapshot() as { isDirty?: boolean } | null;
+          const healthSnap2 = await this.sensors.get("system-health")?.snapshot() as { cpuUsagePercent?: number } | null;
+          const codingState2 = this.codingSession.tick();
+          const goals2 = this.goalManager.getAll().filter((g) => g.status === "active" || g.status === "in_progress");
+          const now2 = new Date();
+          const isWeekend = now2.getDay() === 0 || now2.getDay() === 6;
+
+          const timeSuggestions = this.timeAwareEngine.suggest({
+            activeGoals: goals2.length,
+            pendingTasks: 0, // Could wire to reminders count
+            gitDirty: gitSnap2?.isDirty === true,
+            cpuHigh: (healthSnap2?.cpuUsagePercent ?? 0) > 70,
+            codingSessionMinutes: codingState2.currentSession
+              ? Math.round(codingState2.currentSession.durationMs / 60_000)
+              : 0,
+            isWeekend,
+          });
+
+          for (const ts of timeSuggestions) {
+            if (!this.dismissalTracker.shouldSuppress(ts.id)) {
+              this.addSuggestion(ts.id, ts.type, ts.message, ts.priority);
+            }
+          }
+        } catch {
+          // Best-effort
+        }
+      }
     } catch {
       // Best-effort
     }
   }
 
   private addSuggestion(id: string, type: string, message: string, priority: string): void {
+    // Check dismissal suppression (Tier 3)
+    if (this.dismissalTracker.shouldSuppress(id)) return;
+
     // Deduplicate — don't add the same suggestion within 5 minutes
     const recent = this.proactiveSuggestions.find(
       (s) => s.id === id && Date.now() - s.timestamp < 300000,
@@ -959,6 +1043,32 @@ export class DefaultFluxRuntime implements FluxRuntime {
     actionPayload?: string;
   }> {
     return this.proactiveMessages.slice(-limit);
+  }
+
+  /**
+   * Record that a suggestion was dismissed by the user.
+   * The dismissal tracker will learn to suppress similar suggestions.
+   */
+  recordSuggestionDismissal(suggestionId: string, message: string): void {
+    this.dismissalTracker.recordDismissal(suggestionId, message);
+  }
+
+  /**
+   * Get dismissal tracker stats.
+   */
+  getDismissalStats(): {
+    readonly totalDismissals: number;
+    readonly activeSuppressions: number;
+    readonly suppressedPatterns: ReadonlyArray<string>;
+  } {
+    return this.dismissalTracker.getStats();
+  }
+
+  /**
+   * Get recent cross-sensor correlations.
+   */
+  getCorrelations(limit = 10): ReadonlyArray<import("./sensor-correlator.js").Correlation> {
+    return this.sensorCorrelator.getRecent(limit);
   }
 
   /**

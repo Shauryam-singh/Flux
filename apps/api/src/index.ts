@@ -437,6 +437,11 @@ const server = createServer(async (req, res) => {
           : `User asked about: "${suggestion.content}". Provide a helpful, actionable response.`,
       );
 
+      // Track dismissal for learning (Tier 3)
+      if (json.action === "dismiss") {
+        flux.runtime.recordSuggestionDismissal(suggestionId, suggestion.content);
+      }
+
       sendJson(res, 200, { reply: response, suggestionId });
     } catch (err) {
       const error = err instanceof Error ? err.message : String(err);
@@ -820,6 +825,43 @@ const server = createServer(async (req, res) => {
     return;
   }
 
+  // ─── Tier 3: Cross-Sensor Correlations ────────────────────────
+  if (req.method === "GET" && req.url === "/correlations") {
+    const url = new URL(req.url ?? "/", `http://localhost:${PORT}`);
+    const limit = parseInt(url.searchParams.get("limit") ?? "10", 10);
+    const correlations = flux.runtime.getCorrelations(limit);
+    sendJson(res, 200, { correlations });
+    return;
+  }
+
+  // ─── Tier 3: Dismissal Stats ─────────────────────────────────
+  if (req.method === "GET" && req.url === "/dismissals/stats") {
+    const stats = flux.runtime.getDismissalStats();
+    sendJson(res, 200, stats);
+    return;
+  }
+
+  // ─── Tier 3: Record Dismissal ────────────────────────────────
+  if (req.method === "POST" && req.url === "/dismissals") {
+    try {
+      const body = await parseBody(req);
+      const { suggestionId, message } = JSON.parse(body.toString()) as {
+        suggestionId?: string;
+        message?: string;
+      };
+      if (!suggestionId) {
+        sendJson(res, 400, { error: "suggestionId is required" });
+        return;
+      }
+      flux.runtime.recordSuggestionDismissal(suggestionId, message ?? "");
+      sendJson(res, 200, { recorded: true });
+    } catch (err) {
+      const error = err instanceof Error ? err.message : String(err);
+      sendJson(res, 500, { error });
+    }
+    return;
+  }
+
   sendJson(res, 404, { error: "Not found" });
 });
 
@@ -856,4 +898,7 @@ server.listen(PORT, () => {
   console.log(`  GET  /cognitive/goals     - Get current goals`);
   console.log(`  GET  /health              - Health check`);
   console.log(`  GET  /services            - List available services`);
+  console.log(`  GET  /correlations        - Cross-sensor correlations`);
+  console.log(`  GET  /dismissals/stats    - Suggestion dismissal stats`);
+  console.log(`  POST /dismissals          - Record suggestion dismissal`);
 });

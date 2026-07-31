@@ -40,6 +40,9 @@
     { "path": "../../packages/plugins" },
     { "path": "../../packages/knowledge-base" },
     { "path": "../../packages/multi-agent" },
-    { "path": "../../packages/cross-device" }
+    { "path": "../../packages/cross-device" },
+    { "path": "../../packages/services/scheduled-notifications" },
+    { "path": "../../packages/services/game-updater" },
+    { "path": "../../packages/services/file-processor" }
   ]
 }

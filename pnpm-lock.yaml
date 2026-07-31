@@ -1053,9 +1053,15 @@ importers:
       '@ai-agent/services-core':
         specifier: workspace:*
         version: link:../services/core
+      '@ai-agent/services-file-processor':
+        specifier: workspace:*
+        version: link:../services/file-processor
       '@ai-agent/services-files':
         specifier: workspace:*
         version: link:../services/files
+      '@ai-agent/services-game-updater':
+        specifier: workspace:*
+        version: link:../services/game-updater
       '@ai-agent/services-monitor':
         specifier: workspace:*
         version: link:../services/monitor
@@ -1068,6 +1074,9 @@ importers:
       '@ai-agent/services-reminders':
         specifier: workspace:*
         version: link:../services/reminders
+      '@ai-agent/services-scheduled-notifications':
+        specifier: workspace:*
+        version: link:../services/scheduled-notifications
       '@ai-agent/services-search':
         specifier: workspace:*
         version: link:../services/search
@@ -1504,7 +1513,25 @@ importers:
         specifier: workspace:*
         version: link:../../shared
 
+  packages/services/file-processor:
+    dependencies:
+      '@ai-agent/services-core':
+        specifier: workspace:*
+        version: link:../core
+      '@ai-agent/shared':
+        specifier: workspace:*
+        version: link:../../shared
+
   packages/services/files:
+    dependencies:
+      '@ai-agent/services-core':
+        specifier: workspace:*
+        version: link:../core
+      '@ai-agent/shared':
+        specifier: workspace:*
+        version: link:../../shared
+
+  packages/services/game-updater:
     dependencies:
       '@ai-agent/services-core':
         specifier: workspace:*
@@ -1541,6 +1568,15 @@ importers:
         version: link:../../shared
 
   packages/services/reminders:
+    dependencies:
+      '@ai-agent/services-core':
+        specifier: workspace:*
+        version: link:../core
+      '@ai-agent/shared':
+        specifier: workspace:*
+        version: link:../../shared
+
+  packages/services/scheduled-notifications:
     dependencies:
       '@ai-agent/services-core':
         specifier: workspace:*

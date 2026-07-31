@@ -45,6 +45,9 @@
     "@ai-agent/plugins": "workspace:*",
     "@ai-agent/knowledge-base": "workspace:*",
     "@ai-agent/multi-agent": "workspace:*",
-    "@ai-agent/cross-device": "workspace:*"
+    "@ai-agent/cross-device": "workspace:*",
+    "@ai-agent/services-scheduled-notifications": "workspace:*",
+    "@ai-agent/services-game-updater": "workspace:*",
+    "@ai-agent/services-file-processor": "workspace:*"
   }
 }

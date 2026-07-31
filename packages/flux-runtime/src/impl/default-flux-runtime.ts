@@ -56,6 +56,9 @@ import { createProactiveService } from "@ai-agent/services-proactive";
 import { createRemindersService } from "@ai-agent/services-reminders";
 import { createSearchService } from "@ai-agent/services-search";
 import { createSystemService } from "@ai-agent/services-system";
+import { createScheduledNotificationsService } from "@ai-agent/services-scheduled-notifications";
+import { createGameUpdaterService } from "@ai-agent/services-game-updater";
+import { createFileProcessorService } from "@ai-agent/services-file-processor";
 import { DefaultPluginLoader, type FluxPlugin } from "@ai-agent/plugins";
 import { DefaultKnowledgeBase } from "@ai-agent/knowledge-base";
 import { DefaultMultiAgentCoordinator, AgentFactory } from "@ai-agent/multi-agent";
@@ -282,6 +285,9 @@ export class DefaultFluxRuntime implements FluxRuntime {
     serviceRegistry.register(createAutomationService());
     serviceRegistry.register(createContextService());
     serviceRegistry.register(createProactiveService());
+    serviceRegistry.register(createScheduledNotificationsService());
+    serviceRegistry.register(createGameUpdaterService());
+    serviceRegistry.register(createFileProcessorService());
 
     this.orchestrator = new Orchestrator(serviceRegistry);
 

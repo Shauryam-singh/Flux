@@ -46,6 +46,7 @@ import { createContextService } from "@ai-agent/services-context";
 import {
   DefaultServiceRegistry,
   type LlmProvider,
+  type SystemContext,
   Orchestrator,
 } from "@ai-agent/services-core";
 import { createFilesService } from "@ai-agent/services-files";
@@ -1608,7 +1609,7 @@ export class DefaultFluxRuntime implements FluxRuntime {
       const codingState = this.codingSession.tick();
       const browserCtx = this.browserContext.getLastContext();
 
-      return {
+      const sysResult: Record<string, unknown> = {
         battery: batterySnap
           ? {
               level: batterySnap.level ?? 0,
@@ -1664,6 +1665,45 @@ export class DefaultFluxRuntime implements FluxRuntime {
         currentTime: new Date().toLocaleString(),
         platform: process.platform,
       };
+
+      // Enrich with knowledge base search results for the current query
+      try {
+        const kbResults = this.knowledgeBase.search(input, 3);
+        if (kbResults.length > 0) {
+          sysResult.knowledgeBase = kbResults.map((r) => ({
+            file: r.filePath,
+            snippet: r.content.slice(0, 200),
+          }));
+        }
+      } catch {
+        // Knowledge base unavailable
+      }
+
+      // Enrich with multi-agent status
+      try {
+        const agents = this.multiAgent.getAgents();
+        sysResult.agents = {
+          count: agents.length,
+          domains: agents.map((a) => a.domain),
+        };
+      } catch {
+        // Multi-agent unavailable
+      }
+
+      // Enrich with cross-device sync status
+      try {
+        const syncStatus = this.crossDevice.getStatus();
+        sysResult.crossDevice = {
+          enabled: syncStatus.enabled,
+          sharedDir: syncStatus.sharedDir,
+          lastPush: syncStatus.lastPush,
+          lastPull: syncStatus.lastPull,
+        };
+      } catch {
+        // Cross-device unavailable
+      }
+
+      return sysResult as unknown as SystemContext;
     };
 
     const result = await this.orchestrator.process(input, {

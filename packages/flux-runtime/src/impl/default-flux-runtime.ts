@@ -191,6 +191,16 @@ export class DefaultFluxRuntime implements FluxRuntime {
   private proactiveMessageListeners: Array<(msg: string) => void> = [];
   private proactiveSpeakListeners: Array<(text: string) => void> = [];
   private lastProactiveSpeak = 0;
+  // Tier 2: Health trend tracking
+  private cpuHistory: number[] = [];
+  private memoryHistory: number[] = [];
+  private lastAudioSuggestion = 0;
+  private lastSpotifySuggestion = 0;
+  private lastDockerSuggestion = 0;
+  private lastK8sSuggestion = 0;
+  private lastSSHSessionSuggestion = 0;
+  private lastClipboardAnalysisSuggestion = 0;
+  private lastNotificationSuggestion = 0;
 
   constructor(config: FluxRuntimeConfig) {
     this.config = config;
@@ -491,12 +501,12 @@ export class DefaultFluxRuntime implements FluxRuntime {
 
   private async generateProactiveSuggestions(): Promise<void> {
     const now = Date.now();
-    // Check every 15 seconds (was 30, faster for awareness)
+    // Check every 15 seconds
     if (now - this.lastSuggestionCheck < 15000) return;
     this.lastSuggestionCheck = now;
 
     try {
-      // ── 1. System Health (CPU / Memory / Disk / Network) ──────────
+      // ── 1. System Health + Trends ───────────────────────────────
       if (now - this.lastSystemHealthSuggestion > 120_000) {
         const healthSnap = await this.sensors.get("system-health")?.snapshot() as {
           cpuUsagePercent?: number;
@@ -525,6 +535,35 @@ export class DefaultFluxRuntime implements FluxRuntime {
             this.addSuggestion("network_offline", "warning", "Network is offline — check your connection", "high");
             this.lastSystemHealthSuggestion = now;
           }
+
+          // Health trends — detect rising CPU/memory over time
+          if (healthSnap.cpuUsagePercent != null) {
+            this.cpuHistory.push(healthSnap.cpuUsagePercent);
+            if (this.cpuHistory.length > 12) this.cpuHistory.shift(); // Keep last ~2min
+          }
+          if (healthSnap.memoryUsagePercent != null) {
+            this.memoryHistory.push(healthSnap.memoryUsagePercent);
+            if (this.memoryHistory.length > 12) this.memoryHistory.shift();
+          }
+
+          // Detect sustained high CPU (6+ consecutive readings > 70%)
+          if (this.cpuHistory.length >= 6) {
+            const recent = this.cpuHistory.slice(-6);
+            const allHigh = recent.every((v) => v > 70);
+            if (allHigh) {
+              this.addSuggestion("cpu_sustained", "warning", `CPU has been >70% for over a minute — consider closing heavy apps`, "medium");
+              this.cpuHistory = []; // Reset to avoid repeat
+            }
+          }
+
+          // Detect rising memory trend (3 consecutive increases ending > 80%)
+          if (this.memoryHistory.length >= 3) {
+            const last3 = this.memoryHistory.slice(-3);
+            if (last3[0]! < last3[1]! && last3[1]! < last3[2]! && last3[2]! > 80) {
+              this.addSuggestion("memory_rising", "warning", `Memory trending up (${last3[0]}% → ${last3[1]}% → ${last3[2]}%) — may need attention`, "medium");
+              this.memoryHistory = [];
+            }
+          }
         }
       }
 
@@ -534,34 +573,22 @@ export class DefaultFluxRuntime implements FluxRuntime {
         this.addSuggestion("battery_low", "warning", `Battery is low at ${batterySnap.level}% — consider plugging in`, "high");
       }
 
-      // ── 3. Window Tracking (IDE, Browser, Terminal context) ─────
+      // ── 3. Window Tracking ──────────────────────────────────────
       const windowInfo = this.windowTracker.poll();
       if (windowInfo) {
         const app = windowInfo.app;
         const title = windowInfo.title;
-
-        // Track app visits
         const count = (this.appVisitCount.get(app) ?? 0) + 1;
         this.appVisitCount.set(app, count);
 
-        // ── IDE Detection (VS Code, IntelliJ, Zed, etc.) ──
         const isIDE =
-          app.includes("code") ||
-          app.includes("vscode") ||
-          app.includes("visual studio") ||
-          app.includes("idea") ||
-          app.includes("intellij") ||
-          app.includes("pycharm") ||
-          app.includes("webstorm") ||
-          app.includes("zed") ||
-          app.includes("cursor") ||
-          app.includes("helix");
+          app.includes("code") || app.includes("vscode") || app.includes("visual studio") ||
+          app.includes("idea") || app.includes("intellij") || app.includes("pycharm") ||
+          app.includes("webstorm") || app.includes("zed") || app.includes("cursor") || app.includes("helix");
 
         if (isIDE && this.lastScreenAppForSuggestions !== app) {
-          // Extract project name from window title (format: "filename — ProjectName")
           const parts = title.split(" — ");
           const projectName = parts.length > 1 && parts[parts.length - 1] != null ? parts[parts.length - 1]!.trim() : null;
-
           if (projectName) {
             this.addSuggestion("ide_project", "info", `Working on "${projectName}" — need help with code, debugging, or git?`, "low");
           } else {
@@ -569,72 +596,40 @@ export class DefaultFluxRuntime implements FluxRuntime {
           }
         }
 
-        // ── Browser Context Detection ──
         const browserCtx = this.browserContext.detectFromWindowTitle(title, app);
-        if (browserCtx) {
-          if (browserCtx.isGitHub && !this.lastScreenAppForSuggestions.includes(app)) {
-            if (browserCtx.isPRPage) {
-              this.addSuggestion("github_pr", "info", "Reviewing a PR on GitHub — need help with code review?", "low");
-            } else if (browserCtx.isIssuePage) {
-              this.addSuggestion("github_issue", "info", "Looking at a GitHub issue — need help investigating?", "low");
-            } else if (browserCtx.isCodeReview) {
-              this.addSuggestion("github_code_review", "info", "Code review on GitHub — want me to analyze the changes?", "low");
-            } else {
-              this.addSuggestion("github", "info", "Browsing GitHub — need help with a repo or PR?", "low");
-            }
+        if (browserCtx && this.lastScreenAppForSuggestions !== app) {
+          if (browserCtx.isGitHub) {
+            const subtype = browserCtx.isPRPage ? "PR" : browserCtx.isIssuePage ? "issue" : browserCtx.isCodeReview ? "code review" : "repo";
+            this.addSuggestion("github", "info", `Browsing GitHub ${subtype} — need help?`, "low");
           }
-          if (browserCtx.isStackOverflow && !this.lastScreenAppForSuggestions.includes(app)) {
-            this.addSuggestion("stackoverflow", "info", "Looking at Stack Overflow — want me to help solve this?", "low");
-          }
-          if (browserCtx.isDocs && !this.lastScreenAppForSuggestions.includes(app)) {
-            this.addSuggestion("docs", "info", "Reading documentation — want me to summarize or explain this?", "low");
-          }
-          if (browserCtx.isAIChat && !this.lastScreenAppForSuggestions.includes(app)) {
-            this.addSuggestion("ai_chat", "info", "Using AI chat — want me to help with something else?", "low");
-          }
-          if (browserCtx.isSearchEngine && !this.lastScreenAppForSuggestions.includes(app)) {
-            this.addSuggestion("search", "info", "Searching the web — want me to look that up for you?", "low");
-          }
+          if (browserCtx.isStackOverflow) this.addSuggestion("stackoverflow", "info", "Looking at Stack Overflow — want me to help solve this?", "low");
+          if (browserCtx.isDocs) this.addSuggestion("docs", "info", "Reading documentation — want me to summarize or explain this?", "low");
+          if (browserCtx.isAIChat) this.addSuggestion("ai_chat", "info", "Using AI chat — want me to help with something else?", "low");
+          if (browserCtx.isSearchEngine) this.addSuggestion("search", "info", "Searching the web — want me to look that up for you?", "low");
         }
 
-        // ── Terminal Detection ──
-        const isTerminal =
-          app.includes("kitty") ||
-          app.includes("alacritty") ||
-          app.includes("wezterm") ||
-          app.includes("foot") ||
-          app.includes("ghostty") ||
-          app.includes("tilix") ||
-          app.includes("konsole") ||
-          app.includes("gnome-terminal") ||
-          app.includes("windows terminal") ||
-          app.includes("cmd") ||
-          app.includes("powershell") ||
-          app.includes("wt");
+        const isTerminal = app.includes("kitty") || app.includes("alacritty") || app.includes("wezterm") ||
+          app.includes("foot") || app.includes("ghostty") || app.includes("konsole") ||
+          app.includes("gnome-terminal") || app.includes("windows terminal") || app.includes("cmd") ||
+          app.includes("powershell") || app.includes("wt");
 
         if (isTerminal && this.lastScreenAppForSuggestions !== app) {
           this.addSuggestion("terminal_help", "info", "Terminal open — need help running commands or monitoring processes?", "low");
         }
 
-        // ── App Usage Patterns ──
         if (count === 10) {
           this.addSuggestion("app_pattern", "info", `You've been using ${windowInfo.className} a lot — want me to set up automation?`, "low");
         }
-
         this.lastScreenAppForSuggestions = app;
       }
 
-      // ── 4. Coding Session Tracking ──────────────────────────────
-      // Feed file changes to the coding session tracker
+      // ── 4. Coding Session ───────────────────────────────────────
       const fsSnap = await this.sensors.get("filesystem")?.snapshot() as { recentChanges?: ReadonlyArray<{ path: string }> } | null;
       if (fsSnap?.recentChanges) {
         for (const change of fsSnap.recentChanges.slice(-3)) {
-          if (change.path) {
-            this.codingSession.recordFileChange(change.path);
-          }
+          if (change.path) this.codingSession.recordFileChange(change.path);
         }
       }
-
       const codingState = this.codingSession.tick();
       if (codingState.shouldSuggestBreak && codingState.breakReason && now - this.lastCodingSessionSuggestion > 600_000) {
         this.addSuggestion("coding_break", "info", codingState.breakReason, "medium");
@@ -643,30 +638,15 @@ export class DefaultFluxRuntime implements FluxRuntime {
 
       // ── 5. Git Status ───────────────────────────────────────────
       const gitSnap = await this.sensors.get("git")?.snapshot() as {
-        branch?: string;
-        isDirty?: boolean;
-        stagedCount?: number;
-        ahead?: number;
-        behind?: number;
-        merging?: boolean;
-        rebasing?: boolean;
+        branch?: string; isDirty?: boolean; stagedCount?: number;
+        ahead?: number; behind?: number; merging?: boolean; rebasing?: boolean;
       } | null;
       if (gitSnap) {
-        if (gitSnap.isDirty && gitSnap?.branch) {
-          this.addSuggestion("git_dirty", "info", `Git branch "${gitSnap.branch}" has uncommitted changes`, "medium");
-        }
-        if (gitSnap.merging) {
-          this.addSuggestion("git_merge", "info", "You're in a merge — need help resolving conflicts?", "high");
-        }
-        if (gitSnap.rebasing) {
-          this.addSuggestion("git_rebase", "info", "You're in a rebase — need help resolving conflicts?", "high");
-        }
-        if (gitSnap.ahead != null && gitSnap.ahead > 3) {
-          this.addSuggestion("git_ahead", "info", `You're ${gitSnap.ahead} commits ahead of remote — consider pushing`, "low");
-        }
-        if (gitSnap.behind != null && gitSnap.behind > 3) {
-          this.addSuggestion("git_behind", "info", `You're ${gitSnap.behind} commits behind remote — consider pulling`, "low");
-        }
+        if (gitSnap.isDirty && gitSnap.branch) this.addSuggestion("git_dirty", "info", `Git branch "${gitSnap.branch}" has uncommitted changes`, "medium");
+        if (gitSnap.merging) this.addSuggestion("git_merge", "info", "You're in a merge — need help resolving conflicts?", "high");
+        if (gitSnap.rebasing) this.addSuggestion("git_rebase", "info", "You're in a rebase — need help resolving conflicts?", "high");
+        if (gitSnap.ahead != null && gitSnap.ahead > 3) this.addSuggestion("git_ahead", "info", `You're ${gitSnap.ahead} commits ahead of remote — consider pushing`, "low");
+        if (gitSnap.behind != null && gitSnap.behind > 3) this.addSuggestion("git_behind", "info", `You're ${gitSnap.behind} commits behind remote — consider pulling`, "low");
       }
 
       // ── 6. Filesystem Changes ───────────────────────────────────
@@ -674,32 +654,172 @@ export class DefaultFluxRuntime implements FluxRuntime {
         this.addSuggestion("fs_many_changes", "info", `${fsSnap.recentChanges.length} recent file changes — consider committing`, "medium");
       }
 
-      // ── 7. Clipboard Awareness ──────────────────────────────────
-      const clipSnap = await this.sensors.get("clipboard")?.snapshot() as { content?: string; length?: number } | null;
-      if (clipSnap?.content && clipSnap.length != null && clipSnap.length > 500) {
-        // Large clipboard content — user might be doing a big paste
-        this.addSuggestion("clipboard_large", "info", `Large clipboard content (${clipSnap.length} chars) — need help with this?`, "low");
-      }
+      // ══════════════════════════════════════════════════════════════
+      // TIER 2: DEEPER AWARENESS
+      // ══════════════════════════════════════════════════════════════
 
-      // ── 8. Notification Awareness ───────────────────────────────
-      const notifSnap = await this.sensors.get("notifications")?.snapshot() as { recent?: ReadonlyArray<{ summary: string; body?: string }> } | null;
-      if (notifSnap?.recent) {
-        for (const notif of notifSnap.recent.slice(0, 2)) {
-          const text = `${notif.summary} ${notif.body ?? ""}`.toLowerCase();
-          if (text.includes("error") || text.includes("fail") || text.includes("crash")) {
-            this.addSuggestion("notif_error", "warning", `Notification: "${notif.summary}" — want me to help?`, "medium");
+      // ── 7. Audio Awareness ──────────────────────────────────────
+      if (now - this.lastAudioSuggestion > 300_000) {
+        const audioSnap = await this.sensors.get("audio")?.snapshot() as {
+          outputVolume?: number; inputVolume?: number; isMuted?: boolean;
+          activeSink?: string | null; activeSource?: string | null;
+        } | null;
+        if (audioSnap) {
+          if (audioSnap.isMuted) {
+            this.addSuggestion("audio_muted", "info", "Audio is muted — might miss notifications or calls", "low");
+            this.lastAudioSuggestion = now;
+          }
+          if (audioSnap.outputVolume != null && audioSnap.outputVolume > 85) {
+            this.addSuggestion("volume_high", "info", `Volume is at ${audioSnap.outputVolume}% — hearing damage risk at sustained levels`, "low");
+            this.lastAudioSuggestion = now;
+          }
+          if (audioSnap.inputVolume != null && audioSnap.inputVolume > 80) {
+            this.addSuggestion("mic_sensitivity", "info", `Mic input at ${audioSnap.inputVolume}% — might pick up background noise`, "low");
+            this.lastAudioSuggestion = now;
           }
         }
       }
 
-      // ── 9. Idle Detection ───────────────────────────────────────
+      // ── 8. Spotify / Flow State ─────────────────────────────────
+      if (now - this.lastSpotifySuggestion > 600_000) {
+        const spotifySnap = await this.sensors.get("spotify")?.snapshot() as {
+          isPlaying?: boolean; track?: string | null; artist?: string | null;
+        } | null;
+        if (spotifySnap?.isPlaying && spotifySnap.track) {
+          const windowState = this.windowTracker.getState();
+          if (windowState.isCoding) {
+            this.addSuggestion("flow_state", "info", `Music playing (${spotifySnap.track} by ${spotifySnap.artist}) + coding = flow state — I'll stay quiet`, "low");
+            this.lastSpotifySuggestion = now;
+          }
+        }
+      }
+
+      // ── 9. Docker Crash Detection ───────────────────────────────
+      if (now - this.lastDockerSuggestion > 120_000) {
+        const dockerSnap = await this.sensors.get("docker")?.snapshot() as {
+          recentEvents?: ReadonlyArray<{ type: string; containerName: string; image: string; timestamp: number }>;
+          stoppedCount?: number;
+        } | null;
+        if (dockerSnap?.recentEvents) {
+          const dieEvents = dockerSnap.recentEvents.filter((e) => e.type === "die" || e.type === "restart");
+          for (const evt of dieEvents.slice(0, 2)) {
+            this.addSuggestion("docker_die", "warning", `Docker container "${evt.containerName}" (${evt.image}) ${evt.type === "die" ? "died" : "restarted"} — want me to check logs?`, "high");
+            this.lastDockerSuggestion = now;
+          }
+          if (dockerSnap.stoppedCount != null && dockerSnap.stoppedCount > 3) {
+            this.addSuggestion("docker_stopped", "info", `${dockerSnap.stoppedCount} containers stopped — want me to investigate?`, "medium");
+            this.lastDockerSuggestion = now;
+          }
+        }
+      }
+
+      // ── 10. Kubernetes Failure Detection ─────────────────────────
+      if (now - this.lastK8sSuggestion > 120_000) {
+        const k8sSnap = await this.sensors.get("kubernetes")?.snapshot() as {
+          failedCount?: number; pendingCount?: number;
+          recentEvents?: ReadonlyArray<{ type: string; podName: string }>;
+          pods?: ReadonlyArray<{ name: string; status: string; restarts: number }>;
+        } | null;
+        if (k8sSnap) {
+          if (k8sSnap.failedCount != null && k8sSnap.failedCount > 0) {
+            this.addSuggestion("k8s_failed", "warning", `${k8sSnap.failedCount} pod(s) in Failed state — want me to investigate?`, "high");
+            this.lastK8sSuggestion = now;
+          }
+          if (k8sSnap.pendingCount != null && k8sSnap.pendingCount > 0) {
+            this.addSuggestion("k8s_pending", "info", `${k8sSnap.pendingCount} pod(s) pending — might be resource pressure`, "medium");
+            this.lastK8sSuggestion = now;
+          }
+          // Detect crash-looping pods (restarts > 5)
+          const crashLoop = k8sSnap.pods?.filter((p) => p.restarts > 5) ?? [];
+          for (const pod of crashLoop.slice(0, 2)) {
+            this.addSuggestion("k8s_crashloop", "warning", `Pod "${pod.name}" has ${pod.restarts} restarts — likely crash-looping`, "high");
+            this.lastK8sSuggestion = now;
+          }
+        }
+      }
+
+      // ── 11. SSH Session Tracking ─────────────────────────────────
+      if (now - this.lastSSHSessionSuggestion > 300_000) {
+        const sshSnap = await this.sensors.get("ssh")?.snapshot() as {
+          activeSessions?: ReadonlyArray<{ pid: number; user: string; host: string; connectedAt: number }>;
+          sessionCount?: number;
+        } | null;
+        if (sshSnap?.activeSessions && sshSnap.activeSessions.length > 0) {
+          // Check for stale sessions (> 1 hour)
+          const staleThreshold = now - 3600_000;
+          const staleSessions = sshSnap.activeSessions.filter((s) => s.connectedAt < staleThreshold);
+          if (staleSessions.length > 0) {
+            const hosts = staleSessions.map((s) => s.host).join(", ");
+            this.addSuggestion("ssh_stale", "info", `SSH session(s) to ${hosts} open for >1 hour — want me to check status?`, "low");
+            this.lastSSHSessionSuggestion = now;
+          } else if (sshSnap.sessionCount != null && sshSnap.sessionCount > 0) {
+            this.addSuggestion("ssh_active", "info", `${sshSnap.sessionCount} active SSH session(s) — need help with remote work?`, "low");
+            this.lastSSHSessionSuggestion = now;
+          }
+        }
+      }
+
+      // ── 12. Clipboard Content Analysis ──────────────────────────
+      if (now - this.lastClipboardAnalysisSuggestion > 300_000) {
+        const clipSnap = await this.sensors.get("clipboard")?.snapshot() as { text?: string; length?: number } | null;
+        if (clipSnap?.text && clipSnap.length != null && clipSnap.length > 10) {
+          const text = clipSnap.text;
+
+          // Detect error messages
+          if (/(error|exception|traceback|panic|fatal|segfault)/i.test(text)) {
+            this.addSuggestion("clip_error", "info", "Clipboard contains an error message — want me to help debug?", "medium");
+            this.lastClipboardAnalysisSuggestion = now;
+          }
+          // Detect URLs
+          else if (/^https?:\/\//.test(text.trim())) {
+            this.addSuggestion("clip_url", "info", "Clipboard contains a URL — want me to open or analyze it?", "low");
+            this.lastClipboardAnalysisSuggestion = now;
+          }
+          // Detect JSON/config
+          else if ((text.trim().startsWith("{") && text.trim().endsWith("}")) || (text.trim().startsWith("[") && text.trim().endsWith("]"))) {
+            this.addSuggestion("clip_json", "info", "Clipboard contains JSON — want me to validate or format it?", "low");
+            this.lastClipboardAnalysisSuggestion = now;
+          }
+          // Detect IP addresses or connection strings
+          else if (/\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}/.test(text) || /@.*:\d+/.test(text)) {
+            this.addSuggestion("clip_connection", "info", "Clipboard contains a connection string or IP — need help with networking?", "low");
+            this.lastClipboardAnalysisSuggestion = now;
+          }
+        }
+      }
+
+      // ── 13. Notification Urgency Routing ─────────────────────────
+      if (now - this.lastNotificationSuggestion > 60_000) {
+        const notifSnap = await this.sensors.get("notifications")?.snapshot() as {
+          recentNotifications?: ReadonlyArray<{ app: string; summary: string; body: string; urgency: "low" | "normal" | "critical" }>;
+        } | null;
+        if (notifSnap?.recentNotifications) {
+          for (const notif of notifSnap.recentNotifications.slice(0, 3)) {
+            // Critical urgency
+            if (notif.urgency === "critical") {
+              this.addSuggestion("notif_critical", "warning", `Critical notification from ${notif.app}: "${notif.summary}"`, "high");
+              this.lastNotificationSuggestion = now;
+            }
+            // Error/failure keywords (regardless of urgency)
+            else {
+              const text = `${notif.summary} ${notif.body}`.toLowerCase();
+              if (/(error|fail|crash|timeout|denied|unauthorized)/i.test(text)) {
+                this.addSuggestion("notif_error", "warning", `Notification from ${notif.app}: "${notif.summary}" — want me to help?`, "medium");
+                this.lastNotificationSuggestion = now;
+              }
+            }
+          }
+        }
+      }
+
+      // ── 14. Idle Detection ───────────────────────────────────────
       const idleSnap = await this.sensors.get("idle")?.snapshot() as { isIdle?: boolean; idleSeconds?: number } | null;
       if (idleSnap?.isIdle && idleSnap.idleSeconds && idleSnap.idleSeconds > 600) {
         const mins = Math.round(idleSnap.idleSeconds / 60);
         this.addSuggestion("idle_long", "info", `Idle for ${mins} minutes — want me to pause background tasks?`, "low");
       }
 
-      // ── 10. Context Switching Detection ─────────────────────────
+      // ── 15. Context Switching Detection ──────────────────────────
       const windowState = this.windowTracker.getState();
       if (windowState.switchesLast5Min > 15) {
         this.addSuggestion("context_switching", "info", "You've switched apps 15+ times in 5 minutes — want me to focus mode?", "low");

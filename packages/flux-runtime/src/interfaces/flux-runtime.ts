@@ -166,6 +166,18 @@ export interface FluxRuntime {
   recordError(error: string, context: string): void;
   getAutomationActions(limit?: number): ReadonlyArray<import("../impl/workflow-automation.js").AutomationAction>;
   getAutomationPatterns(): ReadonlyArray<import("../impl/workflow-automation.js").WorkflowPattern>;
+  // ─── Agent Management ─────────────────────────────────────────
+  getAgents(): ReadonlyArray<import("@ai-agent/multi-agent").SubAgent>;
+  getAgent(agentId: string): import("@ai-agent/multi-agent").SubAgent | null;
+  createAgent(spec: import("@ai-agent/multi-agent").AgentSpec): Promise<import("@ai-agent/multi-agent").SubAgent>;
+  generateAgentSpec(description: string): Promise<import("@ai-agent/multi-agent").AgentSpec>;
+  updateAgent(agentId: string, updates: Partial<Pick<import("@ai-agent/multi-agent").SubAgent, "name" | "description" | "role" | "domain" | "systemPrompt" | "capabilities" | "status">>): import("@ai-agent/multi-agent").SubAgent | null;
+  toggleAgent(agentId: string): import("@ai-agent/multi-agent").SubAgent | null;
+  deleteAgent(agentId: string): boolean;
+  /** Orchestrate a complex goal using multi-agent system */
+  orchestrate(goal: string): Promise<string>;
+  /** Generate boot briefing (greeting, recap, news, status) */
+  generateBootBriefing(): Promise<import("../impl/boot-briefing.js").BootBriefing>;
   shutdown(): Promise<void>;
 }
 

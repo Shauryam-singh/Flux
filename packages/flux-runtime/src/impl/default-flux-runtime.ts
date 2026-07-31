@@ -58,7 +58,8 @@ import { createSearchService } from "@ai-agent/services-search";
 import { createSystemService } from "@ai-agent/services-system";
 import { DefaultPluginLoader, type FluxPlugin } from "@ai-agent/plugins";
 import { DefaultKnowledgeBase } from "@ai-agent/knowledge-base";
-import { DefaultMultiAgentCoordinator } from "@ai-agent/multi-agent";
+import { DefaultMultiAgentCoordinator, AgentFactory } from "@ai-agent/multi-agent";
+import { BootBriefingGenerator, type BootBriefing } from "./boot-briefing.js";
 import { DefaultCrossDeviceSync } from "@ai-agent/cross-device";
 import { DefaultStrategyLibrary } from "@ai-agent/strategy-library";
 import {
@@ -212,6 +213,8 @@ export class DefaultFluxRuntime implements FluxRuntime {
   private readonly timeAwareEngine: TimeAwareEngine;
   // Tier 4: Automation
   private readonly workflowAutomation: WorkflowAutomationEngine;
+  // Boot briefing
+  private readonly bootBriefing: BootBriefingGenerator;
   private lastCorrelationCheck = 0;
   private lastTimeAwareCheck = 0;
   private lastAutomationCheck = 0;
@@ -377,6 +380,9 @@ export class DefaultFluxRuntime implements FluxRuntime {
     this.multiAgent = new DefaultMultiAgentCoordinator();
     this.crossDevice = new DefaultCrossDeviceSync();
 
+    // Register default agents
+    this.registerDefaultAgents();
+
     // Initialize proactive awareness trackers
     this.windowTracker = new WindowTracker();
     this.browserContext = new BrowserContextSensor();
@@ -388,6 +394,8 @@ export class DefaultFluxRuntime implements FluxRuntime {
     this.timeAwareEngine = new TimeAwareEngine();
     // Tier 4: Automation
     this.workflowAutomation = new WorkflowAutomationEngine();
+    // Boot briefing
+    this.bootBriefing = new BootBriefingGenerator();
 
     // Wire sensor events to attention system
     this.sensors.onEvent((event) => {
@@ -1541,6 +1549,233 @@ export class DefaultFluxRuntime implements FluxRuntime {
     }
   }
 
+  // ─── Default Agent Registration ────────────────────────────────────
+
+  private registerDefaultAgents(): void {
+    const defaults: Array<{
+      name: string;
+      description: string;
+      role: "coder" | "researcher" | "reviewer" | "planner" | "designer" | "devops" | "writer" | "analyst";
+      domain: string;
+      capabilities: string[];
+      systemPrompt: string;
+    }> = [
+      {
+        name: "Backend Engineer",
+        description: "Builds and maintains server-side logic, APIs, databases, and authentication systems.",
+        role: "coder",
+        domain: "backend",
+        capabilities: ["api", "server", "database", "auth", "rest", "graphql", "orm", "migration", "endpoint", "middleware"],
+        systemPrompt: "You are an expert backend engineer. Design and implement robust server-side systems, RESTful/GraphQL APIs, database schemas, authentication/authorization, middleware, and business logic. Use best practices for security, performance, and maintainability. Write clean, well-structured code with proper error handling.",
+      },
+      {
+        name: "Frontend Engineer",
+        description: "Builds user interfaces, components, styling, and client-side logic.",
+        role: "coder",
+        domain: "frontend",
+        capabilities: ["ui", "component", "react", "vue", "css", "html", "style", "layout", "responsive", "animation"],
+        systemPrompt: "You are an expert frontend engineer. Create modern, responsive, accessible user interfaces using HTML, CSS, and JavaScript frameworks. Focus on component architecture, state management, performance optimization, and pixel-perfect implementations. Follow UI/UX best practices.",
+      },
+      {
+        name: "UI/UX Designer",
+        description: "Designs user interfaces, wireframes, mockups, and user experience flows.",
+        role: "designer",
+        domain: "design",
+        capabilities: ["design", "wireframe", "mockup", "ui", "ux", "layout", "color", "typography", "spacing", "prototype"],
+        systemPrompt: "You are an expert UI/UX designer. Create intuitive, visually appealing, and accessible designs. Define color palettes, typography, spacing systems, component patterns, and user flows. Provide detailed design specifications including CSS values, dimensions, and layout instructions.",
+      },
+      {
+        name: "DevOps Engineer",
+        description: "Handles deployment, CI/CD, containerization, infrastructure, and monitoring.",
+        role: "devops",
+        domain: "devops",
+        capabilities: ["deploy", "docker", "k8s", "ci", "cd", "pipeline", "container", "infra", "monitoring", "nginx", "aws", "cloud"],
+        systemPrompt: "You are an expert DevOps engineer. Design and implement deployment pipelines, Docker configurations, Kubernetes manifests, CI/CD workflows, monitoring setups, and infrastructure-as-code. Focus on reliability, scalability, security, and automation. Write production-ready configurations.",
+      },
+      {
+        name: "Documentation Writer",
+        description: "Writes technical documentation, READMEs, API docs, and guides.",
+        role: "writer",
+        domain: "documentation",
+        capabilities: ["doc", "readme", "documentation", "guide", "tutorial", "api doc", "changelog", "wiki", "comment"],
+        systemPrompt: "You are an expert technical writer. Create clear, comprehensive documentation including READMEs, API references, tutorials, guides, and inline code comments. Use proper formatting, code examples, and structured explanations. Make complex topics accessible.",
+      },
+      {
+        name: "Code Reviewer",
+        description: "Reviews code for quality, security, performance, and best practices.",
+        role: "reviewer",
+        domain: "review",
+        capabilities: ["review", "audit", "security", "performance", "lint", "refactor", "quality", "test coverage", "bug"],
+        systemPrompt: "You are an expert code reviewer. Analyze code for bugs, security vulnerabilities, performance issues, and style violations. Provide specific, actionable feedback with code examples. Check for proper error handling, input validation, test coverage, and adherence to best practices.",
+      },
+      {
+        name: "Research Analyst",
+        description: "Researches topics, analyzes documentation, gathers information, and provides summaries.",
+        role: "researcher",
+        domain: "research",
+        capabilities: ["research", "analyze", "investigate", "compare", "evaluate", "summarize", "report", "data", "metrics"],
+        systemPrompt: "You are a thorough research analyst. Investigate topics deeply, analyze multiple sources, compare options, and provide comprehensive summaries. Structure findings clearly with evidence, pros/cons, and actionable recommendations. Be thorough but concise.",
+      },
+      {
+        name: "Task Planner",
+        description: "Decomposes complex goals into subtasks, plans execution order, and identifies dependencies.",
+        role: "planner",
+        domain: "planning",
+        capabilities: ["plan", "decompose", "break down", "organize", "schedule", "prioritize", "dependency", "roadmap", "milestone"],
+        systemPrompt: "You are a strategic task planner. Break down complex goals into clear, actionable subtasks. Identify dependencies, execution order, and potential risks. Create realistic timelines and milestones. Consider resource constraints and optimize for parallel execution where possible.",
+      },
+    ];
+
+    for (const def of defaults) {
+      // Don't re-register if already exists (from persistence)
+      const existing = this.multiAgent.getAgents().find((a) => a.name === def.name);
+      if (!existing) {
+        const agent = AgentFactory.create(def, this.llmProvider);
+        this.multiAgent.registerAgent(agent);
+      }
+    }
+  }
+
+  // ─── Agent Management ────────────────────────────────────────────
+
+  getAgents(): ReadonlyArray<import("@ai-agent/multi-agent").SubAgent> {
+    return this.multiAgent.getAgents();
+  }
+
+  getAgent(agentId: string): import("@ai-agent/multi-agent").SubAgent | null {
+    return this.multiAgent.getAgent(agentId);
+  }
+
+  async createAgent(
+    spec: import("@ai-agent/multi-agent").AgentSpec,
+  ): Promise<import("@ai-agent/multi-agent").SubAgent> {
+    return this.multiAgent.createAgentFromLLM(spec, this.llmProvider);
+  }
+
+  async generateAgentSpec(
+    description: string,
+  ): Promise<import("@ai-agent/multi-agent").AgentSpec> {
+    return this.multiAgent.generateAgentSpec(
+      description,
+      this.multiAgent.getAgents(),
+      this.llmProvider,
+    );
+  }
+
+  updateAgent(
+    agentId: string,
+    updates: Partial<Pick<import("@ai-agent/multi-agent").SubAgent, "name" | "description" | "role" | "domain" | "systemPrompt" | "capabilities" | "status">>,
+  ): import("@ai-agent/multi-agent").SubAgent | null {
+    return this.multiAgent.updateAgent(agentId, updates);
+  }
+
+  toggleAgent(agentId: string): import("@ai-agent/multi-agent").SubAgent | null {
+    return this.multiAgent.toggleAgent(agentId);
+  }
+
+  deleteAgent(agentId: string): boolean {
+    return this.multiAgent.unregisterAgent(agentId);
+  }
+
+  async orchestrate(goal: string): Promise<string> {
+    return this.multiAgent.orchestrate(goal, this.llmProvider);
+  }
+
+  async generateBootBriefing(): Promise<BootBriefing> {
+    // Gather context from sensors and systems
+    const goals = this.goalManager
+      .getAll()
+      .filter((g) => g.status === "active" || g.status === "in_progress")
+      .map((g) => ({
+        name: g.title,
+        progress: g.progress,
+        status: g.status,
+      }));
+
+    const recentActivity: string[] = [];
+    for (const event of this.recentSensorEvents.slice(0, 5)) {
+      recentActivity.push(`[${event.sensorId}] ${event.type}`);
+    }
+    for (const thought of this.recentThoughts.slice(-3)) {
+      recentActivity.push(`Thought: ${thought.content.slice(0, 80)}`);
+    }
+
+    const oneDayMs = 24 * 60 * 60 * 1000;
+    const episodicResult = this.memory.query({
+      types: ["episodic"],
+      maxAge: oneDayMs,
+      sortBy: "recency",
+      limit: 10,
+    });
+    const reflectionResult = this.memory.query({
+      types: ["reflection"],
+      maxAge: oneDayMs,
+      sortBy: "recency",
+      limit: 5,
+    });
+
+    const episodicMemories = episodicResult.memories.map(
+      (m) => m.content || "",
+    );
+    const reflections = reflectionResult.memories.map((m) => m.content || "") as string[];
+
+    // Sensor snapshots
+    let batteryLevel: number | null = null;
+    let batteryCharging = false;
+    let gitBranch = "";
+    let gitDirty = false;
+    let cpuUsage = 0;
+    let memoryUsage = 0;
+
+    try {
+      const batterySnap = await this.sensors.get("battery")?.snapshot();
+      if (batterySnap) {
+        const b = batterySnap as { level?: number; isCharging?: boolean };
+        batteryLevel = b.level ?? null;
+        batteryCharging = b.isCharging ?? false;
+      }
+    } catch {}
+
+    try {
+      const gitSnap = await this.sensors.get("git")?.snapshot();
+      if (gitSnap) {
+        const g = gitSnap as { branch?: string; dirty?: boolean };
+        gitBranch = g.branch ?? "";
+        gitDirty = g.dirty ?? false;
+      }
+    } catch {}
+
+    try {
+      const healthSnap = await this.sensors.get("system-health")?.snapshot();
+      if (healthSnap) {
+        const h = healthSnap as { cpuUsagePercent?: number; memoryUsagePercent?: number };
+        cpuUsage = h.cpuUsagePercent ?? 0;
+        memoryUsage = h.memoryUsagePercent ?? 0;
+      }
+    } catch {}
+
+    const uptimeMs = Date.now() - this.startTime;
+    const memoryCount = this.memory.getStats().totalMemories;
+
+    return this.bootBriefing.generate(
+      {
+        activeGoals: goals,
+        recentActivity,
+        reflections,
+        episodicMemories,
+        batteryLevel,
+        batteryCharging,
+        gitBranch,
+        gitDirty,
+        cpuUsage,
+        memoryUsage,
+        uptimeMs,
+        memoryCount,
+      },
+      this.llmProvider,
+    );
+  }
+
   // ─── Core Processing ─────────────────────────────────────────────
 
   async process(input: string): Promise<FluxRuntimeResult> {
@@ -1714,6 +1949,7 @@ export class DefaultFluxRuntime implements FluxRuntime {
       speak: () => {},
       emit: () => {},
       getSystemContext,
+      multiAgent: this.multiAgent,
     });
 
     const responseText = result.text;

@@ -88,4 +88,59 @@ describe("Orchestrator", () => {
     expect(calledCtx.speak).toBe(ctx.speak);
     expect(calledCtx.emit).toBe(ctx.emit);
   });
+
+  it("should use multi-agent orchestration for complex tasks", async () => {
+    const mockOrchestrate = vi.fn().mockResolvedValue("Orchestrated result: API built with auth and docs");
+    const ctxWithMultiAgent = {
+      ...ctx,
+      multiAgent: {
+        orchestrate: mockOrchestrate,
+        getAgents: vi.fn().mockReturnValue([]),
+      },
+    };
+
+    // Multiple domain-diverse verbs: build + deploy + document → 3 matches
+    await orchestrator.process(
+      "build a frontend UI with react, deploy to docker, and document the API",
+      ctxWithMultiAgent,
+    );
+
+    expect(mockOrchestrate).toHaveBeenCalled();
+    // Should NOT fall through to service routing
+    expect(searchService.execute).not.toHaveBeenCalled();
+    expect(codingService.execute).not.toHaveBeenCalled();
+  });
+
+  it("should fall back to service routing when orchestration fails", async () => {
+    const mockOrchestrate = vi.fn().mockRejectedValue(new Error("LLM down"));
+    const ctxWithMultiAgent = {
+      ...ctx,
+      multiAgent: {
+        orchestrate: mockOrchestrate,
+        getAgents: vi.fn().mockReturnValue([]),
+      },
+    };
+
+    await orchestrator.process(
+      "build a frontend UI with react, deploy to docker, and document the API",
+      ctxWithMultiAgent,
+    );
+
+    // Should fall through to normal routing (chat as fallback)
+    expect(chatService.execute).toHaveBeenCalled();
+  });
+
+  it("should not use multi-agent for simple tasks", async () => {
+    const mockOrchestrate = vi.fn();
+    const ctxWithMultiAgent = {
+      ...ctx,
+      multiAgent: {
+        orchestrate: mockOrchestrate,
+        getAgents: vi.fn().mockReturnValue([]),
+      },
+    };
+
+    await orchestrator.process("hello", ctxWithMultiAgent);
+    expect(mockOrchestrate).not.toHaveBeenCalled();
+  });
 });

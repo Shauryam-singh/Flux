@@ -1457,18 +1457,54 @@ ul, ol {
 }
 
 /* ─── Agent Cards ─── */
+.agents-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.agents-create-btn {
+  background: var(--accent);
+  color: #090B10;
+  border: none;
+  border-radius: var(--radius);
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.agents-create-btn:hover { opacity: 0.9; }
+.agents-count {
+  font-size: 11px;
+  color: var(--muted);
+}
+.agents-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
 .agent-card {
   background: var(--bg-panel);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 14px;
-  margin-bottom: 10px;
 }
 .agent-card-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
+}
+.agent-card-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.agent-role-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
 }
 .agent-card-name {
   font-size: 13px;
@@ -1483,8 +1519,32 @@ ul, ol {
   border-radius: 10px;
 }
 .agent-card-status.success { color: var(--success); background: var(--success-dim); }
-.agent-card-status.accent { color: var(--accent); background: var(--accent-dim); }
+.agent-card-status.warning { color: var(--warning); background: rgba(255,200,87,0.1); }
 .agent-card-status.muted { color: var(--muted); background: rgba(160,174,192,0.1); }
+.agent-card-desc {
+  font-size: 11px;
+  color: var(--muted);
+  margin-bottom: 8px;
+  line-height: 1.4;
+}
+.agent-card-role {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.agent-role-badge {
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  padding: 2px 7px;
+  border: 1px solid;
+  border-radius: 8px;
+}
+.agent-card-domain {
+  font-size: 10px;
+  color: var(--muted);
+}
 .agent-card-caps {
   display: flex;
   flex-wrap: wrap;
@@ -1498,12 +1558,132 @@ ul, ol {
   padding: 2px 7px;
   border-radius: 8px;
 }
+.cap-more {
+  color: var(--muted);
+  background: rgba(160,174,192,0.1);
+}
 .agent-card-meta {
   display: flex;
   gap: 16px;
   font-size: 10px;
   color: var(--muted);
+  margin-bottom: 8px;
 }
+.agent-card-actions {
+  display: flex;
+  gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+.agent-action-btn {
+  font-size: 10px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+}
+.agent-action-btn:hover { background: var(--bg-panel); }
+.agent-toggle-btn:hover { border-color: var(--accent); color: var(--accent); }
+.agent-delete-btn:hover { border-color: var(--error); color: var(--error); }
+
+/* ─── Agent Create Modal ─── */
+.agents-create-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.agents-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,0.6);
+}
+.agents-modal-content {
+  position: relative;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  width: 420px;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+.agents-modal-content h3 {
+  font-size: 15px;
+  color: var(--text);
+  margin-bottom: 12px;
+}
+.agents-modal-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+.agents-modal-tab {
+  flex: 1;
+  padding: 6px;
+  font-size: 11px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.agents-modal-tab.active {
+  background: var(--accent);
+  color: #090B10;
+  border-color: var(--accent);
+}
+.agents-modal-pane { display: none; }
+.agents-modal-pane.active { display: flex; flex-direction: column; gap: 8px; }
+.agents-input {
+  padding: 8px 10px;
+  font-size: 12px;
+  background: rgba(15,20,30,0.6);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  outline: none;
+}
+.agents-input:focus { border-color: var(--accent); }
+.agents-textarea {
+  padding: 8px 10px;
+  font-size: 12px;
+  background: rgba(15,20,30,0.6);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  outline: none;
+  resize: vertical;
+  font-family: inherit;
+}
+.agents-textarea:focus { border-color: var(--accent); }
+.agents-modal-submit {
+  padding: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--accent);
+  color: #090B10;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.agents-modal-submit:hover { opacity: 0.9; }
+.agents-modal-close {
+  margin-top: 8px;
+  padding: 6px;
+  font-size: 11px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--muted);
+  cursor: pointer;
+  width: 100%;
+}
+.agents-modal-close:hover { border-color: var(--error); color: var(--error); }
 
 /* ─── Timeline ─── */
 .timeline-list {
@@ -1686,4 +1866,82 @@ ul, ol {
 .settings-btn.primary:hover {
   background: var(--bg-hover);
   border-color: var(--accent);
+}
+
+/* ─── Boot Briefing ─── */
+.briefing-container h2 {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--accent);
+  margin-bottom: 16px;
+}
+.briefing-container h3 {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--secondary);
+  margin: 12px 0 6px 0;
+}
+.briefing-section {
+  margin-bottom: 12px;
+}
+.briefing-item {
+  font-size: 12px;
+  color: var(--text);
+  margin: 2px 0;
+  padding-left: 8px;
+}
+.briefing-subhead {
+  font-size: 11px;
+  color: var(--muted);
+  margin: 4px 0 2px 0;
+}
+.briefing-news {
+  font-size: 12px;
+  color: var(--text);
+  margin: 3px 0;
+}
+.briefing-link {
+  color: var(--accent);
+  text-decoration: none;
+}
+.briefing-link:hover { text-decoration: underline; }
+.briefing-snippet {
+  font-size: 10px;
+  color: var(--muted);
+  margin: 0 0 6px 8px;
+  line-height: 1.4;
+}
+.briefing-goal {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text);
+  margin: 4px 0;
+}
+.briefing-goal-pct {
+  font-size: 10px;
+  color: var(--accent);
+  min-width: 32px;
+  text-align: right;
+}
+.briefing-progress {
+  flex: 1;
+  height: 4px;
+  background: rgba(85,214,255,0.1);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.briefing-progress-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 2px;
+  transition: width 0.5s ease;
+}
+.briefing-status {
+  font-size: 10px;
+  color: var(--muted);
+  padding: 8px 0;
+  border-top: 1px solid var(--border);
+  margin-top: 8px;
 }

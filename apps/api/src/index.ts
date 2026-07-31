@@ -49,7 +49,7 @@ function sendJson(
   res.writeHead(status, {
     "Content-Type": "application/json",
     "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type",
   });
   res.end(JSON.stringify(data));
@@ -73,7 +73,7 @@ const server = createServer(async (req, res) => {
   if (req.method === "OPTIONS") {
     res.writeHead(204, {
       "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+      "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
       "Access-Control-Allow-Headers": "Content-Type",
     });
     res.end();
@@ -707,61 +707,145 @@ const server = createServer(async (req, res) => {
     return;
   }
 
-  // ─── Agents (built-in agent definitions) ───────────────────────
+  // ─── Agents (CRUD) ──────────────────────────────────────────────
+  // GET /agents — list all agents
   if (req.method === "GET" && req.url === "/agents") {
-    const agents = [
-      {
-        id: "coder",
-        name: "Code Agent",
-        status: "active",
-        capabilities: ["code_generation", "refactoring", "debugging"],
-        priority: 1,
-        successRate: 0.85,
-        tasks: 0,
-        maxTasks: 3,
-      },
-      {
-        id: "researcher",
-        name: "Research Agent",
-        status: "active",
-        capabilities: ["web_search", "documentation", "analysis"],
-        priority: 2,
-        successRate: 0.8,
-        tasks: 0,
-        maxTasks: 2,
-      },
-      {
-        id: "reviewer",
-        name: "Review Agent",
-        status: "idle",
-        capabilities: ["code_review", "security_audit", "performance"],
-        priority: 3,
-        successRate: 0.9,
-        tasks: 0,
-        maxTasks: 2,
-      },
-      {
-        id: "planner",
-        name: "Planning Agent",
-        status: "active",
-        capabilities: ["task_decomposition", "scheduling", "prioritization"],
-        priority: 1,
-        successRate: 0.88,
-        tasks: 0,
-        maxTasks: 1,
-      },
-      {
-        id: "monitor",
-        name: "Monitor Agent",
-        status: "active",
-        capabilities: ["system_monitoring", "alerting", "diagnostics"],
-        priority: 2,
-        successRate: 0.92,
-        tasks: 0,
-        maxTasks: 5,
-      },
-    ];
+    const agents = flux.runtime.getAgents().map((a) => ({
+      id: a.id,
+      name: a.name,
+      description: a.description,
+      role: a.role,
+      domain: a.domain,
+      status: a.status,
+      capabilities: a.capabilities,
+      createdAt: a.createdAt,
+      lastUsedAt: a.lastUsedAt,
+      tasksCompleted: a.tasksCompleted,
+      successRate: a.successRate,
+    }));
     sendJson(res, 200, { agents });
+    return;
+  }
+
+  // POST /agents — create agent (from spec or LLM-generated)
+  if (req.method === "POST" && req.url === "/agents") {
+    try {
+      const body = await parseBody(req);
+      const data = JSON.parse(body.toString()) as {
+        spec?: { name: string; description: string; role: string; domain: string; systemPrompt: string; capabilities: string[] };
+        description?: string;
+      };
+      let spec: { name: string; description: string; role: string; domain: string; systemPrompt: string; capabilities: string[] };
+      if (data.spec) {
+        spec = data.spec;
+      } else if (data.description) {
+        spec = await flux.runtime.generateAgentSpec(data.description) as { name: string; description: string; role: string; domain: string; systemPrompt: string; capabilities: string[] };
+      } else {
+        sendJson(res, 400, { error: "Provide 'spec' or 'description'" });
+        return;
+      }
+      const agent = await flux.runtime.createAgent(spec as Parameters<typeof flux.runtime.createAgent>[0]);
+      sendJson(res, 201, {
+        id: agent.id,
+        name: agent.name,
+        description: agent.description,
+        role: agent.role,
+        domain: agent.domain,
+        status: agent.status,
+        capabilities: agent.capabilities,
+        createdAt: agent.createdAt,
+      });
+    } catch (err) {
+      sendJson(res, 500, { error: err instanceof Error ? err.message : String(err) });
+    }
+    return;
+  }
+
+  // PUT /agents/:id — update agent
+  if (req.method === "PUT" && req.url?.startsWith("/agents/")) {
+    const agentId = req.url.slice("/agents/".length);
+    try {
+      const body = await parseBody(req);
+      const updates = JSON.parse(body.toString()) as Record<string, unknown>;
+      const result = flux.runtime.updateAgent(agentId, updates as Parameters<typeof flux.runtime.updateAgent>[1]);
+      if (!result) {
+        sendJson(res, 404, { error: "Agent not found" });
+        return;
+      }
+      sendJson(res, 200, {
+        id: result.id,
+        name: result.name,
+        description: result.description,
+        role: result.role,
+        domain: result.domain,
+        status: result.status,
+        capabilities: result.capabilities,
+      });
+    } catch (err) {
+      sendJson(res, 500, { error: err instanceof Error ? err.message : String(err) });
+    }
+    return;
+  }
+
+  // DELETE /agents/:id — delete agent
+  if (req.method === "DELETE" && req.url?.startsWith("/agents/")) {
+    const agentId = req.url.slice("/agents/".length);
+    const removed = flux.runtime.deleteAgent(agentId);
+    if (!removed) {
+      sendJson(res, 404, { error: "Agent not found" });
+      return;
+    }
+    sendJson(res, 200, { deleted: true });
+    return;
+  }
+
+  // POST /agents/:id/toggle — enable/disable agent
+  if (req.method === "POST" && req.url?.endsWith("/toggle") && req.url?.startsWith("/agents/")) {
+    const agentId = req.url.slice("/agents/".length, -"/toggle".length);
+    const result = flux.runtime.toggleAgent(agentId);
+    if (!result) {
+      sendJson(res, 404, { error: "Agent not found" });
+      return;
+    }
+    sendJson(res, 200, {
+      id: result.id,
+      name: result.name,
+      status: result.status,
+    });
+    return;
+  }
+
+  // POST /agents/generate — LLM generates agent spec from description
+  if (req.method === "POST" && req.url === "/agents/generate") {
+    try {
+      const body = await parseBody(req);
+      const { description } = JSON.parse(body.toString()) as { description: string };
+      if (!description) {
+        sendJson(res, 400, { error: "Provide 'description'" });
+        return;
+      }
+      const spec = await flux.runtime.generateAgentSpec(description);
+      sendJson(res, 200, { spec });
+    } catch (err) {
+      sendJson(res, 500, { error: err instanceof Error ? err.message : String(err) });
+    }
+    return;
+  }
+
+  // POST /orchestrate — orchestrate a complex goal
+  if (req.method === "POST" && req.url === "/orchestrate") {
+    try {
+      const body = await parseBody(req);
+      const { goal } = JSON.parse(body.toString()) as { goal: string };
+      if (!goal) {
+        sendJson(res, 400, { error: "Provide 'goal'" });
+        return;
+      }
+      const result = await flux.runtime.orchestrate(goal);
+      sendJson(res, 200, { result });
+    } catch (err) {
+      sendJson(res, 500, { error: err instanceof Error ? err.message : String(err) });
+    }
     return;
   }
 
@@ -792,6 +876,17 @@ const server = createServer(async (req, res) => {
       return true;
     });
     sendJson(res, 200, { projects: unique.slice(0, 10) });
+    return;
+  }
+
+  // ─── Boot Briefing (full startup briefing with news) ──────────
+  if (req.method === "GET" && req.url === "/boot/briefing") {
+    try {
+      const briefing = await flux.runtime.generateBootBriefing();
+      sendJson(res, 200, briefing);
+    } catch (err) {
+      sendJson(res, 500, { error: err instanceof Error ? err.message : String(err) });
+    }
     return;
   }
 

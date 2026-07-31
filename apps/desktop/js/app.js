@@ -881,6 +881,35 @@ async function fetchAndRenderAgents() {
     const resp = await fetch(`${API}/agents`);
     const data = await resp.json();
     UI.renderAgentsDetail(data.agents || []);
+
+    // Wire agent actions
+    window.__agentActions = {
+      async create(spec) {
+        await fetch(`${API}/agents`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ spec }),
+        });
+        fetchAndRenderAgents();
+      },
+      async createAI(description) {
+        await fetch(`${API}/agents`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ description }),
+        });
+        fetchAndRenderAgents();
+      },
+      async toggle(id) {
+        await fetch(`${API}/agents/${id}/toggle`, { method: "POST" });
+        fetchAndRenderAgents();
+      },
+      async delete(id) {
+        if (!confirm("Delete this agent?")) return;
+        await fetch(`${API}/agents/${id}`, { method: "DELETE" });
+        fetchAndRenderAgents();
+      },
+    };
   } catch {
     UI.renderAgentsDetail([]);
   }
@@ -1184,7 +1213,7 @@ function init() {
 async function showStartupBriefing() {
   let briefingData;
   try {
-    const resp = await fetch(`${API}/briefing`);
+    const resp = await fetch(`${API}/boot/briefing`);
     if (!resp.ok) return;
     briefingData = await resp.json();
   } catch {
@@ -1192,60 +1221,24 @@ async function showStartupBriefing() {
   }
 
   const {
-    episodic = [],
-    reflections = [],
+    greeting = "",
+    timeString = "",
+    markdown = "",
+    news = [],
     goals = [],
-    experiences = [],
-    memoryStats,
+    systemStatus = {},
+    spokenText = "",
   } = briefingData;
 
-  const lines = [];
-  lines.push("Good " + getGreeting() + ". Here's where things stand:\n");
-
-  if (episodic.length > 0) {
-    lines.push("<strong>Recent Activity:</strong>");
-    episodic.slice(0, 5).forEach((e) => {
-      lines.push(`\u2022 ${escapeHtml(e.event || e.content || "")}`);
-    });
-    lines.push("");
-  }
-
-  const activeGoals = goals.filter(
-    (g) => g.status === "active" || g.status === "in_progress",
-  );
-  if (activeGoals.length > 0) {
-    lines.push("<strong>Active Goals:</strong>");
-    activeGoals.forEach((g) => {
-      lines.push(
-        `\u2022 ${escapeHtml(g.title || g.name)} — ${g.progress || 0}%`,
-      );
-    });
-    lines.push("");
-  }
-
-  if (reflections.length > 0) {
-    lines.push("<strong>Reflections:</strong>");
-    reflections.slice(0, 3).forEach((r) => {
-      lines.push(`\u2022 ${escapeHtml(r.content || "")}`);
-    });
-    lines.push("");
-  }
-
-  if (memoryStats) {
-    lines.push(
-      `<strong>Memory:</strong> ${memoryStats.totalMemories || 0} memories stored`,
-    );
-  }
-
-  if (lines.length <= 2) return;
+  // If no markdown, build a basic one
+  const displayHtml = markdown || buildFallbackBriefing(briefingData);
 
   const modal = document.createElement("div");
   modal.id = "briefing-modal";
   modal.innerHTML = `
     <div class="palette-backdrop" style="position:fixed;inset:0;background:rgba(0,0,0,0.5);backdrop-filter:blur(4px);z-index:999;"></div>
-    <div style="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:480px;max-height:70vh;overflow-y:auto;background:rgba(25,30,40,0.95);backdrop-filter:blur(24px);border:1px solid rgba(85,214,255,0.15);border-radius:16px;padding:24px;z-index:1000;box-shadow:0 8px 32px rgba(0,0,0,0.5);">
-      <h2 style="font-size:16px;font-weight:600;color:#55D6FF;margin-bottom:16px;">\u{1F44B} Briefing</h2>
-      <div style="font-size:13px;color:#F5F7FA;line-height:1.7;white-space:pre-line;">${lines.join("\n")}</div>
+    <div style="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:520px;max-height:75vh;overflow-y:auto;background:rgba(25,30,40,0.95);backdrop-filter:blur(24px);border:1px solid rgba(85,214,255,0.15);border-radius:16px;padding:24px;z-index:1000;box-shadow:0 8px 32px rgba(0,0,0,0.5);">
+      <div class="briefing-container">${displayHtml}</div>
       <button id="briefing-close-btn" style="width:100%;padding:10px;margin-top:16px;border-radius:8px;background:rgba(85,214,255,0.1);border:1px solid rgba(85,214,255,0.2);color:#55D6FF;font-size:12px;cursor:pointer;">Got it</button>
     </div>
   `;
@@ -1259,46 +1252,52 @@ async function showStartupBriefing() {
     .addEventListener("click", () => modal.remove());
   setTimeout(() => {
     if (modal.parentNode) modal.remove();
-  }, 15000);
+  }, 20000);
 
   // Speak the briefing
-  try {
-    const speakLines = [];
-    speakLines.push("Good " + getGreeting() + ".");
-    if (episodic.length > 0) {
-      speakLines.push("Here is what happened recently.");
-      episodic.slice(0, 3).forEach((e) => {
-        const t = (e.event || e.content || "")
-          .replace(/[\u2022\-*]/g, "")
-          .trim();
-        if (t) speakLines.push(t);
-      });
-    }
-    const activeGoals = goals.filter(
-      (g) => g.status === "active" || g.status === "in_progress",
-    );
-    if (activeGoals.length > 0) {
-      speakLines.push(
-        "You have " +
-          activeGoals.length +
-          " active goal" +
-          (activeGoals.length > 1 ? "s" : "") +
-          ".",
-      );
-      activeGoals.slice(0, 2).forEach((g) => {
-        speakLines.push(
-          (g.title || g.name || "") + " at " + (g.progress || 0) + " percent.",
-        );
-      });
-    }
-    if (reflections.length > 0) {
-      speakLines.push(
-        "A recent reflection: " + (reflections[0].content || "").slice(0, 80),
-      );
-    }
-    speakLines.push("How can I help you today?");
-    await speakText(speakLines.join(" "));
-  } catch {}
+  if (spokenText) {
+    try {
+      await speakText(spokenText);
+    } catch {}
+  }
+}
+
+function buildFallbackBriefing(data) {
+  const lines = [];
+  lines.push(`<h2 style="font-size:16px;font-weight:600;color:#55D6FF;margin-bottom:16px;">\u{1F44B} ${escapeHtml(data.greeting || "Hello!")}</h2>`);
+
+  if (data.recap) {
+    lines.push(`<div style="margin-bottom:12px;"><strong style="color:#7C8BFF;">Yesterday</strong>`);
+    const recapLines = data.recap.split("\n").filter(l => l.trim());
+    recapLines.forEach(l => {
+      if (l.startsWith("- ")) lines.push(`<div style="font-size:12px;color:#F5F7FA;margin:2px 0;">\u2022 ${escapeHtml(l.slice(2))}</div>`);
+    });
+    lines.push(`</div>`);
+  }
+
+  if (data.news && data.news.length > 0) {
+    lines.push(`<div style="margin-bottom:12px;"><strong style="color:#7C8BFF;">\u{1F4F0} Headlines</strong>`);
+    data.news.forEach(n => {
+      const link = n.url ? `<a href="${n.url}" target="_blank" style="color:#55D6FF;text-decoration:none;">${escapeHtml(n.title)}</a>` : escapeHtml(n.title);
+      lines.push(`<div style="font-size:12px;color:#F5F7FA;margin:2px 0;">\u2022 ${link}</div>`);
+    });
+    lines.push(`</div>`);
+  }
+
+  if (data.goals && data.goals.length > 0) {
+    lines.push(`<div style="margin-bottom:12px;"><strong style="color:#7C8BFF;">\u{1F3AF} Goals</strong>`);
+    data.goals.forEach(g => {
+      lines.push(`<div style="font-size:12px;color:#F5F7FA;margin:2px 0;">\u2022 ${escapeHtml(g.name)} — ${g.progress}%</div>`);
+    });
+    lines.push(`</div>`);
+  }
+
+  if (data.systemStatus) {
+    const s = data.systemStatus;
+    lines.push(`<div style="font-size:10px;color:#A0AEC0;margin-top:8px;">\u{1F4BB} ${s.cpu || "?"} CPU \u00B7 ${s.memory || "?"} RAM \u00B7 \u{1F50B} ${s.battery || "?"} \u00B7 \u{1F4C8} ${s.git || "?"} \u00B7 \u23F1 ${s.uptime || "?"}</div>`);
+  }
+
+  return lines.join("\n");
 }
 
 function getGreeting() {

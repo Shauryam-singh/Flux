@@ -478,39 +478,171 @@ export function renderProjectsDetail(projects) {
 
 // ─── Dashboard Agents Detail ───
 
+const ROLE_COLORS = {
+  coder: "#55D6FF",
+  researcher: "#7C8BFF",
+  reviewer: "#49E38A",
+  planner: "#FFC857",
+  designer: "#FF6B9D",
+  devops: "#A78BFA",
+  writer: "#F472B6",
+  analyst: "#38BDF8",
+  custom: "#A0AEC0",
+};
+
 export function renderAgentsDetail(agents) {
   const el = document.getElementById("agents-detail");
   if (!el) return;
 
-  if (!agents || agents.length === 0) {
-    el.innerHTML = '<div class="empty-state">No agents registered.</div>';
-    return;
-  }
-
-  el.innerHTML = agents
-    .map((a) => {
-      const statusClass =
-        a.status === "active"
-          ? "success"
-          : a.status === "idle"
-            ? "accent"
-            : "muted";
-      return `
-      <div class="agent-card">
-        <div class="agent-card-header">
-          <span class="agent-card-name">${escapeHtml(a.name)}</span>
-          <span class="agent-card-status ${statusClass}">${escapeHtml(a.status)}</span>
+  el.innerHTML = `
+    <div class="agents-toolbar">
+      <button class="agents-create-btn" id="agents-create-btn">+ Create Agent</button>
+      <span class="agents-count">${agents?.length || 0} agents</span>
+    </div>
+    <div class="agents-list" id="agents-list">
+      ${(!agents || agents.length === 0)
+        ? '<div class="empty-state">No agents registered. Create one to get started.</div>'
+        : agents.map(renderAgentCard).join("")}
+    </div>
+    <div class="agents-create-modal" id="agents-create-modal" style="display:none">
+      <div class="agents-modal-backdrop" id="agents-modal-backdrop"></div>
+      <div class="agents-modal-content">
+        <h3>Create Agent</h3>
+        <div class="agents-modal-tabs">
+          <button class="agents-modal-tab active" data-tab="manual">Manual</button>
+          <button class="agents-modal-tab" data-tab="ai">AI Generate</button>
         </div>
-        <div class="agent-card-caps">${(a.capabilities || []).map((c) => `<span class="cap-tag">${escapeHtml(c)}</span>`).join("")}</div>
-        <div class="agent-card-meta">
-          <span>Tasks: ${a.tasks || 0}/${a.maxTasks || 1}</span>
-          <span>Success: ${Math.round((a.successRate || 0) * 100)}%</span>
-          <span>Priority: ${a.priority || "-"}</span>
+        <div class="agents-modal-pane active" id="agents-pane-manual">
+          <input type="text" id="agent-name" placeholder="Agent name" class="agents-input" />
+          <input type="text" id="agent-description" placeholder="Description" class="agents-input" />
+          <select id="agent-role" class="agents-input">
+            <option value="coder">Coder</option>
+            <option value="researcher">Researcher</option>
+            <option value="reviewer">Reviewer</option>
+            <option value="planner">Planner</option>
+            <option value="designer">Designer</option>
+            <option value="devops">DevOps</option>
+            <option value="writer">Writer</option>
+            <option value="analyst">Analyst</option>
+            <option value="custom">Custom</option>
+          </select>
+          <input type="text" id="agent-domain" placeholder="Domain (e.g., backend, frontend)" class="agents-input" />
+          <textarea id="agent-prompt" placeholder="System prompt" class="agents-textarea" rows="4"></textarea>
+          <input type="text" id="agent-caps" placeholder="Capabilities (comma-separated)" class="agents-input" />
+          <button class="agents-modal-submit" id="agents-submit-manual">Create</button>
         </div>
+        <div class="agents-modal-pane" id="agents-pane-ai">
+          <textarea id="agent-ai-desc" placeholder="Describe what this agent should do..." class="agents-textarea" rows="4"></textarea>
+          <button class="agents-modal-submit" id="agents-submit-ai">Generate & Create</button>
+        </div>
+        <button class="agents-modal-close" id="agents-modal-close">Cancel</button>
       </div>
-    `;
-    })
-    .join("");
+    </div>
+  `;
+
+  // Bind events
+  document.getElementById("agents-create-btn")?.addEventListener("click", () => {
+    document.getElementById("agents-create-modal").style.display = "flex";
+  });
+  document.getElementById("agents-modal-backdrop")?.addEventListener("click", closeAgentModal);
+  document.getElementById("agents-modal-close")?.addEventListener("click", closeAgentModal);
+
+  // Tab switching
+  el.querySelectorAll(".agents-modal-tab").forEach((tab) => {
+    tab.addEventListener("click", () => {
+      el.querySelectorAll(".agents-modal-tab").forEach((t) => t.classList.remove("active"));
+      el.querySelectorAll(".agents-modal-pane").forEach((p) => p.classList.remove("active"));
+      tab.classList.add("active");
+      document.getElementById(`agents-pane-${tab.dataset.tab}`).classList.add("active");
+    });
+  });
+
+  // Manual create
+  document.getElementById("agents-submit-manual")?.addEventListener("click", async () => {
+    const spec = {
+      name: document.getElementById("agent-name").value.trim(),
+      description: document.getElementById("agent-description").value.trim(),
+      role: document.getElementById("agent-role").value,
+      domain: document.getElementById("agent-domain").value.trim(),
+      systemPrompt: document.getElementById("agent-prompt").value.trim(),
+      capabilities: document.getElementById("agent-caps").value.split(",").map((s) => s.trim()).filter(Boolean),
+    };
+    if (!spec.name) return;
+    await window.__agentActions?.create(spec);
+    closeAgentModal();
+  });
+
+  // AI generate
+  document.getElementById("agents-submit-ai")?.addEventListener("click", async () => {
+    const desc = document.getElementById("agent-ai-desc").value.trim();
+    if (!desc) return;
+    await window.__agentActions?.createAI(desc);
+    closeAgentModal();
+  });
+
+  // Bind action buttons
+  el.querySelectorAll("[data-agent-action]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const action = btn.dataset.agentAction;
+      const id = btn.dataset.agentId;
+      if (action === "toggle") await window.__agentActions?.toggle(id);
+      else if (action === "delete") await window.__agentActions?.delete(id);
+    });
+  });
+}
+
+function closeAgentModal() {
+  const modal = document.getElementById("agents-create-modal");
+  if (modal) modal.style.display = "none";
+  // Reset fields
+  ["agent-name", "agent-description", "agent-domain", "agent-prompt", "agent-caps", "agent-ai-desc"].forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) el.value = "";
+  });
+}
+
+function renderAgentCard(a) {
+  const statusClass = a.status === "active" ? "success" : a.status === "busy" ? "warning" : "muted";
+  const roleColor = ROLE_COLORS[a.role] || ROLE_COLORS.custom;
+  const timeAgo = a.lastUsedAt ? formatTimeAgo(new Date(a.lastUsedAt)) : "never";
+
+  return `
+    <div class="agent-card" data-agent-id="${escapeHtml(a.id)}">
+      <div class="agent-card-header">
+        <div class="agent-card-title">
+          <span class="agent-role-dot" style="background:${roleColor}"></span>
+          <span class="agent-card-name">${escapeHtml(a.name)}</span>
+        </div>
+        <span class="agent-card-status ${statusClass}">${escapeHtml(a.status)}</span>
+      </div>
+      <div class="agent-card-desc">${escapeHtml(a.description || "")}</div>
+      <div class="agent-card-role">
+        <span class="agent-role-badge" style="color:${roleColor};border-color:${roleColor}">${escapeHtml(a.role)}</span>
+        <span class="agent-card-domain">${escapeHtml(a.domain)}</span>
+      </div>
+      <div class="agent-card-caps">
+        ${(a.capabilities || []).slice(0, 5).map((c) => `<span class="cap-tag">${escapeHtml(c)}</span>`).join("")}
+        ${(a.capabilities || []).length > 5 ? `<span class="cap-tag cap-more">+${a.capabilities.length - 5}</span>` : ""}
+      </div>
+      <div class="agent-card-meta">
+        <span title="Tasks completed">Tasks: ${a.tasksCompleted || 0}</span>
+        <span title="Success rate">Success: ${Math.round((a.successRate || 0) * 100)}%</span>
+        <span title="Last used">Last: ${timeAgo}</span>
+      </div>
+      <div class="agent-card-actions">
+        <button class="agent-action-btn agent-toggle-btn" data-agent-action="toggle" data-agent-id="${escapeHtml(a.id)}">${a.status === "active" ? "Disable" : "Enable"}</button>
+        <button class="agent-action-btn agent-delete-btn" data-agent-action="delete" data-agent-id="${escapeHtml(a.id)}">Delete</button>
+      </div>
+    </div>
+  `;
+}
+
+function formatTimeAgo(date) {
+  const seconds = Math.floor((Date.now() - date.getTime()) / 1000);
+  if (seconds < 60) return `${seconds}s ago`;
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
+  return `${Math.floor(seconds / 86400)}d ago`;
 }
 
 // ─── Dashboard Timeline Detail ───

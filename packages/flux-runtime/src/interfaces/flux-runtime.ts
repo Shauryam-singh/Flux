@@ -162,6 +162,10 @@ export interface FluxRuntime {
   getCorrelations(
     limit?: number,
   ): ReadonlyArray<import("../impl/sensor-correlator.js").Correlation>;
+  recordCommand(command: string, exitCode: number): void;
+  recordError(error: string, context: string): void;
+  getAutomationActions(limit?: number): ReadonlyArray<import("../impl/workflow-automation.js").AutomationAction>;
+  getAutomationPatterns(): ReadonlyArray<import("../impl/workflow-automation.js").WorkflowPattern>;
   shutdown(): Promise<void>;
 }
 

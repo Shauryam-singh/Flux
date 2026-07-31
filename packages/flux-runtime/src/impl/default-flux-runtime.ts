@@ -102,6 +102,7 @@ import { CognitionPipeline } from "./cognition-pipeline.js";
 import { SensorCorrelator } from "./sensor-correlator.js";
 import { DismissalTracker } from "./dismissal-tracker.js";
 import { TimeAwareEngine } from "./time-aware-engine.js";
+import { WorkflowAutomationEngine } from "./workflow-automation.js";
 
 export class DefaultFluxRuntime implements FluxRuntime {
   private readonly config: FluxRuntimeConfig;
@@ -208,8 +209,11 @@ export class DefaultFluxRuntime implements FluxRuntime {
   private readonly sensorCorrelator: SensorCorrelator;
   private readonly dismissalTracker: DismissalTracker;
   private readonly timeAwareEngine: TimeAwareEngine;
+  // Tier 4: Automation
+  private readonly workflowAutomation: WorkflowAutomationEngine;
   private lastCorrelationCheck = 0;
   private lastTimeAwareCheck = 0;
+  private lastAutomationCheck = 0;
 
   constructor(config: FluxRuntimeConfig) {
     this.config = config;
@@ -381,6 +385,8 @@ export class DefaultFluxRuntime implements FluxRuntime {
     this.sensorCorrelator = new SensorCorrelator();
     this.dismissalTracker = new DismissalTracker();
     this.timeAwareEngine = new TimeAwareEngine();
+    // Tier 4: Automation
+    this.workflowAutomation = new WorkflowAutomationEngine();
 
     // Wire sensor events to attention system
     this.sensors.onEvent((event) => {
@@ -905,6 +911,25 @@ export class DefaultFluxRuntime implements FluxRuntime {
           // Best-effort
         }
       }
+
+      // ══════════════════════════════════════════════════════════════
+      // TIER 4: AUTOMATION
+      // ══════════════════════════════════════════════════════════════
+
+      // ── 18. Workflow Automation (every 2 minutes) ───────────────
+      if (now - this.lastAutomationCheck > 120_000) {
+        this.lastAutomationCheck = now;
+        try {
+          const automationActions = this.workflowAutomation.analyze();
+          for (const action of automationActions) {
+            if (!this.dismissalTracker.shouldSuppress(action.id)) {
+              this.addSuggestion(action.id, action.type, `${action.title} — ${action.description}`, action.priority);
+            }
+          }
+        } catch {
+          // Best-effort
+        }
+      }
     } catch {
       // Best-effort
     }
@@ -1069,6 +1094,34 @@ export class DefaultFluxRuntime implements FluxRuntime {
    */
   getCorrelations(limit = 10): ReadonlyArray<import("./sensor-correlator.js").Correlation> {
     return this.sensorCorrelator.getRecent(limit);
+  }
+
+  /**
+   * Record a command execution for workflow automation pattern detection.
+   */
+  recordCommand(command: string, exitCode: number): void {
+    this.workflowAutomation.recordCommand(command, exitCode);
+  }
+
+  /**
+   * Record an error for auto-fix analysis.
+   */
+  recordError(error: string, context: string): void {
+    this.workflowAutomation.recordError(error, context);
+  }
+
+  /**
+   * Get recent automation actions.
+   */
+  getAutomationActions(limit = 10): ReadonlyArray<import("./workflow-automation.js").AutomationAction> {
+    return this.workflowAutomation.getRecent(limit);
+  }
+
+  /**
+   * Get detected workflow patterns.
+   */
+  getAutomationPatterns(): ReadonlyArray<import("./workflow-automation.js").WorkflowPattern> {
+    return this.workflowAutomation.getPatterns();
   }
 
   /**

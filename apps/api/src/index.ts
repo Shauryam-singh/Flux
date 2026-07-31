@@ -862,6 +862,61 @@ const server = createServer(async (req, res) => {
     return;
   }
 
+  // ─── Tier 4: Automation Actions ──────────────────────────────
+  if (req.method === "GET" && req.url === "/automation/actions") {
+    const url = new URL(req.url ?? "/", `http://localhost:${PORT}`);
+    const limit = parseInt(url.searchParams.get("limit") ?? "10", 10);
+    const actions = flux.runtime.getAutomationActions(limit);
+    sendJson(res, 200, { actions });
+    return;
+  }
+
+  if (req.method === "GET" && req.url === "/automation/patterns") {
+    const patterns = flux.runtime.getAutomationPatterns();
+    sendJson(res, 200, { patterns });
+    return;
+  }
+
+  if (req.method === "POST" && req.url === "/automation/record-command") {
+    try {
+      const body = await parseBody(req);
+      const { command, exitCode } = JSON.parse(body.toString()) as {
+        command?: string;
+        exitCode?: number;
+      };
+      if (!command) {
+        sendJson(res, 400, { error: "command is required" });
+        return;
+      }
+      flux.runtime.recordCommand(command, exitCode ?? 0);
+      sendJson(res, 200, { recorded: true });
+    } catch (err) {
+      const error = err instanceof Error ? err.message : String(err);
+      sendJson(res, 500, { error });
+    }
+    return;
+  }
+
+  if (req.method === "POST" && req.url === "/automation/record-error") {
+    try {
+      const body = await parseBody(req);
+      const { error: errorMsg, context } = JSON.parse(body.toString()) as {
+        error?: string;
+        context?: string;
+      };
+      if (!errorMsg) {
+        sendJson(res, 400, { error: "error is required" });
+        return;
+      }
+      flux.runtime.recordError(errorMsg, context ?? "");
+      sendJson(res, 200, { recorded: true });
+    } catch (err) {
+      const error = err instanceof Error ? err.message : String(err);
+      sendJson(res, 500, { error });
+    }
+    return;
+  }
+
   sendJson(res, 404, { error: "Not found" });
 });
 
@@ -901,4 +956,8 @@ server.listen(PORT, () => {
   console.log(`  GET  /correlations        - Cross-sensor correlations`);
   console.log(`  GET  /dismissals/stats    - Suggestion dismissal stats`);
   console.log(`  POST /dismissals          - Record suggestion dismissal`);
+  console.log(`  GET  /automation/actions   - Automation action suggestions`);
+  console.log(`  GET  /automation/patterns  - Detected workflow patterns`);
+  console.log(`  POST /automation/record-command - Record command execution`);
+  console.log(`  POST /automation/record-error   - Record error for auto-fix`);
 });

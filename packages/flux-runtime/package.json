@@ -49,6 +49,7 @@
     "@ai-agent/services-scheduled-notifications": "workspace:*",
     "@ai-agent/services-game-updater": "workspace:*",
     "@ai-agent/services-file-processor": "workspace:*",
-    "@ai-agent/services-browser-control": "workspace:*"
+    "@ai-agent/services-browser-control": "workspace:*",
+    "@ai-agent/services-send-message": "workspace:*"
   }
 }

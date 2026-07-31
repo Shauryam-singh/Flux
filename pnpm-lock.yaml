@@ -1086,6 +1086,9 @@ importers:
       '@ai-agent/services-search':
         specifier: workspace:*
         version: link:../services/search
+      '@ai-agent/services-send-message':
+        specifier: workspace:*
+        version: link:../services/send-message
       '@ai-agent/services-system':
         specifier: workspace:*
         version: link:../services/system
@@ -1604,6 +1607,15 @@ importers:
         version: link:../../shared
 
   packages/services/search:
+    dependencies:
+      '@ai-agent/services-core':
+        specifier: workspace:*
+        version: link:../core
+      '@ai-agent/shared':
+        specifier: workspace:*
+        version: link:../../shared
+
+  packages/services/send-message:
     dependencies:
       '@ai-agent/services-core':
         specifier: workspace:*

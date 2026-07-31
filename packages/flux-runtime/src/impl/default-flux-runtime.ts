@@ -177,6 +177,20 @@ export class DefaultFluxRuntime implements FluxRuntime {
   private codingSession: InstanceType<typeof CodingSessionTracker>;
   private lastCodingSessionSuggestion = 0;
   private lastSystemHealthSuggestion = 0;
+  // Proactive messaging
+  private proactiveMessages: Array<{
+    id: string;
+    content: string;
+    type: "suggestion" | "alert" | "info";
+    priority: "low" | "medium" | "high";
+    timestamp: number;
+    spoken: boolean;
+    actionLabel?: string;
+    actionPayload?: string;
+  }> = [];
+  private proactiveMessageListeners: Array<(msg: string) => void> = [];
+  private proactiveSpeakListeners: Array<(text: string) => void> = [];
+  private lastProactiveSpeak = 0;
 
   constructor(config: FluxRuntimeConfig) {
     this.config = config;
@@ -706,6 +720,149 @@ export class DefaultFluxRuntime implements FluxRuntime {
     // Keep only last 20 suggestions
     if (this.proactiveSuggestions.length > 20) {
       this.proactiveSuggestions = this.proactiveSuggestions.slice(-20);
+    }
+
+    // For high-priority suggestions, also emit a proactive message
+    // that can be spoken and shown in the conversation thread
+    if (priority === "high" || type === "warning") {
+      this.emitProactiveMessage({
+        content: message,
+        type: type === "warning" ? "alert" : "suggestion",
+        priority: priority as "low" | "medium" | "high",
+        actionLabel: "Help me with this",
+        actionPayload: message,
+      });
+    }
+  }
+
+  // ─── Proactive Messaging ────────────────────────────────────────
+
+  /**
+   * Emit a proactive message that can be spoken and shown in conversation.
+   * This is how the runtime "speaks" to the user without user interaction.
+   */
+  emitProactiveMessage(opts: {
+    content: string;
+    type?: "suggestion" | "alert" | "info";
+    priority?: "low" | "medium" | "high";
+    actionLabel?: string;
+    actionPayload?: string;
+  }): void {
+    const now = Date.now();
+    const msgType: "suggestion" | "alert" | "info" = opts.type ?? "info";
+    const msgPriority: "low" | "medium" | "high" = opts.priority ?? "medium";
+    const msg: {
+      id: string;
+      content: string;
+      type: "suggestion" | "alert" | "info";
+      priority: "low" | "medium" | "high";
+      timestamp: number;
+      spoken: boolean;
+      actionLabel?: string;
+      actionPayload?: string;
+    } = {
+      id: `pm_${now}_${Math.random().toString(36).slice(2, 6)}`,
+      content: opts.content,
+      type: msgType,
+      priority: msgPriority,
+      timestamp: now,
+      spoken: false,
+    };
+    if (opts.actionLabel != null) msg.actionLabel = opts.actionLabel;
+    if (opts.actionPayload != null) msg.actionPayload = opts.actionPayload;
+
+    this.proactiveMessages.push(msg);
+    // Keep last 50
+    if (this.proactiveMessages.length > 50) {
+      this.proactiveMessages = this.proactiveMessages.slice(-50);
+    }
+
+    // Notify listeners (API server will forward via SSE)
+    for (const listener of this.proactiveMessageListeners) {
+      try {
+        listener(JSON.stringify(msg));
+      } catch {
+        // Best-effort
+      }
+    }
+
+    // Auto-speak high-priority messages (throttled: max once per 10s)
+    if (
+      (opts.priority === "high" || opts.type === "alert") &&
+      now - this.lastProactiveSpeak > 10000
+    ) {
+      this.lastProactiveSpeak = now;
+      msg.spoken = true;
+      for (const listener of this.proactiveSpeakListeners) {
+        try {
+          listener(opts.content);
+        } catch {
+          // Best-effort
+        }
+      }
+    }
+  }
+
+  /**
+   * Register a listener for proactive messages (API server uses this).
+   */
+  onProactiveMessage(listener: (msgJson: string) => void): () => void {
+    this.proactiveMessageListeners.push(listener);
+    return () => {
+      const idx = this.proactiveMessageListeners.indexOf(listener);
+      if (idx >= 0) this.proactiveMessageListeners.splice(idx, 1);
+    };
+  }
+
+  /**
+   * Register a listener for proactive speech (API server uses this).
+   */
+  onProactiveSpeak(listener: (text: string) => void): () => void {
+    this.proactiveSpeakListeners.push(listener);
+    return () => {
+      const idx = this.proactiveSpeakListeners.indexOf(listener);
+      if (idx >= 0) this.proactiveSpeakListeners.splice(idx, 1);
+    };
+  }
+
+  /**
+   * Get proactive message history.
+   */
+  getProactiveMessages(limit: number = 20): ReadonlyArray<{
+    id: string;
+    content: string;
+    type: string;
+    priority: string;
+    timestamp: number;
+    spoken: boolean;
+    actionLabel?: string;
+    actionPayload?: string;
+  }> {
+    return this.proactiveMessages.slice(-limit);
+  }
+
+  /**
+   * Trigger an auto-response: the runtime investigates a sensor event
+   * and generates a proactive message with context.
+   */
+  async triggerAutoResponse(trigger: {
+    source: string;
+    event: string;
+    context?: Record<string, unknown>;
+  }): Promise<void> {
+    const prompt = `A ${trigger.event} event occurred from ${trigger.source}. ${
+      trigger.context ? `Context: ${JSON.stringify(trigger.context)}` : ""
+    }. Investigate this and provide a brief, actionable assessment.`;
+
+    try {
+      const result = await this.process(prompt);
+      this.emitProactiveMessage({
+        content: result.text,
+        type: "info",
+        priority: "medium",
+      });
+    } catch {
+      // Best-effort — don't let auto-response failures crash the system
     }
   }
 
@@ -1427,6 +1584,16 @@ export class DefaultFluxRuntime implements FluxRuntime {
       timestamp: number;
       priority: string;
     }>;
+    readonly proactiveMessages: ReadonlyArray<{
+      id: string;
+      content: string;
+      type: string;
+      priority: string;
+      timestamp: number;
+      spoken: boolean;
+      actionLabel?: string;
+      actionPayload?: string;
+    }>;
   }> {
     const goals = this.goalManager.getAll().map((g) => ({
       id: g.id,
@@ -1479,6 +1646,7 @@ export class DefaultFluxRuntime implements FluxRuntime {
       worldState: this.worldModel.getState(),
       sensorSnapshots,
       proactiveSuggestions: this.proactiveSuggestions.slice(-10),
+      proactiveMessages: this.proactiveMessages.slice(-10),
     };
   }
 

@@ -714,6 +714,35 @@ ul, ol {
 .chat-user .chat-text { color: var(--accent); }
 .chat-assistant .chat-text { color: var(--text); }
 .chat-system .chat-text { color: var(--warning); font-style: italic; }
+.chat-proactive .chat-text { color: var(--secondary); }
+.chat-proactive { background: rgba(124, 139, 255, 0.08); border-left: 2px solid var(--secondary); }
+.chat-proactive-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+}
+.chat-action-btn {
+  background: rgba(124, 139, 255, 0.15);
+  border: 1px solid rgba(124, 139, 255, 0.3);
+  color: var(--secondary);
+  padding: 3px 10px;
+  border-radius: 4px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.chat-action-btn:hover {
+  background: rgba(124, 139, 255, 0.25);
+  border-color: var(--secondary);
+}
+.chat-action-dismiss {
+  background: rgba(255, 107, 107, 0.1);
+  border-color: rgba(255, 107, 107, 0.2);
+  color: var(--error);
+}
+.chat-action-dismiss:hover {
+  background: rgba(255, 107, 107, 0.2);
+}
 
 /* HUD Bottom Actions */
 /* ─── HUD Chat Input ─── */

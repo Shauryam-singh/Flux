@@ -39,6 +39,7 @@ export const state = {
   connected: false,
   suggestions: [],
   chatHistory: [],
+  proactiveMessages: [],
 };
 
 // ─── SSE Connection ───
@@ -251,6 +252,26 @@ function handleStreamEvent(data) {
     if (data.type === "snapshot") {
       fetchChatHistory();
     }
+  }
+
+  // Handle proactive messages from runtime
+  if (data.type === "proactive_message") {
+    const msg = {
+      id: data.id,
+      content: data.content,
+      type: data.type,
+      priority: data.priority,
+      timestamp: data.timestamp,
+      spoken: data.spoken,
+      actionLabel: data.actionLabel,
+      actionPayload: data.actionPayload,
+    };
+    emit("proactiveMessage", msg);
+  }
+
+  // Handle proactive speech from runtime
+  if (data.type === "proactive_speak") {
+    emit("proactiveSpeak", { text: data.text, timestamp: data.timestamp });
   }
 }
 

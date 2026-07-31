@@ -129,6 +129,30 @@ export interface FluxRuntime {
   getStrongestThoughts(
     limit?: number,
   ): ReturnType<DefaultThoughtGraph["getStrongestThoughts"]>;
+  emitProactiveMessage(opts: {
+    content: string;
+    type?: "suggestion" | "alert" | "info";
+    priority?: "low" | "medium" | "high";
+    actionLabel?: string;
+    actionPayload?: string;
+  }): void;
+  onProactiveMessage(listener: (msgJson: string) => void): () => void;
+  onProactiveSpeak(listener: (text: string) => void): () => void;
+  getProactiveMessages(limit?: number): ReadonlyArray<{
+    id: string;
+    content: string;
+    type: string;
+    priority: string;
+    timestamp: number;
+    spoken: boolean;
+    actionLabel?: string;
+    actionPayload?: string;
+  }>;
+  triggerAutoResponse(trigger: {
+    source: string;
+    event: string;
+    context?: Record<string, unknown>;
+  }): Promise<void>;
   shutdown(): Promise<void>;
 }
 

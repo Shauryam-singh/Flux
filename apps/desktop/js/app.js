@@ -588,16 +588,31 @@ async function sendChatMessageDirect(message, speak = false) {
 
 // ─── Conversation Thread ───
 
-function addChatMessage(role, content) {
+function addChatMessage(role, content, proactiveMsg) {
   const container = document.getElementById("chat-messages");
   if (!container) return;
 
   const div = document.createElement("div");
   div.className = `chat-msg chat-${role}`;
 
-  const icon = role === "user" ? "👤" : role === "assistant" ? "🤖" : "⚠️";
+  let icon = "⚠️";
+  if (role === "user") icon = "👤";
+  else if (role === "assistant") icon = "🤖";
+  else if (role === "proactive") icon = "💡";
+  else if (role === "system") icon = "⚙️";
+
   const text = content.length > 500 ? content.slice(0, 500) + "..." : content;
-  div.innerHTML = `<span class="chat-icon">${icon}</span><span class="chat-text">${escapeHtmlSimple(text)}</span>`;
+
+  let actionHtml = "";
+  if (role === "proactive" && proactiveMsg?.actionLabel) {
+    const msgId = proactiveMsg.id ?? "";
+    actionHtml = `<div class="chat-proactive-actions">
+      <button class="chat-action-btn" onclick="handleProactiveAction('${msgId}', 'act')">${proactiveMsg.actionLabel}</button>
+      <button class="chat-action-btn chat-action-dismiss" onclick="handleProactiveAction('${msgId}', 'dismiss')">Dismiss</button>
+    </div>`;
+  }
+
+  div.innerHTML = `<span class="chat-icon">${icon}</span><span class="chat-text">${escapeHtmlSimple(text)}</span>${actionHtml}`;
 
   container.appendChild(div);
   container.scrollTop = container.scrollHeight;
@@ -605,6 +620,30 @@ function addChatMessage(role, content) {
   // Keep only last 50 messages in DOM
   while (container.children.length > 50) {
     container.removeChild(container.firstChild);
+  }
+}
+
+// Handle proactive suggestion actions
+async function handleProactiveAction(suggestionId, action) {
+  try {
+    const resp = await fetch(`http://localhost:3141/suggestions/${suggestionId}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action }),
+    });
+    if (resp.ok) {
+      const data = await resp.json();
+      if (data.reply) {
+        addChatMessage("assistant", data.reply);
+        // Also speak the reply if auto-speak is on
+        const settings = getStoredSettings();
+        if (settings.autoSpeak) {
+          speakText(data.reply);
+        }
+      }
+    }
+  } catch {
+    // Best-effort
   }
 }
 
@@ -1081,6 +1120,27 @@ function bindDataEvents() {
       UI.showToast(`💡 ${latest.message}`, latest.priority === "high" ? "warning" : "info", 6000);
     }
   });
+
+  // Handle proactive messages from runtime — show in conversation thread
+  on("proactiveMessage", (msg) => {
+    // Add to conversation as a system message with action button
+    addChatMessage("proactive", msg.content, msg);
+
+    // Also show toast for high-priority
+    if (msg.priority === "high" || msg.priority === "warning") {
+      const icon = msg.type === "alert" ? "⚠️" : "💡";
+      UI.showToast(`${icon} ${msg.content}`, msg.priority === "high" ? "warning" : "info", 8000);
+    }
+  });
+
+  // Handle proactive speech — speak when auto-speak is ON
+  on("proactiveSpeak", (data) => {
+    const settings = getStoredSettings();
+    if (settings.autoSpeak && data.text) {
+      speakText(data.text);
+    }
+  });
+
   on("chatHistory", (messages) => {
     // Populate conversation thread from history
     const container = document.getElementById("chat-messages");

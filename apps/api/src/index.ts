@@ -180,7 +180,7 @@ const server = createServer(async (req, res) => {
     }
 
     // Subscribe to tick events
-    const unsubscribe = flux.runtime.onTick(async (event) => {
+    const unsubscribeTick = flux.runtime.onTick(async (event) => {
       try {
         const snapshot = await flux.runtime.getStreamingSnapshot();
         res.write(
@@ -194,6 +194,24 @@ const server = createServer(async (req, res) => {
       }
     });
 
+    // Subscribe to proactive messages — forward as SSE events
+    const unsubscribeProactive = flux.runtime.onProactiveMessage((msgJson) => {
+      try {
+        res.write(`data: ${JSON.stringify({ type: "proactive_message", ...JSON.parse(msgJson) })}\n\n`);
+      } catch {
+        // Best-effort
+      }
+    });
+
+    // Subscribe to proactive speech — forward as SSE event with TTS URL
+    const unsubscribeSpeak = flux.runtime.onProactiveSpeak((text: string) => {
+      try {
+        res.write(`data: ${JSON.stringify({ type: "proactive_speak", text, timestamp: Date.now() })}\n\n`);
+      } catch {
+        // Best-effort
+      }
+    });
+
     // Heartbeat every 15s to keep connection alive
     const heartbeat = setInterval(() => {
       res.write(`: heartbeat\n\n`);
@@ -201,7 +219,9 @@ const server = createServer(async (req, res) => {
 
     // Cleanup on disconnect
     req.on("close", () => {
-      unsubscribe();
+      unsubscribeTick();
+      unsubscribeProactive();
+      unsubscribeSpeak();
       clearInterval(heartbeat);
     });
 
@@ -336,6 +356,88 @@ const server = createServer(async (req, res) => {
         "Content-Length": audio.length,
       });
       res.end(audio);
+    } catch (err) {
+      const error = err instanceof Error ? err.message : String(err);
+      sendJson(res, 500, { error });
+    }
+    return;
+  }
+
+  // ─── Proactive Messages ───────────────────────────────────────
+  if (req.method === "GET" && req.url?.startsWith("/proactive/messages")) {
+    try {
+      const url = new URL(req.url, `http://${req.headers.host ?? "localhost"}`);
+      const limit = parseInt(url.searchParams.get("limit") ?? "20", 10);
+      const messages = flux.runtime.getProactiveMessages(limit);
+      sendJson(res, 200, { messages });
+    } catch (err) {
+      const error = err instanceof Error ? err.message : String(err);
+      sendJson(res, 500, { error });
+    }
+    return;
+  }
+
+  // ─── Auto-Response Trigger ────────────────────────────────────
+  if (req.method === "POST" && req.url === "/proactive/trigger") {
+    try {
+      const body = await parseBody(req);
+      const json = JSON.parse(body.toString()) as {
+        source?: string;
+        event?: string;
+        context?: Record<string, unknown>;
+      };
+
+      if (!json.source || !json.event) {
+        sendJson(res, 400, { error: "source and event are required" });
+        return;
+      }
+
+      // Fire and forget — don't block the response
+      void flux.runtime.triggerAutoResponse({
+        source: json.source,
+        event: json.event,
+        ...(json.context != null ? { context: json.context } : {}),
+      });
+
+      sendJson(res, 202, { accepted: true });
+    } catch (err) {
+      const error = err instanceof Error ? err.message : String(err);
+      sendJson(res, 500, { error });
+    }
+    return;
+  }
+
+  // ─── Suggestion Action ────────────────────────────────────────
+  if (req.method === "POST" && req.url?.startsWith("/suggestions/")) {
+    try {
+      const suggestionId = req.url.split("/suggestions/")[1]?.split("?")[0];
+      const body = await parseBody(req);
+      const json = JSON.parse(body.toString()) as {
+        action?: string;
+      };
+
+      if (!suggestionId) {
+        sendJson(res, 400, { error: "suggestion id is required" });
+        return;
+      }
+
+      // Find the suggestion and trigger a conversation about it
+      const suggestions = flux.runtime.getProactiveMessages(50);
+      const suggestion = suggestions.find((s: { id: string }) => s.id === suggestionId);
+
+      if (!suggestion) {
+        sendJson(res, 404, { error: "suggestion not found" });
+        return;
+      }
+
+      // Process the suggestion as a user message to get an intelligent response
+      const response = await flux.process(
+        json.action === "dismiss"
+          ? `User dismissed suggestion: "${suggestion.content}"`
+          : `User asked about: "${suggestion.content}". Provide a helpful, actionable response.`,
+      );
+
+      sendJson(res, 200, { reply: response, suggestionId });
     } catch (err) {
       const error = err instanceof Error ? err.message : String(err);
       sendJson(res, 500, { error });

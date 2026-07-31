@@ -890,6 +890,13 @@ const server = createServer(async (req, res) => {
     return;
   }
 
+  // ─── Session Summaries ───────────────────────────────────────
+  if (req.method === "GET" && req.url === "/session-summaries") {
+    const summaries = flux.runtime.getSessionSummaries();
+    sendJson(res, 200, { summaries });
+    return;
+  }
+
   // ─── Briefing (yesterday's summary) ────────────────────────────
   if (req.method === "GET" && req.url === "/briefing") {
     const oneDayMs = 24 * 60 * 60 * 1000;

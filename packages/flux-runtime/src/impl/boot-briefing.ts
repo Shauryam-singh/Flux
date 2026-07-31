@@ -38,6 +38,7 @@ export interface BootBriefingContext {
   readonly recentActivity: ReadonlyArray<string>;
   readonly reflections: ReadonlyArray<string>;
   readonly episodicMemories: ReadonlyArray<string>;
+  readonly sessionSummaries: ReadonlyArray<string>;
   readonly batteryLevel: number | null;
   readonly batteryCharging: boolean;
   readonly gitBranch: string;
@@ -193,6 +194,11 @@ export class BootBriefingGenerator {
 
     // Build the recap section
     const recapParts: string[] = [];
+    // Session summaries from previous conversations (consumed after use)
+    if (ctx.sessionSummaries.length > 0) {
+      recapParts.push("From our last conversations:");
+      ctx.sessionSummaries.forEach((s) => recapParts.push(`- ${s}`));
+    }
     if (ctx.episodicMemories.length > 0) {
       recapParts.push("Recent activity:");
       ctx.episodicMemories.slice(0, 5).forEach((m) => recapParts.push(`- ${m}`));
@@ -247,8 +253,8 @@ export class BootBriefingGenerator {
       spokenText = llmResult.spokenText;
       markdown = llmResult.markdown;
     } else {
-      spokenText = this.buildTemplateSpokenText(greeting, recap, news, goals, systemStatus);
-      markdown = this.buildTemplateMarkdown(greeting, recap, news, goals, systemStatus);
+      spokenText = this.buildTemplateSpokenText(greeting, recap, news, goals, systemStatus, ctx.sessionSummaries);
+      markdown = this.buildTemplateMarkdown(greeting, recap, news, goals, systemStatus, ctx.sessionSummaries);
     }
 
     return {
@@ -304,11 +310,11 @@ ${goals.length > 0 ? goals.map((g) => `- ${g.name} (${g.progress}%)`).join("\n")
 ## Instructions
 Generate TWO outputs separated by "===SPLIT===":
 
-1. **SPOKEN** (what to say aloud): A natural, conversational greeting. Greet by name if known. Mention the time. Summarize yesterday briefly (2-3 sentences). Mention 1-2 top news headlines. Mention active goals if any. End with an offer to help. Keep it under 100 words. Be warm but concise.
+1. **SPOKEN** (what to say aloud): A natural, conversational greeting. Greet by name if known. Mention the time. If there are session summaries (marked "From our last conversations"), mention 1-2 key points naturally — e.g. "Yesterday we were working on X" or "Last time you mentioned Y". This is a one-time mention — the summaries will not appear again. Then summarise yesterday briefly (2-3 sentences). Mention 1-2 top news headlines. Mention active goals if any. End with an offer to help. Keep it under 120 words. Be warm but concise.
 
 2. **MARKDOWN** (what to display): A formatted briefing with sections. Use HTML-friendly markdown. Include:
    - Greeting with time
-   - Yesterday recap (bullet points)
+   - Yesterday recap (bullet points) — include session summaries as "Last conversation" items
    - Top news headlines (with links)
    - System status (compact)
    - Active goals with progress bars
@@ -334,8 +340,8 @@ Respond with ONLY the two sections separated by ===SPLIT===.`;
     }
 
     return {
-      spokenText: this.buildTemplateSpokenText(greeting, recap, news, goals, systemStatus),
-      markdown: this.buildTemplateMarkdown(greeting, recap, news, goals, systemStatus),
+      spokenText: this.buildTemplateSpokenText(greeting, recap, news, goals, systemStatus, ctx.sessionSummaries),
+      markdown: this.buildTemplateMarkdown(greeting, recap, news, goals, systemStatus, ctx.sessionSummaries),
     };
   }
 
@@ -367,8 +373,15 @@ Respond with ONLY the two sections separated by ===SPLIT===.`;
     news: ReadonlyArray<NewsHeadline>,
     goals: ReadonlyArray<BriefingGoal>,
     systemStatus: SystemStatus,
+    sessionSummaries?: ReadonlyArray<string>,
   ): string {
     const parts: string[] = [greeting];
+
+    // Session summaries (one-time, consumed after use)
+    if (sessionSummaries && sessionSummaries.length > 0) {
+      parts.push("From our last conversations:");
+      sessionSummaries.slice(0, 2).forEach((s) => parts.push(s));
+    }
 
     // Recap
     if (recap !== "No recent activity recorded.") {
@@ -410,11 +423,21 @@ Respond with ONLY the two sections separated by ===SPLIT===.`;
     news: ReadonlyArray<NewsHeadline>,
     goals: ReadonlyArray<BriefingGoal>,
     systemStatus: SystemStatus,
+    sessionSummaries?: ReadonlyArray<string>,
   ): string {
     const sections: string[] = [];
 
     // Header
     sections.push(`<div class="briefing-header"><h2>\u{1F44B} ${greeting}</h2></div>`);
+
+    // Session summaries (one-time mention)
+    if (sessionSummaries && sessionSummaries.length > 0) {
+      sections.push(`<div class="briefing-section"><h3>Last Conversations</h3>`);
+      sessionSummaries.forEach((s) => {
+        sections.push(`<div class="briefing-item">\u2022 ${s}</div>`);
+      });
+      sections.push(`</div>`);
+    }
 
     // Recap
     const recapLines = recap.split("\n").filter((l) => l.trim());

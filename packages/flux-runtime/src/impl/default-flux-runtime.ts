@@ -60,6 +60,7 @@ import { DefaultPluginLoader, type FluxPlugin } from "@ai-agent/plugins";
 import { DefaultKnowledgeBase } from "@ai-agent/knowledge-base";
 import { DefaultMultiAgentCoordinator, AgentFactory } from "@ai-agent/multi-agent";
 import { BootBriefingGenerator, type BootBriefing } from "./boot-briefing.js";
+import { SessionSummaryStore, type SessionSummary } from "./session-summary-store.js";
 import { DefaultCrossDeviceSync } from "@ai-agent/cross-device";
 import { DefaultStrategyLibrary } from "@ai-agent/strategy-library";
 import {
@@ -215,6 +216,9 @@ export class DefaultFluxRuntime implements FluxRuntime {
   private readonly workflowAutomation: WorkflowAutomationEngine;
   // Boot briefing
   private readonly bootBriefing: BootBriefingGenerator;
+  // Session summaries
+  private readonly sessionSummaries: SessionSummaryStore;
+  private userMessageCount = 0;
   private lastCorrelationCheck = 0;
   private lastTimeAwareCheck = 0;
   private lastAutomationCheck = 0;
@@ -396,6 +400,8 @@ export class DefaultFluxRuntime implements FluxRuntime {
     this.workflowAutomation = new WorkflowAutomationEngine();
     // Boot briefing
     this.bootBriefing = new BootBriefingGenerator();
+    // Session summaries
+    this.sessionSummaries = new SessionSummaryStore();
 
     // Wire sensor events to attention system
     this.sensors.onEvent((event) => {
@@ -1133,6 +1139,20 @@ export class DefaultFluxRuntime implements FluxRuntime {
     return this.workflowAutomation.getPatterns();
   }
 
+  // ─── Session Summaries ──────────────────────────────────────────
+
+  getSessionSummaries(): ReadonlyArray<{ id: string; summary: string; timestamp: number }> {
+    return this.sessionSummaries.getUnconsumed().map((s) => ({
+      id: s.id,
+      summary: s.summary,
+      timestamp: s.timestamp,
+    }));
+  }
+
+  pruneSessionSummaries(maxAgeMs: number): number {
+    return this.sessionSummaries.prune(maxAgeMs);
+  }
+
   /**
    * Trigger an auto-response: the runtime investigates a sensor event
    * and generates a proactive message with context.
@@ -1757,12 +1777,17 @@ export class DefaultFluxRuntime implements FluxRuntime {
     const uptimeMs = Date.now() - this.startTime;
     const memoryCount = this.memory.getStats().totalMemories;
 
-    return this.bootBriefing.generate(
+    // Unconsumed session summaries from previous conversations
+    const unconsumedSummaries = this.sessionSummaries.getUnconsumed();
+    const sessionSummaryTexts = unconsumedSummaries.map((s) => s.summary);
+
+    const briefing = await this.bootBriefing.generate(
       {
         activeGoals: goals,
         recentActivity,
         reflections,
         episodicMemories,
+        sessionSummaries: sessionSummaryTexts,
         batteryLevel,
         batteryCharging,
         gitBranch,
@@ -1774,6 +1799,13 @@ export class DefaultFluxRuntime implements FluxRuntime {
       },
       this.llmProvider,
     );
+
+    // Mark summaries as consumed after successful briefing
+    if (unconsumedSummaries.length > 0) {
+      this.sessionSummaries.markAllConsumed();
+    }
+
+    return briefing;
   }
 
   // ─── Core Processing ─────────────────────────────────────────────
@@ -2049,6 +2081,39 @@ export class DefaultFluxRuntime implements FluxRuntime {
       relatedIds: [],
       relatedEpisodeIds: [],
     });
+
+    // Step 13: Session summarisation — generate a summary every 5 user messages
+    this.userMessageCount++;
+    if (this.userMessageCount % 5 === 0) {
+      try {
+        const recentHistory = this.history.slice(-10);
+        const transcript = recentHistory
+          .map((m) => `${m.role === "user" ? "User" : "Assistant"}: ${m.content.slice(0, 200)}`)
+          .join("\n");
+
+        let summaryText: string;
+        if (this.llmProvider) {
+          const llmResult = await this.llmProvider.complete({
+            model: "qwen2.5-coder:7b",
+            prompt: `Summarise this conversation in 2-3 sentences, focusing on what was accomplished and any open items. Be concise and natural.\n\n${transcript}`,
+            temperature: 0.3,
+          });
+          summaryText = llmResult.text.trim();
+        } else {
+          // Fallback: take the last 2 user messages
+          const userMsgs = recentHistory.filter((m) => m.role === "user").slice(-2);
+          summaryText = `Conversation covered: ${userMsgs.map((m) => m.content.slice(0, 80)).join("; ")}`;
+        }
+
+        this.sessionSummaries.add({
+          summary: summaryText,
+          conversationId: `conv_${Date.now()}`,
+          messageCount: this.userMessageCount,
+        });
+      } catch {
+        // Best effort — don't break the interaction
+      }
+    }
 
     return {
       text: responseText,

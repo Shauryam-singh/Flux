@@ -178,6 +178,10 @@ export interface FluxRuntime {
   orchestrate(goal: string): Promise<string>;
   /** Generate boot briefing (greeting, recap, news, status) */
   generateBootBriefing(): Promise<import("../impl/boot-briefing.js").BootBriefing>;
+  /** Get unconsumed session summaries */
+  getSessionSummaries(): ReadonlyArray<{ id: string; summary: string; timestamp: number }>;
+  /** Prune old consumed session summaries */
+  pruneSessionSummaries(maxAgeMs: number): number;
   shutdown(): Promise<void>;
 }
 

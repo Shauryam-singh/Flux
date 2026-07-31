@@ -102,6 +102,10 @@ export function createRemindersService(): Service {
         "pending tasks", "add a todo", "add todo", "new todo",
         "add a task", "new task", "create a task",
         "show my", "list my",
+        "my goal", "my goals", "my project", "my projects",
+        "my progress", "my plan", "my schedule",
+        "what is my", "what are my", "how is my", "how are my",
+        "any update", "how's my",
       ];
       return keywords.some((k) => lower.includes(k));
     },
@@ -109,6 +113,10 @@ export function createRemindersService(): Service {
     async execute(input: string, ctx: ServiceContext): Promise<ServiceResponse> {
       const lower = input.toLowerCase();
       let result: string;
+
+      // Check if asking about goals specifically
+      const isGoalQuery = /\b(goals?|project|progress|plan|schedule|overview|status)\b/i.test(lower);
+      const isTaskQuery = /\b(tasks?|todos?|reminders?|notes?|open)\b/i.test(lower);
 
       // Add/Create patterns
       if (/^(add|create|new|save)\s+/i.test(lower)) {
@@ -119,12 +127,6 @@ export function createRemindersService(): Service {
           const reminder = addReminder(text);
           result = `✅ Added: **${reminder.text}** (ID: \`${reminder.id}\`)`;
         }
-      }
-      // List/Show patterns
-      else if (/^(list|show|show\s+me|what('s| are)|my\s+|open\s+)/i.test(lower) ||
-               /reminders?|notes?|tasks?|todos?/i.test(lower)) {
-        const reminders = listReminders();
-        result = formatReminders(reminders);
       }
       // Complete patterns
       else if (/^(complete|done|finish|mark)\s+/i.test(lower)) {
@@ -145,6 +147,37 @@ export function createRemindersService(): Service {
         } else {
           result = "What would you like me to remind you about?";
         }
+      }
+      // List/Show/Query patterns — fetch from system context + local reminders
+      else if (/^(list|show|show\s+me|what('s| are)|my\s+|open\s+|how)/i.test(lower) ||
+               isGoalQuery || isTaskQuery ||
+               /reminders?|notes?|tasks?|todos?/i.test(lower)) {
+        const parts: string[] = [];
+
+        // Fetch goals from system context
+        if (isGoalQuery && ctx.getSystemContext) {
+          try {
+            const sys = await ctx.getSystemContext();
+            if (sys.goals && sys.goals.length > 0) {
+              const goalLines = sys.goals.map(
+                (g, i) => `${i + 1}. **${g.name}** — ${g.progress}% (${g.status})`,
+              );
+              parts.push(`**Goals** (${sys.goals.length}):\n${goalLines.join("\n")}`);
+            } else {
+              parts.push("No active goals yet. I'll create goals as I observe your work.");
+            }
+          } catch {
+            // Fall through to local reminders
+          }
+        }
+
+        // Always show local reminders/tasks
+        const reminders = listReminders();
+        if (reminders.length > 0 || !isGoalQuery) {
+          parts.push(formatReminders(reminders));
+        }
+
+        result = parts.join("\n\n") || "Nothing to show yet.";
       }
       // Fallback: treat as a new note
       else {

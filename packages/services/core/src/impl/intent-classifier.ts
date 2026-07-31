@@ -46,6 +46,29 @@ const RULES: [RegExp, string][] = [
   [/\b(run|trigger|execute)\s+(automation|chain|rule)\s*(\d+)?\b/i, "automations"],
   [/\b(automate|every\s+|when\s+|at\s+)\b/i, "automations"],
 
+  // ── Reminders: personal data overview ("what is my goal", "how are my tasks") ──
+  // Must come BEFORE search rules so "what is my goal" doesn't match search.
+  [
+    /\b(what|how)\s+(is|are|do|does|did)\s+(my|the)\s+(goals?|tasks?|reminders?|notes?|todos?|projects?|schedule|plan|list|progress|status)\b/i,
+    "reminders",
+  ],
+  [
+    /\b(any|got|have)\s+(updates?|news?|progress)\s+(on|about|for)\s+(my\s+)?(goals?|tasks?|reminders?|notes?|todos?|projects?)\b/i,
+    "reminders",
+  ],
+  [
+    /\b(show|tell|give)\s+me\s+(my\s+)?(goals?|tasks?|reminders?|notes?|todos?|projects?|schedule|progress|status|overview)\b/i,
+    "reminders",
+  ],
+  [
+    /\b(am|i|did)\s+(i|we)\s+(finish|complete|done)\s+(the\s+)?(goal|task|reminder|todo|project)\b/i,
+    "reminders",
+  ],
+  [
+    /\b(how('s|\s+is|\s+are))\s+(my\s+)?(goal|task|project|progress)\b/i,
+    "reminders",
+  ],
+
   // ── Reminders: task-specific "open" (before system "open") ──
   [
     /\b(open|show|list)\s+(my\s+)?(open\s+)?(reminders?|notes?|tasks?|todos?)\b/i,

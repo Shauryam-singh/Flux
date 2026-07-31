@@ -51,6 +51,25 @@ export {
   type SSHSession,
   type SSHState,
 } from "./impl/sensors/ssh-sensor.js";
+export {
+  SystemHealthSensor,
+  type SystemHealthState,
+} from "./impl/sensors/system-health-sensor.js";
+export {
+  WindowTracker,
+  type WindowInfo,
+  type AppSession,
+  type WindowTrackingState,
+} from "./impl/sensors/window-tracker.js";
+export {
+  BrowserContextSensor,
+  type BrowserContext,
+} from "./impl/sensors/browser-context-sensor.js";
+export {
+  CodingSessionTracker,
+  type CodingSession,
+  type CodingSessionTrackerState,
+} from "./impl/sensors/coding-session-tracker.js";
 export type {
   Sensor,
   SensorCategory,

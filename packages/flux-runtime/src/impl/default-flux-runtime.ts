@@ -34,6 +34,10 @@ import {
   NotificationSensor,
   SpotifySensor,
   SSHSensor,
+  SystemHealthSensor,
+  WindowTracker,
+  BrowserContextSensor,
+  CodingSessionTracker,
 } from "@ai-agent/sensors";
 import { createAutomationService } from "@ai-agent/services-automations";
 import { createChatService } from "@ai-agent/services-chat";
@@ -167,6 +171,12 @@ export class DefaultFluxRuntime implements FluxRuntime {
   private lastSuggestionCheck = 0;
   private lastScreenAppForSuggestions = "";
   private appVisitCount: Map<string, number> = new Map();
+  // Proactive awareness — new trackers
+  private windowTracker: InstanceType<typeof WindowTracker>;
+  private browserContext: InstanceType<typeof BrowserContextSensor>;
+  private codingSession: InstanceType<typeof CodingSessionTracker>;
+  private lastCodingSessionSuggestion = 0;
+  private lastSystemHealthSuggestion = 0;
 
   constructor(config: FluxRuntimeConfig) {
     this.config = config;
@@ -321,12 +331,18 @@ export class DefaultFluxRuntime implements FluxRuntime {
     this.sensors.register(new KubernetesSensor());
     this.sensors.register(new SSHSensor());
     this.sensors.register(new AudioSensor());
+    this.sensors.register(new SystemHealthSensor());
 
     // --- Layer 9.5: Plugin System ---
     this.pluginLoader = new DefaultPluginLoader(this.sensors);
     this.knowledgeBase = new DefaultKnowledgeBase();
     this.multiAgent = new DefaultMultiAgentCoordinator();
     this.crossDevice = new DefaultCrossDeviceSync();
+
+    // Initialize proactive awareness trackers
+    this.windowTracker = new WindowTracker();
+    this.browserContext = new BrowserContextSensor();
+    this.codingSession = new CodingSessionTracker();
 
     // Wire sensor events to attention system
     this.sensors.onEvent((event) => {
@@ -461,74 +477,218 @@ export class DefaultFluxRuntime implements FluxRuntime {
 
   private async generateProactiveSuggestions(): Promise<void> {
     const now = Date.now();
-    // Only check every 30 seconds
-    if (now - this.lastSuggestionCheck < 30000) return;
+    // Check every 15 seconds (was 30, faster for awareness)
+    if (now - this.lastSuggestionCheck < 15000) return;
     this.lastSuggestionCheck = now;
 
     try {
-      // Check battery
+      // ── 1. System Health (CPU / Memory / Disk / Network) ──────────
+      if (now - this.lastSystemHealthSuggestion > 120_000) {
+        const healthSnap = await this.sensors.get("system-health")?.snapshot() as {
+          cpuUsagePercent?: number;
+          memoryUsagePercent?: number;
+          diskUsagePercent?: number;
+          networkOnline?: boolean;
+          topCpuProcesses?: ReadonlyArray<{ name: string; cpuPercent: number }>;
+        } | null;
+
+        if (healthSnap) {
+          if (healthSnap.cpuUsagePercent != null && healthSnap.cpuUsagePercent > 85) {
+            const topProc = healthSnap.topCpuProcesses?.[0];
+            const detail = topProc ? ` (${topProc.name} at ${topProc.cpuPercent}%)` : "";
+            this.addSuggestion("cpu_high", "warning", `CPU at ${healthSnap.cpuUsagePercent}%${detail} — may slow down`, "high");
+            this.lastSystemHealthSuggestion = now;
+          }
+          if (healthSnap.memoryUsagePercent != null && healthSnap.memoryUsagePercent > 85) {
+            this.addSuggestion("memory_high", "warning", `Memory at ${healthSnap.memoryUsagePercent}% — consider closing heavy apps`, "high");
+            this.lastSystemHealthSuggestion = now;
+          }
+          if (healthSnap.diskUsagePercent != null && healthSnap.diskUsagePercent > 90) {
+            this.addSuggestion("disk_high", "warning", `Disk at ${healthSnap.diskUsagePercent}% — running low on space`, "high");
+            this.lastSystemHealthSuggestion = now;
+          }
+          if (healthSnap.networkOnline === false) {
+            this.addSuggestion("network_offline", "warning", "Network is offline — check your connection", "high");
+            this.lastSystemHealthSuggestion = now;
+          }
+        }
+      }
+
+      // ── 2. Battery ──────────────────────────────────────────────
       const batterySnap = await this.sensors.get("battery")?.snapshot() as { level?: number; isCharging?: boolean } | null;
       if (batterySnap?.level != null && batterySnap.level < 20 && !batterySnap.isCharging) {
         this.addSuggestion("battery_low", "warning", `Battery is low at ${batterySnap.level}% — consider plugging in`, "high");
       }
 
-      // Check git status
-      const gitSnap = await this.sensors.get("git")?.snapshot() as { branch?: string; isDirty?: boolean } | null;
-      if (gitSnap?.isDirty && gitSnap?.branch) {
-        this.addSuggestion("git_dirty", "info", `Git branch "${gitSnap.branch}" has uncommitted changes`, "medium");
-      }
-
-      // Check filesystem changes
-      const fsSnap = await this.sensors.get("filesystem")?.snapshot() as { recentChanges?: unknown[] } | null;
-      if (fsSnap?.recentChanges && fsSnap.recentChanges.length > 10) {
-        this.addSuggestion("fs_many_changes", "info", `${fsSnap.recentChanges.length} recent file changes — consider committing`, "medium");
-      }
-
-      // Detect active application and suggest context-aware actions
-      const screenObs = await this.gatherScreenObservation();
-      if (screenObs) {
-        const app = screenObs.title.toLowerCase();
-        const fullApp = screenObs.title;
+      // ── 3. Window Tracking (IDE, Browser, Terminal context) ─────
+      const windowInfo = this.windowTracker.poll();
+      if (windowInfo) {
+        const app = windowInfo.app;
+        const title = windowInfo.title;
 
         // Track app visits
         const count = (this.appVisitCount.get(app) ?? 0) + 1;
         this.appVisitCount.set(app, count);
 
-        // VS Code detected — suggest project-related actions
-        if ((app.includes("visual studio code") || app.includes("vscode") || app.includes("code")) && this.lastScreenAppForSuggestions !== app) {
+        // ── IDE Detection (VS Code, IntelliJ, Zed, etc.) ──
+        const isIDE =
+          app.includes("code") ||
+          app.includes("vscode") ||
+          app.includes("visual studio") ||
+          app.includes("idea") ||
+          app.includes("intellij") ||
+          app.includes("pycharm") ||
+          app.includes("webstorm") ||
+          app.includes("zed") ||
+          app.includes("cursor") ||
+          app.includes("helix");
+
+        if (isIDE && this.lastScreenAppForSuggestions !== app) {
           // Extract project name from window title (format: "filename — ProjectName")
-          const parts = fullApp.split(" — ");
+          const parts = title.split(" — ");
           const projectName = parts.length > 1 && parts[parts.length - 1] != null ? parts[parts.length - 1]!.trim() : null;
+
           if (projectName) {
-            this.addSuggestion("vscode_project", "info", `Working on "${projectName}" — want me to add it to your projects?`, "low");
+            this.addSuggestion("ide_project", "info", `Working on "${projectName}" — need help with code, debugging, or git?`, "low");
           } else {
-            this.addSuggestion("vscode_help", "info", "VS Code is open — need help with code, debugging, or git?", "low");
+            this.addSuggestion("ide_help", "info", "IDE is open — need help with code, debugging, or git?", "low");
           }
         }
 
-        // Terminal detected — offer system commands
-        if ((app.includes("terminal") || app.includes("kitty") || app.includes("alacritty") || app.includes("wezterm") || app.includes("foot")) && this.lastScreenAppForSuggestions !== app) {
+        // ── Browser Context Detection ──
+        const browserCtx = this.browserContext.detectFromWindowTitle(title, app);
+        if (browserCtx) {
+          if (browserCtx.isGitHub && !this.lastScreenAppForSuggestions.includes(app)) {
+            if (browserCtx.isPRPage) {
+              this.addSuggestion("github_pr", "info", "Reviewing a PR on GitHub — need help with code review?", "low");
+            } else if (browserCtx.isIssuePage) {
+              this.addSuggestion("github_issue", "info", "Looking at a GitHub issue — need help investigating?", "low");
+            } else if (browserCtx.isCodeReview) {
+              this.addSuggestion("github_code_review", "info", "Code review on GitHub — want me to analyze the changes?", "low");
+            } else {
+              this.addSuggestion("github", "info", "Browsing GitHub — need help with a repo or PR?", "low");
+            }
+          }
+          if (browserCtx.isStackOverflow && !this.lastScreenAppForSuggestions.includes(app)) {
+            this.addSuggestion("stackoverflow", "info", "Looking at Stack Overflow — want me to help solve this?", "low");
+          }
+          if (browserCtx.isDocs && !this.lastScreenAppForSuggestions.includes(app)) {
+            this.addSuggestion("docs", "info", "Reading documentation — want me to summarize or explain this?", "low");
+          }
+          if (browserCtx.isAIChat && !this.lastScreenAppForSuggestions.includes(app)) {
+            this.addSuggestion("ai_chat", "info", "Using AI chat — want me to help with something else?", "low");
+          }
+          if (browserCtx.isSearchEngine && !this.lastScreenAppForSuggestions.includes(app)) {
+            this.addSuggestion("search", "info", "Searching the web — want me to look that up for you?", "low");
+          }
+        }
+
+        // ── Terminal Detection ──
+        const isTerminal =
+          app.includes("kitty") ||
+          app.includes("alacritty") ||
+          app.includes("wezterm") ||
+          app.includes("foot") ||
+          app.includes("ghostty") ||
+          app.includes("tilix") ||
+          app.includes("konsole") ||
+          app.includes("gnome-terminal") ||
+          app.includes("windows terminal") ||
+          app.includes("cmd") ||
+          app.includes("powershell") ||
+          app.includes("wt");
+
+        if (isTerminal && this.lastScreenAppForSuggestions !== app) {
           this.addSuggestion("terminal_help", "info", "Terminal open — need help running commands or monitoring processes?", "low");
         }
 
-        // Browser detected — offer search/web help
-        if ((app.includes("firefox") || app.includes("chrome") || app.includes("brave") || app.includes("chromium") || app.includes("browser")) && this.lastScreenAppForSuggestions !== app) {
-          this.addSuggestion("browser_help", "info", "Browser open — need me to search for something or look up docs?", "low");
-        }
-
-        // Repeated app usage — offer automation
-        if (count === 5) {
-          this.addSuggestion("app_pattern", "info", `You've been using ${fullApp} a lot — want me to set up automation for it?`, "low");
+        // ── App Usage Patterns ──
+        if (count === 10) {
+          this.addSuggestion("app_pattern", "info", `You've been using ${windowInfo.className} a lot — want me to set up automation?`, "low");
         }
 
         this.lastScreenAppForSuggestions = app;
       }
 
-      // Idle detection — suggest taking a break or resuming work
+      // ── 4. Coding Session Tracking ──────────────────────────────
+      // Feed file changes to the coding session tracker
+      const fsSnap = await this.sensors.get("filesystem")?.snapshot() as { recentChanges?: ReadonlyArray<{ path: string }> } | null;
+      if (fsSnap?.recentChanges) {
+        for (const change of fsSnap.recentChanges.slice(-3)) {
+          if (change.path) {
+            this.codingSession.recordFileChange(change.path);
+          }
+        }
+      }
+
+      const codingState = this.codingSession.tick();
+      if (codingState.shouldSuggestBreak && codingState.breakReason && now - this.lastCodingSessionSuggestion > 600_000) {
+        this.addSuggestion("coding_break", "info", codingState.breakReason, "medium");
+        this.lastCodingSessionSuggestion = now;
+      }
+
+      // ── 5. Git Status ───────────────────────────────────────────
+      const gitSnap = await this.sensors.get("git")?.snapshot() as {
+        branch?: string;
+        isDirty?: boolean;
+        stagedCount?: number;
+        ahead?: number;
+        behind?: number;
+        merging?: boolean;
+        rebasing?: boolean;
+      } | null;
+      if (gitSnap) {
+        if (gitSnap.isDirty && gitSnap?.branch) {
+          this.addSuggestion("git_dirty", "info", `Git branch "${gitSnap.branch}" has uncommitted changes`, "medium");
+        }
+        if (gitSnap.merging) {
+          this.addSuggestion("git_merge", "info", "You're in a merge — need help resolving conflicts?", "high");
+        }
+        if (gitSnap.rebasing) {
+          this.addSuggestion("git_rebase", "info", "You're in a rebase — need help resolving conflicts?", "high");
+        }
+        if (gitSnap.ahead != null && gitSnap.ahead > 3) {
+          this.addSuggestion("git_ahead", "info", `You're ${gitSnap.ahead} commits ahead of remote — consider pushing`, "low");
+        }
+        if (gitSnap.behind != null && gitSnap.behind > 3) {
+          this.addSuggestion("git_behind", "info", `You're ${gitSnap.behind} commits behind remote — consider pulling`, "low");
+        }
+      }
+
+      // ── 6. Filesystem Changes ───────────────────────────────────
+      if (fsSnap?.recentChanges && fsSnap.recentChanges.length > 15) {
+        this.addSuggestion("fs_many_changes", "info", `${fsSnap.recentChanges.length} recent file changes — consider committing`, "medium");
+      }
+
+      // ── 7. Clipboard Awareness ──────────────────────────────────
+      const clipSnap = await this.sensors.get("clipboard")?.snapshot() as { content?: string; length?: number } | null;
+      if (clipSnap?.content && clipSnap.length != null && clipSnap.length > 500) {
+        // Large clipboard content — user might be doing a big paste
+        this.addSuggestion("clipboard_large", "info", `Large clipboard content (${clipSnap.length} chars) — need help with this?`, "low");
+      }
+
+      // ── 8. Notification Awareness ───────────────────────────────
+      const notifSnap = await this.sensors.get("notifications")?.snapshot() as { recent?: ReadonlyArray<{ summary: string; body?: string }> } | null;
+      if (notifSnap?.recent) {
+        for (const notif of notifSnap.recent.slice(0, 2)) {
+          const text = `${notif.summary} ${notif.body ?? ""}`.toLowerCase();
+          if (text.includes("error") || text.includes("fail") || text.includes("crash")) {
+            this.addSuggestion("notif_error", "warning", `Notification: "${notif.summary}" — want me to help?`, "medium");
+          }
+        }
+      }
+
+      // ── 9. Idle Detection ───────────────────────────────────────
       const idleSnap = await this.sensors.get("idle")?.snapshot() as { isIdle?: boolean; idleSeconds?: number } | null;
       if (idleSnap?.isIdle && idleSnap.idleSeconds && idleSnap.idleSeconds > 600) {
         const mins = Math.round(idleSnap.idleSeconds / 60);
         this.addSuggestion("idle_long", "info", `Idle for ${mins} minutes — want me to pause background tasks?`, "low");
+      }
+
+      // ── 10. Context Switching Detection ─────────────────────────
+      const windowState = this.windowTracker.getState();
+      if (windowState.switchesLast5Min > 15) {
+        this.addSuggestion("context_switching", "info", "You've switched apps 15+ times in 5 minutes — want me to focus mode?", "low");
       }
     } catch {
       // Best-effort
@@ -688,6 +848,41 @@ export class DefaultFluxRuntime implements FluxRuntime {
         }
       } catch {
         /* best-effort */
+      }
+    }
+
+    // Source 4b: Window tracking (every tick — cheap on Hyprland)
+    try {
+      const windowInfo = this.windowTracker.poll();
+      if (windowInfo) {
+        this.attention.process({
+          source: "screen",
+          title: `focus: ${windowInfo.className}`,
+          detail: `${windowInfo.title} (${windowInfo.app})`,
+        });
+        count++;
+      }
+    } catch {
+      /* best-effort */
+    }
+
+    // Source 4c: System health (every tick — lightweight reads from /proc)
+    if (this.tickCount % 3 === 0) {
+      const healthSensor = this.sensors.get<import("@ai-agent/sensors").SystemHealthState>("system-health");
+      if (healthSensor) {
+        try {
+          const state = await healthSensor.snapshot();
+          if (state) {
+            this.attention.process({
+              source: "system",
+              title: `health: cpu=${state.cpuUsagePercent}% mem=${state.memoryUsagePercent}%`,
+              detail: `cpu: ${state.cpuUsagePercent}%, mem: ${state.memoryUsagePercent}%, disk: ${state.diskUsagePercent}%, net: ${state.networkOnline}`,
+            });
+            count++;
+          }
+        } catch {
+          /* best-effort */
+        }
       }
     }
 
@@ -934,6 +1129,7 @@ export class DefaultFluxRuntime implements FluxRuntime {
         "notifications",
         "screen",
         "filesystem",
+        "system-health",
       ] as const) {
         try {
           const sensor = this.sensors.get(sensorId);
@@ -946,6 +1142,9 @@ export class DefaultFluxRuntime implements FluxRuntime {
 
       const batterySnap = sensorSnapshots.battery as
         | { level?: number; isCharging?: boolean; timeToEmpty?: number | null; timeToFull?: number | null; status?: string }
+        | undefined;
+      const healthSnap = sensorSnapshots["system-health"] as
+        | { cpuUsagePercent?: number; memoryUsagePercent?: number; diskUsagePercent?: number; networkOnline?: boolean }
         | undefined;
       const recentActivity: string[] = [];
       for (const event of this.recentSensorEvents.slice(0, 5)) {
@@ -964,6 +1163,11 @@ export class DefaultFluxRuntime implements FluxRuntime {
           status: g.status as string,
         }));
 
+      // Window tracking context
+      const windowState = this.windowTracker.getState();
+      const codingState = this.codingSession.tick();
+      const browserCtx = this.browserContext.getLastContext();
+
       return {
         battery: batterySnap
           ? {
@@ -974,6 +1178,43 @@ export class DefaultFluxRuntime implements FluxRuntime {
                 : batterySnap.timeToFull != null
                   ? { timeRemaining: batterySnap.timeToFull }
                   : {}),
+            }
+          : null,
+        systemHealth: healthSnap
+          ? {
+              cpu: healthSnap.cpuUsagePercent ?? 0,
+              memory: healthSnap.memoryUsagePercent ?? 0,
+              disk: healthSnap.diskUsagePercent ?? 0,
+              network: healthSnap.networkOnline ?? true,
+            }
+          : null,
+        activeWindow: windowState.current
+          ? {
+              app: windowState.current.className,
+              title: windowState.current.title,
+              isCoding: windowState.isCoding,
+              isBrowsing: windowState.isBrowsing,
+              isTerminal: windowState.isTerminal,
+              focusTimeMs: windowState.focusTimeMs,
+            }
+          : null,
+        browserContext: browserCtx
+          ? {
+              site: browserCtx.site,
+              isGitHub: browserCtx.isGitHub,
+              isStackOverflow: browserCtx.isStackOverflow,
+              isDocs: browserCtx.isDocs,
+              isSearchEngine: browserCtx.isSearchEngine,
+              isAIChat: browserCtx.isAIChat,
+            }
+          : null,
+        codingSession: codingState.currentSession
+          ? {
+              durationMs: codingState.currentSession.durationMs,
+              filesChanged: codingState.currentSession.filesChanged,
+              languages: codingState.currentSession.languages,
+              projects: codingState.currentSession.projects,
+              shouldSuggestBreak: codingState.shouldSuggestBreak,
             }
           : null,
         sensors: sensorSnapshots,

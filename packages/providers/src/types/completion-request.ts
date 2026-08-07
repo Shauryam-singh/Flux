@@ -8,4 +8,6 @@ export interface CompletionRequest {
   readonly maxTokens?: number;
 
   readonly stream?: boolean;
+
+  readonly images?: readonly string[];
 }

@@ -18,6 +18,8 @@ export interface OllamaMessage {
   readonly role: "system" | "user" | "assistant";
 
   readonly content: string;
+
+  readonly images?: readonly string[];
 }
 
 export interface OllamaChatOptions {

@@ -77,6 +77,7 @@ import { createFileCreatorService } from "@ai-agent/services-file-creator";
 import { createWebAutomationChainsService } from "@ai-agent/services-web-automation-chains";
 import { createContextSuggestionsService } from "@ai-agent/services-context-suggestions";
 import { createAccessibilityVoiceService } from "@ai-agent/services-accessibility-voice";
+import { createWakeWordService } from "@ai-agent/services-wake-word";
 import { DefaultPluginLoader, type FluxPlugin } from "@ai-agent/plugins";
 import { DefaultKnowledgeBase } from "@ai-agent/knowledge-base";
 import { DefaultMultiAgentCoordinator, AgentFactory } from "@ai-agent/multi-agent";
@@ -324,6 +325,7 @@ export class DefaultFluxRuntime implements FluxRuntime {
     serviceRegistry.register(createWebAutomationChainsService());
     serviceRegistry.register(createContextSuggestionsService());
     serviceRegistry.register(createAccessibilityVoiceService());
+    serviceRegistry.register(createWakeWordService());
 
     this.orchestrator = new Orchestrator(serviceRegistry);
 
@@ -1419,13 +1421,12 @@ export class DefaultFluxRuntime implements FluxRuntime {
             timestamp: Date.now(),
           });
           if (screenObs.suggestion) {
-            this.emit("proactive_suggestion", {
-              id: `screen_${Date.now()}`,
-              text: screenObs.suggestion,
-              source: "screen_understanding",
-              confidence: 0.6,
-              createdAt: new Date().toISOString(),
-            });
+            this.addSuggestion(
+              `screen_${Date.now()}`,
+              "info",
+              screenObs.suggestion,
+              "medium",
+            );
           }
           count++;
         }

@@ -66,6 +66,7 @@
     "@ai-agent/services-file-creator": "workspace:*",
     "@ai-agent/services-web-automation-chains": "workspace:*",
     "@ai-agent/services-context-suggestions": "workspace:*",
-    "@ai-agent/services-accessibility-voice": "workspace:*"
+    "@ai-agent/services-accessibility-voice": "workspace:*",
+    "@ai-agent/services-wake-word": "workspace:*"
   }
 }

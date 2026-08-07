@@ -37,7 +37,7 @@ export class OllamaProvider extends BaseProvider {
       completion: true,
       streaming: true,
       tools: false,
-      vision: false,
+      vision: true,
       embeddings: false,
       local: true,
     };
@@ -112,6 +112,7 @@ export class OllamaProvider extends BaseProvider {
         {
           role: "user",
           content: request.prompt,
+          ...(request.images && request.images.length > 0 && { images: request.images }),
         },
       ],
       ...(options !== undefined && { options }),
@@ -159,6 +160,7 @@ export class OllamaProvider extends BaseProvider {
         {
           role: "user",
           content: request.prompt,
+          ...(request.images && request.images.length > 0 && { images: request.images }),
         },
       ],
       ...(options !== undefined && { options }),

@@ -64,6 +64,8 @@
     "@ai-agent/services-system-fix": "workspace:*",
     "@ai-agent/services-clipboard-intelligence": "workspace:*",
     "@ai-agent/services-file-creator": "workspace:*",
-    "@ai-agent/services-web-automation-chains": "workspace:*"
+    "@ai-agent/services-web-automation-chains": "workspace:*",
+    "@ai-agent/services-context-suggestions": "workspace:*",
+    "@ai-agent/services-accessibility-voice": "workspace:*"
   }
 }

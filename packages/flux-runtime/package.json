@@ -53,6 +53,10 @@
     "@ai-agent/services-send-message": "workspace:*",
     "@ai-agent/services-desktop-control": "workspace:*",
     "@ai-agent/services-command-chain": "workspace:*",
-    "@ai-agent/services-screen-understanding": "workspace:*"
+    "@ai-agent/services-screen-understanding": "workspace:*",
+    "@ai-agent/services-spotify": "workspace:*",
+    "@ai-agent/services-vs-code": "workspace:*",
+    "@ai-agent/services-terminal": "workspace:*",
+    "@ai-agent/services-slack-discord": "workspace:*"
   }
 }

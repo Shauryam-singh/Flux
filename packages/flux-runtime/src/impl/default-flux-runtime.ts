@@ -64,6 +64,10 @@ import { createSendMessageService } from "@ai-agent/services-send-message";
 import { createDesktopControlService } from "@ai-agent/services-desktop-control";
 import { createCommandChainService } from "@ai-agent/services-command-chain";
 import { createScreenUnderstandingService, getScreenContext, observeScreen } from "@ai-agent/services-screen-understanding";
+import { createSpotifyService } from "@ai-agent/services-spotify";
+import { createVsCodeService } from "@ai-agent/services-vs-code";
+import { createTerminalService } from "@ai-agent/services-terminal";
+import { createSlackDiscordService } from "@ai-agent/services-slack-discord";
 import { DefaultPluginLoader, type FluxPlugin } from "@ai-agent/plugins";
 import { DefaultKnowledgeBase } from "@ai-agent/knowledge-base";
 import { DefaultMultiAgentCoordinator, AgentFactory } from "@ai-agent/multi-agent";
@@ -298,6 +302,10 @@ export class DefaultFluxRuntime implements FluxRuntime {
     serviceRegistry.register(createDesktopControlService());
     serviceRegistry.register(createCommandChainService());
     serviceRegistry.register(createScreenUnderstandingService());
+    serviceRegistry.register(createSpotifyService());
+    serviceRegistry.register(createVsCodeService());
+    serviceRegistry.register(createTerminalService());
+    serviceRegistry.register(createSlackDiscordService());
 
     this.orchestrator = new Orchestrator(serviceRegistry);
 

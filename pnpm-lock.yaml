@@ -1098,9 +1098,21 @@ importers:
       '@ai-agent/services-send-message':
         specifier: workspace:*
         version: link:../services/send-message
+      '@ai-agent/services-slack-discord':
+        specifier: workspace:*
+        version: link:../services/slack-discord
+      '@ai-agent/services-spotify':
+        specifier: workspace:*
+        version: link:../services/spotify
       '@ai-agent/services-system':
         specifier: workspace:*
         version: link:../services/system
+      '@ai-agent/services-terminal':
+        specifier: workspace:*
+        version: link:../services/terminal
+      '@ai-agent/services-vs-code':
+        specifier: workspace:*
+        version: link:../services/vs-code
       '@ai-agent/shared':
         specifier: workspace:*
         version: link:../shared
@@ -1660,7 +1672,43 @@ importers:
         specifier: workspace:*
         version: link:../../shared
 
+  packages/services/slack-discord:
+    dependencies:
+      '@ai-agent/services-core':
+        specifier: workspace:*
+        version: link:../core
+      '@ai-agent/shared':
+        specifier: workspace:*
+        version: link:../../shared
+
+  packages/services/spotify:
+    dependencies:
+      '@ai-agent/services-core':
+        specifier: workspace:*
+        version: link:../core
+      '@ai-agent/shared':
+        specifier: workspace:*
+        version: link:../../shared
+
   packages/services/system:
+    dependencies:
+      '@ai-agent/services-core':
+        specifier: workspace:*
+        version: link:../core
+      '@ai-agent/shared':
+        specifier: workspace:*
+        version: link:../../shared
+
+  packages/services/terminal:
+    dependencies:
+      '@ai-agent/services-core':
+        specifier: workspace:*
+        version: link:../core
+      '@ai-agent/shared':
+        specifier: workspace:*
+        version: link:../../shared
+
+  packages/services/vs-code:
     dependencies:
       '@ai-agent/services-core':
         specifier: workspace:*

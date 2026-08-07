@@ -48,6 +48,10 @@
     { "path": "../../packages/services/send-message" },
     { "path": "../../packages/services/desktop-control" },
     { "path": "../../packages/services/command-chain" },
-    { "path": "../../packages/services/screen-understanding" }
+    { "path": "../../packages/services/screen-understanding" },
+    { "path": "../../packages/services/spotify" },
+    { "path": "../../packages/services/vs-code" },
+    { "path": "../../packages/services/terminal" },
+    { "path": "../../packages/services/slack-discord" }
   ]
 }

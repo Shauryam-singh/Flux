@@ -58,6 +58,7 @@
     { "path": "../../packages/services/file-intelligence" },
     { "path": "../../packages/services/system-fix" },
     { "path": "../../packages/services/clipboard-intelligence" },
-    { "path": "../../packages/services/file-creator" }
+    { "path": "../../packages/services/file-creator" },
+    { "path": "../../packages/services/web-automation-chains" }
   ]
 }

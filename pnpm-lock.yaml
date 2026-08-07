@@ -1131,6 +1131,9 @@ importers:
       '@ai-agent/services-vs-code':
         specifier: workspace:*
         version: link:../services/vs-code
+      '@ai-agent/services-web-automation-chains':
+        specifier: workspace:*
+        version: link:../services/web-automation-chains
       '@ai-agent/shared':
         specifier: workspace:*
         version: link:../shared
@@ -1781,6 +1784,15 @@ importers:
         version: link:../../shared
 
   packages/services/vs-code:
+    dependencies:
+      '@ai-agent/services-core':
+        specifier: workspace:*
+        version: link:../core
+      '@ai-agent/shared':
+        specifier: workspace:*
+        version: link:../../shared
+
+  packages/services/web-automation-chains:
     dependencies:
       '@ai-agent/services-core':
         specifier: workspace:*

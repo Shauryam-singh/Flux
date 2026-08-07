@@ -197,10 +197,10 @@ A directed acyclic graph where each thought has:
 | `minimize/maximize` | `hyprctl dispatch togglefloating` | Win32 ShowWindow |
 | `tile left/right` | `hyprctl dispatch movewindow` | Win+Left/Right |
 | `switch workspace` | `hyprctl dispatch workspace` | Win+Ctrl+Left/Right |
-| `volume up/down` | `pamixer` | PowerShell音量 |
-| `brightness up/down` | `brightnessctl` | PowerShell亮度 |
-| `screenshot` | `grim` | PowerShell截图 |
-| `clipboard copy/paste` | `wl-copy`/`wl-paste` | PowerShell剪贴板 |
+| `volume up/down` | `pamixer` | PowerShell Volume |
+| `brightness up/down` | `brightnessctl` | PowerShell Brightness |
+| `screenshot` | `grim` | PowerShell Screenshot |
+| `clipboard copy/paste` | `wl-copy`/`wl-paste` | PowerShell Clipboard |
 | `lock screen` | `loginctl lock-session` | Win32 LockWorkStation |
 | `app launcher` | `rofi -show drun` | Start Menu |
 

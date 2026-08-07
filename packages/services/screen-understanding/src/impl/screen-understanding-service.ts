@@ -264,7 +264,7 @@ const DESCRIBE_PROMPT = `Describe what's on this screen in detail. Include:
 
 Be concise but comprehensive. Focus on actionable information.`;
 
-const APP识别_PROMPT = `What application is currently active/focused? What is the window title?
+const APP_IDENTIFY_PROMPT = `What application is currently active/focused? What is the window title?
 Respond in format:
 APP: <application name>
 TITLE: <window title>
@@ -339,7 +339,7 @@ export function createScreenUnderstandingService(): Service {
           analyzeWithVision(path, DESCRIBE_PROMPT, ctx.provider),
           analyzeWithVision(path, ELEMENT_DETECT_PROMPT, ctx.provider),
           analyzeWithVision(path, TEXT_EXTRACT_PROMPT, ctx.provider),
-          analyzeWithVision(path, APP识别_PROMPT, ctx.provider),
+          analyzeWithVision(path, APP_IDENTIFY_PROMPT, ctx.provider),
         ]);
 
         let elements: UIElement[] = [];

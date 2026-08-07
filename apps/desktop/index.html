@@ -220,12 +220,12 @@
 
         <!-- Thought Graph Tab -->
         <div class="tab-panel" id="panel-graph">
-          <canvas id="graph-canvas" width="800" height="500"></canvas>
+          <canvas id="graph-canvas"></canvas>
         </div>
 
         <!-- Memory Tab -->
         <div class="tab-panel" id="panel-memory">
-          <div id="memory-stats" style="font-size:11px;color:var(--muted);margin-bottom:12px;"></div>
+          <div id="memory-stats" class="memory-stats-bar"></div>
           <div class="memory-sections" id="memory-sections">
             <div class="memory-section">
               <h3>Working Memory</h3>
@@ -238,6 +238,10 @@
             <div class="memory-section">
               <h3>Episodic</h3>
               <div class="memory-cards" id="mem-episodic"></div>
+            </div>
+            <div class="memory-section">
+              <h3>Procedural</h3>
+              <div class="memory-cards" id="mem-procedural"></div>
             </div>
             <div class="memory-section">
               <h3>Project</h3>

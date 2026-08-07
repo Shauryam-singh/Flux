@@ -134,6 +134,8 @@ let graphEdges = [];
 let graphAnimFrame;
 let graphActive = false;
 let graphUpdateTimer = null;
+let lastCanvasWidth = 0;
+let lastCanvasHeight = 0;
 
 const graphThoughtTypes = {
   observation_interpretation: { color: "#55D6FF", radius: 6 },
@@ -148,79 +150,82 @@ const graphThoughtTypes = {
   opportunity: { color: "#34D399", radius: 6 },
 };
 
+function clampNode(n, w, h) {
+  const padding = 40;
+  if (n.x < padding) { n.x = padding; n.vx = Math.abs(n.vx) * 0.5; }
+  if (n.x > w - padding) { n.x = w - padding; n.vx = -Math.abs(n.vx) * 0.5; }
+  if (n.y < padding) { n.y = padding; n.vy = Math.abs(n.vy) * 0.5; }
+  if (n.y > h - padding) { n.y = h - padding; n.vy = -Math.abs(n.vy) * 0.5; }
+}
+
+function adjustNodePositions(w, h) {
+  if (lastCanvasWidth === 0 || lastCanvasHeight === 0) {
+    lastCanvasWidth = w;
+    lastCanvasHeight = h;
+    return;
+  }
+  if (lastCanvasWidth === w && lastCanvasHeight === h) return;
+
+  const scaleX = w / lastCanvasWidth;
+  const scaleY = h / lastCanvasHeight;
+  for (const n of graphNodes) {
+    n.x = Math.max(40, Math.min(w - 40, n.x * scaleX));
+    n.y = Math.max(40, Math.min(h - 40, n.y * scaleY));
+  }
+  lastCanvasWidth = w;
+  lastCanvasHeight = h;
+}
+
 function updateGraphFromData(thoughts, edges) {
   if (!graphActive) return;
 
   const canvas = document.getElementById("graph-canvas");
-  const w = canvas ? canvas.parentElement.clientWidth : 800;
-  const h = canvas ? canvas.parentElement.clientHeight : 500;
+  if (!canvas) return;
+  const w = canvas.parentElement?.clientWidth || 800;
+  const h = canvas.parentElement?.clientHeight || 500;
 
-  // Map thoughts to nodes, keeping existing positions where possible
+  adjustNodePositions(w, h);
+
   const oldPosMap = new Map();
   for (const n of graphNodes) {
-    oldPosMap.set(n.label, { x: n.x, y: n.y, vx: n.vx, vy: n.vy });
+    if (n.label !== "...") {
+      oldPosMap.set(n.label, { x: n.x, y: n.y, vx: n.vx, vy: n.vy });
+    }
   }
 
-  graphNodes = thoughts.slice(-20).map((t, i) => {
+  const newNodes = thoughts.slice(-20).map((t, i) => {
     const label = (t.content || "").slice(0, 35);
     const old = oldPosMap.get(label);
     const type = t.type || "observation_interpretation";
     const confidence = t.confidence?.value ?? 0.5;
 
-    return {
+    const node = {
       id: i,
       type,
-      x: old?.x ?? 100 + Math.random() * (w - 200),
-      y: old?.y ?? 80 + Math.random() * (h - 120),
-      vx: old?.vx ?? (Math.random() - 0.5) * 0.2,
-      vy: old?.vy ?? (Math.random() - 0.5) * 0.2,
+      x: old?.x ?? 40 + Math.random() * (w - 80),
+      y: old?.y ?? 40 + Math.random() * (h - 80),
+      vx: old?.vx ?? (Math.random() - 0.5) * 0.15,
+      vy: old?.vy ?? (Math.random() - 0.5) * 0.15,
       label,
       confidence: Math.round(confidence * 100),
     };
+
+    clampNode(node, w, h);
+    return node;
   });
 
-  // Map edges
+  graphNodes = newNodes;
+
   graphEdges = (edges || []).slice(-30).map((e, i) => ({
     from: Math.min(e.fromIdx ?? 0, graphNodes.length - 1),
     to: Math.min(e.toIdx ?? i + 1, graphNodes.length - 1),
     type: e.type || "supports",
   }));
-
-  // If no edges from API, create some from goalId relationships
-  if (graphEdges.length === 0 && graphNodes.length > 1) {
-    for (let i = 1; i < graphNodes.length; i++) {
-      if (Math.random() < 0.3) {
-        graphEdges.push({
-          from: Math.floor(Math.random() * i),
-          to: i,
-          type: "supports",
-        });
-      }
-    }
-  }
 }
 
 function initGraphNodes() {
   graphNodes = [];
   graphEdges = [];
-
-  // Start with minimal placeholder, will be replaced by SSE data
-  const canvas = document.getElementById("graph-canvas");
-  const w = canvas ? canvas.parentElement.clientWidth : 800;
-  const h = canvas ? canvas.parentElement.clientHeight : 500;
-
-  for (let i = 0; i < 3; i++) {
-    graphNodes.push({
-      id: i,
-      type: "observation_interpretation",
-      x: 100 + Math.random() * (w - 200),
-      y: 80 + Math.random() * (h - 120),
-      vx: (Math.random() - 0.5) * 0.15,
-      vy: (Math.random() - 0.5) * 0.15,
-      label: "Waiting for data...",
-      confidence: 50,
-    });
-  }
 }
 
 const edgeColors = {
@@ -236,32 +241,48 @@ function animateGraph() {
 
   const canvas = document.getElementById("graph-canvas");
   if (!canvas) return;
-  const ctx = canvas.getContext("2d");
+  const gCtx = canvas.getContext("2d");
 
-  canvas.width = canvas.parentElement.clientWidth;
-  canvas.height = canvas.parentElement.clientHeight;
+  const w = canvas.parentElement?.clientWidth || 800;
+  const h = canvas.parentElement?.clientHeight || 500;
 
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  if (canvas.width !== w) canvas.width = w;
+  if (canvas.height !== h) canvas.height = h;
+
+  adjustNodePositions(w, h);
+
+  gCtx.clearRect(0, 0, w, h);
+
+  // Draw "no data" message if empty
+  if (graphNodes.length === 0) {
+    gCtx.globalAlpha = 0.3;
+    gCtx.fillStyle = "#F5F7FA";
+    gCtx.font = "14px Inter, sans-serif";
+    gCtx.textAlign = "center";
+    gCtx.fillText("Waiting for thought data...", w / 2, h / 2);
+    gCtx.globalAlpha = 1;
+    graphAnimFrame = requestAnimationFrame(animateGraph);
+    return;
+  }
 
   // Update positions (gentle drift)
   graphNodes.forEach((n) => {
     n.x += n.vx;
     n.y += n.vy;
-    if (n.x < 30 || n.x > canvas.width - 30) n.vx *= -1;
-    if (n.y < 30 || n.y > canvas.height - 30) n.vy *= -1;
+    clampNode(n, w, h);
   });
 
   // Draw edges
+  gCtx.lineWidth = 1;
   graphEdges.forEach((e) => {
     const from = graphNodes[e.from];
     const to = graphNodes[e.to];
     if (!from || !to) return;
-    ctx.strokeStyle = edgeColors[e.type] || "rgba(85, 214, 255, 0.2)";
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(from.x, from.y);
-    ctx.lineTo(to.x, to.y);
-    ctx.stroke();
+    gCtx.strokeStyle = edgeColors[e.type] || "rgba(85, 214, 255, 0.2)";
+    gCtx.beginPath();
+    gCtx.moveTo(from.x, from.y);
+    gCtx.lineTo(to.x, to.y);
+    gCtx.stroke();
   });
 
   // Draw nodes
@@ -270,37 +291,37 @@ function animateGraph() {
       graphThoughtTypes[n.type] || graphThoughtTypes.observation_interpretation;
 
     // Glow
-    ctx.globalAlpha = 0.15;
-    ctx.fillStyle = style.color;
-    ctx.beginPath();
-    ctx.arc(n.x, n.y, style.radius + 6, 0, Math.PI * 2);
-    ctx.fill();
+    gCtx.globalAlpha = 0.15;
+    gCtx.fillStyle = style.color;
+    gCtx.beginPath();
+    gCtx.arc(n.x, n.y, style.radius + 6, 0, Math.PI * 2);
+    gCtx.fill();
 
     // Node
-    ctx.globalAlpha = 0.9;
-    ctx.fillStyle = style.color;
-    ctx.beginPath();
-    ctx.arc(n.x, n.y, style.radius, 0, Math.PI * 2);
-    ctx.fill();
+    gCtx.globalAlpha = 0.9;
+    gCtx.fillStyle = style.color;
+    gCtx.beginPath();
+    gCtx.arc(n.x, n.y, style.radius, 0, Math.PI * 2);
+    gCtx.fill();
 
     // Confidence ring
-    ctx.globalAlpha = 0.4;
-    ctx.strokeStyle = style.color;
-    ctx.lineWidth = 1.5;
+    gCtx.globalAlpha = 0.4;
+    gCtx.strokeStyle = style.color;
+    gCtx.lineWidth = 1.5;
     const arcLen = (n.confidence / 100) * Math.PI * 2;
-    ctx.beginPath();
-    ctx.arc(n.x, n.y, style.radius + 3, -Math.PI / 2, -Math.PI / 2 + arcLen);
-    ctx.stroke();
+    gCtx.beginPath();
+    gCtx.arc(n.x, n.y, style.radius + 3, -Math.PI / 2, -Math.PI / 2 + arcLen);
+    gCtx.stroke();
 
     // Label
-    ctx.globalAlpha = 0.6;
-    ctx.fillStyle = "#F5F7FA";
-    ctx.font = "9px Inter, sans-serif";
-    ctx.textAlign = "center";
-    ctx.fillText(n.label, n.x, n.y + style.radius + 12);
+    gCtx.globalAlpha = 0.6;
+    gCtx.fillStyle = "#F5F7FA";
+    gCtx.font = "9px Inter, sans-serif";
+    gCtx.textAlign = "center";
+    gCtx.fillText(n.label, n.x, n.y + style.radius + 12);
   });
 
-  ctx.globalAlpha = 1;
+  gCtx.globalAlpha = 1;
   graphAnimFrame = requestAnimationFrame(animateGraph);
 }
 
@@ -310,7 +331,6 @@ export function startGraph() {
   initGraphNodes();
   animateGraph();
 
-  // Subscribe to SSE thought updates
   graphUpdateTimer = setInterval(() => {
     fetch("http://localhost:3141/state")
       .then((r) => r.json())

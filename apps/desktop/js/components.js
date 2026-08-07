@@ -272,6 +272,7 @@ export async function renderMemoryPage() {
     "mem-working",
     "mem-semantic",
     "mem-episodic",
+    "mem-procedural",
     "mem-project",
     "mem-relationship",
     "mem-timeline",
@@ -281,7 +282,7 @@ export async function renderMemoryPage() {
     const el = document.getElementById(id);
     if (el)
       el.innerHTML =
-        '<div class="memory-card" style="opacity:0.5">Loading...</div>';
+        '<div class="memory-empty">Loading...</div>';
   });
 
   let data;
@@ -295,7 +296,7 @@ export async function renderMemoryPage() {
       const el = document.getElementById(id);
       if (el)
         el.innerHTML =
-          '<div class="memory-card" style="opacity:0.5">API not running</div>';
+          '<div class="memory-empty">API not running</div>';
     });
     return;
   }
@@ -359,7 +360,7 @@ export async function renderMemoryPage() {
       .join("");
   } else if (workingEl) {
     workingEl.innerHTML =
-      '<div class="memory-card" style="opacity:0.5">No recent conversations</div>';
+      '<div class="memory-empty">No recent conversations</div>';
   }
 
   // Update stats
@@ -376,7 +377,7 @@ function renderMemorySection(elementId, memories, formatFn) {
 
   if (!memories || memories.length === 0) {
     el.innerHTML =
-      '<div class="memory-card" style="opacity:0.5">No memories yet</div>';
+      '<div class="memory-empty">No memories yet</div>';
     return;
   }
 

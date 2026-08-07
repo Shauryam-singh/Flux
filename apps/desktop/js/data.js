@@ -92,13 +92,18 @@ function handleStreamEvent(data) {
 
     // Update runtime state
     if (data.state) {
-      state.cpu = Math.min(
-        100,
-        Math.max(0, Math.round((data.state.memorySize || 0) * 2)),
-      );
       if (data.state.model) {
         state.model = data.state.model;
         emit("model", state.model);
+      }
+    }
+
+    // Update CPU from system-health sensor
+    if (data.sensorSnapshots?.["system-health"]) {
+      const health = data.sensorSnapshots["system-health"];
+      if (health.cpuUsagePercent != null) {
+        state.cpu = Math.min(100, Math.max(0, Math.round(health.cpuUsagePercent)));
+        emit("cpu", state.cpu);
       }
     }
 

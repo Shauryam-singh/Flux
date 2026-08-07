@@ -601,7 +601,7 @@ function addChatMessage(role, content, proactiveMsg) {
   else if (role === "proactive") icon = "💡";
   else if (role === "system") icon = "⚙️";
 
-  const text = content.length > 500 ? content.slice(0, 500) + "..." : content;
+  const text = content.length > 2000 ? content.slice(0, 2000) + "..." : content;
 
   let actionHtml = "";
   if (role === "proactive" && proactiveMsg?.actionLabel) {
@@ -626,7 +626,7 @@ function addChatMessage(role, content, proactiveMsg) {
 // Handle proactive suggestion actions
 async function handleProactiveAction(suggestionId, action) {
   try {
-    const resp = await fetch(`http://localhost:3141/suggestions/${suggestionId}`, {
+    const resp = await fetch(`${API}/suggestions/${suggestionId}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action }),
@@ -1114,6 +1114,29 @@ function escapeHtml(str) {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
+}
+
+// ─── Settings helper (defined here, also in components.js) ───
+
+function getStoredSettings() {
+  try {
+    const raw = localStorage.getItem("flux-settings");
+    if (raw) return JSON.parse(raw);
+  } catch {}
+  return {
+    voice: "en-us+m3",
+    speed: 1.0,
+    pitch: 0.9,
+    volume: 1.0,
+    model: "qwen2.5-coder:7b",
+    autoSpeak: false,
+  };
+}
+
+// ─── Wake word state check ───
+
+function isWakeWordRunning() {
+  return wakeListening;
 }
 
 // ─── Subscribe to Data Events ───

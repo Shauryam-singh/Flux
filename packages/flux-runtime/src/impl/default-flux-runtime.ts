@@ -62,6 +62,8 @@ import { createFileProcessorService } from "@ai-agent/services-file-processor";
 import { createBrowserControlService } from "@ai-agent/services-browser-control";
 import { createSendMessageService } from "@ai-agent/services-send-message";
 import { createDesktopControlService } from "@ai-agent/services-desktop-control";
+import { createCommandChainService } from "@ai-agent/services-command-chain";
+import { createScreenUnderstandingService, getScreenContext } from "@ai-agent/services-screen-understanding";
 import { DefaultPluginLoader, type FluxPlugin } from "@ai-agent/plugins";
 import { DefaultKnowledgeBase } from "@ai-agent/knowledge-base";
 import { DefaultMultiAgentCoordinator, AgentFactory } from "@ai-agent/multi-agent";
@@ -294,6 +296,8 @@ export class DefaultFluxRuntime implements FluxRuntime {
     serviceRegistry.register(createBrowserControlService());
     serviceRegistry.register(createSendMessageService());
     serviceRegistry.register(createDesktopControlService());
+    serviceRegistry.register(createCommandChainService());
+    serviceRegistry.register(createScreenUnderstandingService());
 
     this.orchestrator = new Orchestrator(serviceRegistry);
 
@@ -1937,6 +1941,13 @@ export class DefaultFluxRuntime implements FluxRuntime {
               shouldSuggestBreak: codingState.shouldSuggestBreak,
             }
           : null,
+        screenContext: (() => {
+          try {
+            return getScreenContext();
+          } catch {
+            return null;
+          }
+        })(),
         sensors: sensorSnapshots,
         goals,
         recentActivity,

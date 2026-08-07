@@ -46,6 +46,8 @@
     { "path": "../../packages/services/file-processor" },
     { "path": "../../packages/services/browser-control" },
     { "path": "../../packages/services/send-message" },
-    { "path": "../../packages/services/desktop-control" }
+    { "path": "../../packages/services/desktop-control" },
+    { "path": "../../packages/services/command-chain" },
+    { "path": "../../packages/services/screen-understanding" }
   ]
 }

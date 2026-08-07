@@ -1074,6 +1074,9 @@ importers:
       '@ai-agent/services-email':
         specifier: workspace:*
         version: link:../services/email
+      '@ai-agent/services-file-creator':
+        specifier: workspace:*
+        version: link:../services/file-creator
       '@ai-agent/services-file-intelligence':
         specifier: workspace:*
         version: link:../services/file-intelligence
@@ -1607,6 +1610,15 @@ importers:
         version: link:../../shared
 
   packages/services/email:
+    dependencies:
+      '@ai-agent/services-core':
+        specifier: workspace:*
+        version: link:../core
+      '@ai-agent/shared':
+        specifier: workspace:*
+        version: link:../../shared
+
+  packages/services/file-creator:
     dependencies:
       '@ai-agent/services-core':
         specifier: workspace:*

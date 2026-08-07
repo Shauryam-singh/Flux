@@ -62,6 +62,7 @@
     "@ai-agent/services-calendar": "workspace:*",
     "@ai-agent/services-file-intelligence": "workspace:*",
     "@ai-agent/services-system-fix": "workspace:*",
-    "@ai-agent/services-clipboard-intelligence": "workspace:*"
+    "@ai-agent/services-clipboard-intelligence": "workspace:*",
+    "@ai-agent/services-file-creator": "workspace:*"
   }
 }

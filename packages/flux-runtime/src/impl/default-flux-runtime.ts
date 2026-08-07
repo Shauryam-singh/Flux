@@ -73,6 +73,7 @@ import { createCalendarService } from "@ai-agent/services-calendar";
 import { createFileIntelligenceService } from "@ai-agent/services-file-intelligence";
 import { createSystemFixService } from "@ai-agent/services-system-fix";
 import { createClipboardIntelligenceService } from "@ai-agent/services-clipboard-intelligence";
+import { createFileCreatorService } from "@ai-agent/services-file-creator";
 import { DefaultPluginLoader, type FluxPlugin } from "@ai-agent/plugins";
 import { DefaultKnowledgeBase } from "@ai-agent/knowledge-base";
 import { DefaultMultiAgentCoordinator, AgentFactory } from "@ai-agent/multi-agent";
@@ -316,6 +317,7 @@ export class DefaultFluxRuntime implements FluxRuntime {
     serviceRegistry.register(createFileIntelligenceService());
     serviceRegistry.register(createSystemFixService());
     serviceRegistry.register(createClipboardIntelligenceService());
+    serviceRegistry.register(createFileCreatorService());
 
     this.orchestrator = new Orchestrator(serviceRegistry);
 

@@ -309,7 +309,7 @@ function formatElements(elements: UIElement[]): string {
 
 // ─── Service ────────────────────────────────────────────────────
 
-const MATCH = /\b(what('s| is) on (my |the )?screen|screenshot|screen\s*(shot|understand|analy[zs]e|read|describe)|click\s+(the\s+)?|find\s+(the\s+)?button|read\s+text|what\s+app|identify\s+app|ui\s*elements?|detect\s+elements?|extract\s+text)\b/i;
+const MATCH = /\b(what('s| is) on (my |the )?screen|screenshot|screen\s*(shot|understand|analy[zs]e|read|describe)|read\s+(my|the|this)\s+screen|click\s+(the\s+)?|find\s+(the\s+)?button|read\s+text|what\s+app|identify\s+app|ui\s*elements?|detect\s+elements?|extract\s+text|describe\s+(my|the|this)\s+screen|what\s+am\s+i\s+doing|what('s| is)\s+open)\b/i;
 
 export function createScreenUnderstandingService(): Service {
   let cachedAnalysis: ScreenAnalysis | null = null;

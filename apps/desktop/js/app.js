@@ -418,13 +418,76 @@ function restartWakeWord() {
 
 // ─── TTS ───
 
+// ─── Multi-turn Voice ───
+
+let followUpTimer = null;
+
+// ─── Speech Control ───
+
+let currentAudio = null;
+let currentUtterance = null;
+
+function stopSpeaking() {
+  // Stop API/element audio
+  if (currentAudio) {
+    try {
+      currentAudio.pause();
+      currentAudio.currentTime = 0;
+    } catch {}
+    currentAudio = null;
+  }
+  // Stop Web Speech
+  if ("speechSynthesis" in window) {
+    speechSynthesis.cancel();
+  }
+  currentUtterance = null;
+  updateSpeakButton(false);
+}
+
+function isSpeaking() {
+  if (currentAudio && !currentAudio.paused) return true;
+  if ("speechSynthesis" in window && speechSynthesis.speaking) return true;
+  return false;
+}
+
+function updateSpeakButton(speaking) {
+  const btn = document.getElementById("speak-stop-btn");
+  if (btn) {
+    btn.style.display = speaking ? "flex" : "none";
+  }
+}
+
 async function speakText(text) {
   if (!text) return;
 
+  // Stop any existing speech first
+  stopSpeaking();
+
   const clean = text
-    .replace(/```[\s\S]*?```/g, "code block")
+    // Remove code blocks
+    .replace(/```[\s\S]*?```g, "code block")
     .replace(/`[^`]+`/g, "code")
-    .replace(/[#*_~>]/g, "")
+    // Remove markdown headers
+    .replace(/^#{1,6}\s+/gm, "")
+    // Remove bold/italic markers
+    .replace(/\*{1,3}([^*]+)\*{1,3}/g, "$1")
+    .replace(/_{1,3}([^_]+)_{1,3}/g, "$1")
+    // Remove strikethrough
+    .replace(/~~([^~]+)~~/g, "$1")
+    // Remove blockquotes
+    .replace(/^>\s+/gm, "")
+    // Remove horizontal rules
+    .replace(/^[-*_]{3,}\s*$/gm, "")
+    // Remove link syntax, keep text
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+    // Remove image syntax
+    .replace(/!\[([^\]]*)\]\([^)]+\)/g, "$1")
+    // Remove list markers
+    .replace(/^[\s]*[-*+]\s+/gm, "")
+    .replace(/^[\s]*\d+\.\s+/gm, "")
+    // Remove remaining symbols
+    .replace(/[#*_~>`|\\{}[\]()]/g, "")
+    // Remove emojis
     .replace(/[\u{1F600}-\u{1F64F}]/gu, "")
     .replace(/[\u{1F300}-\u{1F5FF}]/gu, "")
     .replace(/[\u{1F680}-\u{1F6FF}]/gu, "")
@@ -437,6 +500,7 @@ async function speakText(text) {
     .replace(/[\u{1FA00}-\u{1FAFF}]/gu, "")
     .replace(/[\u{2300}-\u{23FF}]/gu, "")
     .replace(/[\u{2B50}-\u{2B55}]/gu, "")
+    // Collapse whitespace
     .replace(/\s{2,}/g, " ")
     .trim();
   if (!clean) return;
@@ -461,6 +525,9 @@ async function speakText(text) {
         const url = URL.createObjectURL(blob);
         const audio = new Audio(url);
         audio.volume = settings.volume;
+        currentAudio = audio;
+        updateSpeakButton(true);
+
         const playPromise = audio.play();
         if (playPromise !== undefined) {
           playPromise.catch(() => {
@@ -473,7 +540,11 @@ async function speakText(text) {
             document.addEventListener("keydown", retryPlay, { once: true });
           });
         }
-        audio.onended = () => URL.revokeObjectURL(url);
+        audio.onended = () => {
+          URL.revokeObjectURL(url);
+          currentAudio = null;
+          updateSpeakButton(false);
+        };
         return;
       }
     }
@@ -494,6 +565,12 @@ async function speakText(text) {
     const voices = speechSynthesis.getVoices();
     const english = voices.filter((v) => v.lang.startsWith("en"));
     if (english.length > 0) utterance.voice = english[0];
+    currentUtterance = utterance;
+    updateSpeakButton(true);
+    utterance.onend = () => {
+      currentUtterance = null;
+      updateSpeakButton(false);
+    };
     speechSynthesis.speak(utterance);
   }
 }
@@ -652,10 +729,6 @@ function escapeHtmlSimple(str) {
   return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
-// ─── Multi-turn Voice ───
-
-let followUpTimer = null;
-
 function startFollowUpListen() {
   // Listen for 5 seconds after speaking
   clearFollowUpTimer();
@@ -712,6 +785,9 @@ function initEventListeners() {
           break;
         case "auto-speak":
           setAutoSpeak(!getAutoSpeak());
+          break;
+        case "stop-speaking":
+          stopSpeaking();
           break;
         case "settings":
           setMode("dashboard");

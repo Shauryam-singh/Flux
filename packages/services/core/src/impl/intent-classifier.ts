@@ -95,6 +95,12 @@ const RULES: RuleEntry[] = [
   ],
   [/\b(read|show|cat)\s+(the\s+)?file\b/i, "coding"],
 
+  // ── Screen Understanding (before system so "read my screen" → screen-understanding not system) ──
+  [
+    /\b(what('s| is) on (my |the )?screen|read (my|the|this) screen|describe (my|the|this) screen|screen\s*(understand|analy[zs]e|read|describe)|what\s+am\s+i\s+doing|what('s| is)\s+open|click\s+(the\s+)?|find\s+(the\s+)?button|read\s+text|extract\s+text|ui\s*elements?|detect\s*elements?)\b/i,
+    "screen-understanding",
+  ],
+
   // ── System (action commands — after coding) ──
   [/\b(open|launch|start|run)\s+\S+/i, "system"],
   [/\b(close|quit|kill)\s+\S+/i, "system"],

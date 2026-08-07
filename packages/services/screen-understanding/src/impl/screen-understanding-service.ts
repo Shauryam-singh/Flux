@@ -58,12 +58,61 @@ export interface ScreenContext {
 
 // ─── Screenshot Capture ─────────────────────────────────────────
 
+function getPlatform(): string {
+  return process.platform;
+}
+
 function captureScreenshot(): { path: string; width: number; height: number } {
   const ts = Date.now();
   const path = join(tmpdir(), `flux-screen-${ts}.png`);
+  const platform = getPlatform();
 
+  // Windows 11: PowerShell + System.Drawing
+  if (platform === "win32") {
+    try {
+      const psScript = `
+        Add-Type -AssemblyName System.Windows.Forms
+        Add-Type -AssemblyName System.Drawing
+        $screen = [System.Windows.Forms.Screen]::PrimaryScreen
+        $bitmap = New-Object System.Drawing.Bitmap($screen.Bounds.Width, $screen.Bounds.Height)
+        $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
+        $graphics.CopyFromScreen($screen.Bounds.Location, [System.Drawing.Point]::Empty, $screen.Bounds.Size)
+        $bitmap.Save("${path.replace(/\\/g, "\\\\")}")
+        $graphics.Dispose()
+        $bitmap.Dispose()
+        Write-Output "$($screen.Bounds.Width)x$($screen.Bounds.Height)"
+      `.trim();
+      const res = execSync(`powershell -NoProfile -Command "${psScript.replace(/"/g, '\\"').replace(/\n/g, "; ")}"`, {
+        timeout: 10000,
+        encoding: "utf-8",
+        stdio: "pipe",
+      });
+      const match = res.match(/(\d+)x(\d+)/);
+      return {
+        path,
+        width: match?.[1] ? Number.parseInt(match[1], 10) : 1920,
+        height: match?.[2] ? Number.parseInt(match[2], 10) : 1080,
+      };
+    } catch {
+      writeFileSync(path, Buffer.alloc(0));
+      return { path, width: 1920, height: 1080 };
+    }
+  }
+
+  // macOS: screencapture
+  if (platform === "darwin") {
+    try {
+      execSync(`screencapture -x "${path}"`, { timeout: 5000, stdio: "pipe" });
+      return { path, width: 1920, height: 1080 };
+    } catch {
+      writeFileSync(path, Buffer.alloc(0));
+      return { path, width: 1920, height: 1080 };
+    }
+  }
+
+  // Linux: try grim (Wayland) → import (X11) → fallback
   try {
-    const res = execSync("xdpyinfo | grep dimensions", {
+    const res = execSync("xdpyinfo 2>/dev/null | grep dimensions", {
       timeout: 3000,
       encoding: "utf-8",
       stdio: "pipe",
@@ -73,7 +122,6 @@ function captureScreenshot(): { path: string; width: number; height: number } {
     const height = match?.[2] ? Number.parseInt(match[2], 10) : 1080;
 
     execSync(`grim ${path}`, { timeout: 5000, stdio: "pipe" });
-
     return { path, width, height };
   } catch {
     try {
@@ -378,9 +426,137 @@ export function createScreenUnderstandingService(): Service {
   };
 }
 
+// ─── Proactive Screen Observation ───────────────────────────────
+
+const OBSERVE_PROMPT = `You are observing a user's screen as part of a background cognition loop.
+Describe what you see concisely (2-3 sentences). Focus on:
+1. What app/workflow the user is engaged in
+2. Any issues, blockers, or interesting patterns
+3. Suggestive actions IF something obvious stands out (e.g., "you have unsaved changes")
+
+Be brief and non-intrusive. Only comment if something noteworthy is happening.
+If the screen looks normal/routine, respond with just the app name and a one-line status.`;
+
+let lastObservation = "";
+let lastObservationApp = "";
+let lastObservationTime = 0;
+const OBSERVATION_COOLDOWN_MS = 30000;
+
+export interface ScreenObservation {
+  app: string;
+  description: string;
+  isNoteworthy: boolean;
+  suggestion: string | null;
+  timestamp: Date;
+}
+
+export async function observeScreen(
+  provider: { complete(req: { model: string; prompt: string; temperature?: number }): Promise<{ text: string }> } | null,
+): Promise<ScreenObservation | null> {
+  const now = Date.now();
+  if (now - lastObservationTime < OBSERVATION_COOLDOWN_MS) {
+    return null;
+  }
+
+  const { path } = captureScreenshot();
+  lastObservationTime = now;
+
+  try {
+    let description: string;
+    if (provider) {
+      try {
+        const imageBuffer = readFileSync(path);
+        const base64 = imageBuffer.toString("base64");
+        const response = await fetch("http://localhost:11434/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            model: VISION_MODEL,
+            messages: [{ role: "user", content: OBSERVE_PROMPT, images: [base64] }],
+            stream: false,
+          }),
+        });
+        if (response.ok) {
+          const data = await response.json() as { message?: { content?: string } };
+          description = data.message?.content ?? "";
+        } else {
+          description = await provider.complete({
+            model: "default",
+            prompt: "[Screen observation] Describe general desktop activity.",
+            temperature: 0.3,
+          }).then((r) => r.text);
+        }
+      } catch {
+        description = await provider.complete({
+          model: "default",
+          prompt: "[Screen observation unavailable] Note that screen observation is active.",
+          temperature: 0.3,
+        }).then((r) => r.text);
+      }
+    } else {
+      description = "Screen observation requires a vision-capable LLM provider.";
+    }
+
+    const appMatch = description.match(/(?:app|application|program|window):\s*(.+)/i);
+    const app = appMatch?.[1]?.trim() ?? "Unknown";
+
+    const isNoteworthy = !description.toLowerCase().includes("normal") &&
+      !description.toLowerCase().includes("routine") &&
+      description.length > 20 &&
+      app !== lastObservationApp;
+
+    const suggestionMatch = description.match(/(?:suggest|recommend|you (?:should|could|might)|consider)\s+(.+)/i);
+    const suggestion = suggestionMatch?.[1]?.trim() ?? null;
+
+    lastObservation = description;
+    lastObservationApp = app;
+
+    return {
+      app,
+      description,
+      isNoteworthy,
+      suggestion,
+      timestamp: new Date(),
+    };
+  } finally {
+    cleanupScreenshot(path);
+  }
+}
+
+export function getLastObservation(): string {
+  return lastObservation;
+}
+
 // ─── Screen Context Provider ────────────────────────────────────
 
 export function getScreenContext(): ScreenContext {
+  const platform = getPlatform();
+
+  // Windows 11: always has a screen
+  if (platform === "win32") {
+    return {
+      hasScreen: true,
+      activeApp: "Unknown",
+      activeWindowTitle: "",
+      description: "Windows desktop available",
+      elementCount: 0,
+      timestamp: new Date(),
+    };
+  }
+
+  // macOS: always has a screen
+  if (platform === "darwin") {
+    return {
+      hasScreen: true,
+      activeApp: "Unknown",
+      activeWindowTitle: "",
+      description: "macOS desktop available",
+      elementCount: 0,
+      timestamp: new Date(),
+    };
+  }
+
+  // Linux: check for display
   try {
     execSync("xdpyinfo", { timeout: 2000, stdio: "pipe" });
     return {

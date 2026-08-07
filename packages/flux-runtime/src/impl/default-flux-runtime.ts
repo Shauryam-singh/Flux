@@ -63,7 +63,7 @@ import { createBrowserControlService } from "@ai-agent/services-browser-control"
 import { createSendMessageService } from "@ai-agent/services-send-message";
 import { createDesktopControlService } from "@ai-agent/services-desktop-control";
 import { createCommandChainService } from "@ai-agent/services-command-chain";
-import { createScreenUnderstandingService, getScreenContext } from "@ai-agent/services-screen-understanding";
+import { createScreenUnderstandingService, getScreenContext, observeScreen } from "@ai-agent/services-screen-understanding";
 import { DefaultPluginLoader, type FluxPlugin } from "@ai-agent/plugins";
 import { DefaultKnowledgeBase } from "@ai-agent/knowledge-base";
 import { DefaultMultiAgentCoordinator, AgentFactory } from "@ai-agent/multi-agent";
@@ -1374,6 +1374,38 @@ export class DefaultFluxRuntime implements FluxRuntime {
     // Source 5: Heavier sensors every 5th tick (git, docker, battery, clipboard)
     if (this.tickCount % 5 === 0) {
       count += await this.gatherSensorObservations();
+    }
+
+    // Source 6: Proactive screen understanding every 10th tick (vision LLM — expensive)
+    if (this.tickCount % 10 === 0) {
+      try {
+        const screenObs = await observeScreen(this.llmProvider);
+        if (screenObs) {
+          this.attention.process({
+            source: "screen",
+            title: `screen: ${screenObs.app}`,
+            detail: screenObs.description,
+          });
+          this.recentThoughts.push({
+            type: "observation_interpretation",
+            content: `[Screen] ${screenObs.description}`,
+            confidence: 0.7,
+            timestamp: Date.now(),
+          });
+          if (screenObs.suggestion) {
+            this.emit("proactive_suggestion", {
+              id: `screen_${Date.now()}`,
+              text: screenObs.suggestion,
+              source: "screen_understanding",
+              confidence: 0.6,
+              createdAt: new Date().toISOString(),
+            });
+          }
+          count++;
+        }
+      } catch {
+        /* best-effort */
+      }
     }
 
     return count;

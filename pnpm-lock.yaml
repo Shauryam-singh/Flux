@@ -1059,6 +1059,9 @@ importers:
       '@ai-agent/services-core':
         specifier: workspace:*
         version: link:../services/core
+      '@ai-agent/services-desktop-control':
+        specifier: workspace:*
+        version: link:../services/desktop-control
       '@ai-agent/services-file-processor':
         specifier: workspace:*
         version: link:../services/file-processor
@@ -1530,6 +1533,15 @@ importers:
       '@ai-agent/agent':
         specifier: workspace:*
         version: link:../../agent
+      '@ai-agent/shared':
+        specifier: workspace:*
+        version: link:../../shared
+
+  packages/services/desktop-control:
+    dependencies:
+      '@ai-agent/services-core':
+        specifier: workspace:*
+        version: link:../core
       '@ai-agent/shared':
         specifier: workspace:*
         version: link:../../shared

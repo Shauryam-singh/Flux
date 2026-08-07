@@ -45,6 +45,7 @@
     { "path": "../../packages/services/game-updater" },
     { "path": "../../packages/services/file-processor" },
     { "path": "../../packages/services/browser-control" },
-    { "path": "../../packages/services/send-message" }
+    { "path": "../../packages/services/send-message" },
+    { "path": "../../packages/services/desktop-control" }
   ]
 }

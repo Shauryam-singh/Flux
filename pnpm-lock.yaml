@@ -1047,9 +1047,15 @@ importers:
       '@ai-agent/services-browser-control':
         specifier: workspace:*
         version: link:../services/browser-control
+      '@ai-agent/services-calendar':
+        specifier: workspace:*
+        version: link:../services/calendar
       '@ai-agent/services-chat':
         specifier: workspace:*
         version: link:../services/chat
+      '@ai-agent/services-clipboard-intelligence':
+        specifier: workspace:*
+        version: link:../services/clipboard-intelligence
       '@ai-agent/services-coding':
         specifier: workspace:*
         version: link:../services/coding
@@ -1065,6 +1071,12 @@ importers:
       '@ai-agent/services-desktop-control':
         specifier: workspace:*
         version: link:../services/desktop-control
+      '@ai-agent/services-email':
+        specifier: workspace:*
+        version: link:../services/email
+      '@ai-agent/services-file-intelligence':
+        specifier: workspace:*
+        version: link:../services/file-intelligence
       '@ai-agent/services-file-processor':
         specifier: workspace:*
         version: link:../services/file-processor
@@ -1107,6 +1119,9 @@ importers:
       '@ai-agent/services-system':
         specifier: workspace:*
         version: link:../services/system
+      '@ai-agent/services-system-fix':
+        specifier: workspace:*
+        version: link:../services/system-fix
       '@ai-agent/services-terminal':
         specifier: workspace:*
         version: link:../services/terminal
@@ -1504,6 +1519,15 @@ importers:
         specifier: ^1.50.0
         version: 1.62.1
 
+  packages/services/calendar:
+    dependencies:
+      '@ai-agent/services-core':
+        specifier: workspace:*
+        version: link:../core
+      '@ai-agent/shared':
+        specifier: workspace:*
+        version: link:../../shared
+
   packages/services/chat:
     dependencies:
       '@ai-agent/agent':
@@ -1512,6 +1536,15 @@ importers:
       '@ai-agent/providers':
         specifier: workspace:*
         version: link:../../providers
+      '@ai-agent/services-core':
+        specifier: workspace:*
+        version: link:../core
+      '@ai-agent/shared':
+        specifier: workspace:*
+        version: link:../../shared
+
+  packages/services/clipboard-intelligence:
+    dependencies:
       '@ai-agent/services-core':
         specifier: workspace:*
         version: link:../core
@@ -1565,6 +1598,24 @@ importers:
         version: link:../../shared
 
   packages/services/desktop-control:
+    dependencies:
+      '@ai-agent/services-core':
+        specifier: workspace:*
+        version: link:../core
+      '@ai-agent/shared':
+        specifier: workspace:*
+        version: link:../../shared
+
+  packages/services/email:
+    dependencies:
+      '@ai-agent/services-core':
+        specifier: workspace:*
+        version: link:../core
+      '@ai-agent/shared':
+        specifier: workspace:*
+        version: link:../../shared
+
+  packages/services/file-intelligence:
     dependencies:
       '@ai-agent/services-core':
         specifier: workspace:*
@@ -1691,6 +1742,15 @@ importers:
         version: link:../../shared
 
   packages/services/system:
+    dependencies:
+      '@ai-agent/services-core':
+        specifier: workspace:*
+        version: link:../core
+      '@ai-agent/shared':
+        specifier: workspace:*
+        version: link:../../shared
+
+  packages/services/system-fix:
     dependencies:
       '@ai-agent/services-core':
         specifier: workspace:*

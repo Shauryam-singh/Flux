@@ -52,6 +52,11 @@
     { "path": "../../packages/services/spotify" },
     { "path": "../../packages/services/vs-code" },
     { "path": "../../packages/services/terminal" },
-    { "path": "../../packages/services/slack-discord" }
+    { "path": "../../packages/services/slack-discord" },
+    { "path": "../../packages/services/email" },
+    { "path": "../../packages/services/calendar" },
+    { "path": "../../packages/services/file-intelligence" },
+    { "path": "../../packages/services/system-fix" },
+    { "path": "../../packages/services/clipboard-intelligence" }
   ]
 }

@@ -57,6 +57,11 @@
     "@ai-agent/services-spotify": "workspace:*",
     "@ai-agent/services-vs-code": "workspace:*",
     "@ai-agent/services-terminal": "workspace:*",
-    "@ai-agent/services-slack-discord": "workspace:*"
+    "@ai-agent/services-slack-discord": "workspace:*",
+    "@ai-agent/services-email": "workspace:*",
+    "@ai-agent/services-calendar": "workspace:*",
+    "@ai-agent/services-file-intelligence": "workspace:*",
+    "@ai-agent/services-system-fix": "workspace:*",
+    "@ai-agent/services-clipboard-intelligence": "workspace:*"
   }
 }

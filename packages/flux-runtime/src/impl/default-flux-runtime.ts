@@ -68,6 +68,11 @@ import { createSpotifyService } from "@ai-agent/services-spotify";
 import { createVsCodeService } from "@ai-agent/services-vs-code";
 import { createTerminalService } from "@ai-agent/services-terminal";
 import { createSlackDiscordService } from "@ai-agent/services-slack-discord";
+import { createEmailService } from "@ai-agent/services-email";
+import { createCalendarService } from "@ai-agent/services-calendar";
+import { createFileIntelligenceService } from "@ai-agent/services-file-intelligence";
+import { createSystemFixService } from "@ai-agent/services-system-fix";
+import { createClipboardIntelligenceService } from "@ai-agent/services-clipboard-intelligence";
 import { DefaultPluginLoader, type FluxPlugin } from "@ai-agent/plugins";
 import { DefaultKnowledgeBase } from "@ai-agent/knowledge-base";
 import { DefaultMultiAgentCoordinator, AgentFactory } from "@ai-agent/multi-agent";
@@ -306,6 +311,11 @@ export class DefaultFluxRuntime implements FluxRuntime {
     serviceRegistry.register(createVsCodeService());
     serviceRegistry.register(createTerminalService());
     serviceRegistry.register(createSlackDiscordService());
+    serviceRegistry.register(createEmailService());
+    serviceRegistry.register(createCalendarService());
+    serviceRegistry.register(createFileIntelligenceService());
+    serviceRegistry.register(createSystemFixService());
+    serviceRegistry.register(createClipboardIntelligenceService());
 
     this.orchestrator = new Orchestrator(serviceRegistry);
 

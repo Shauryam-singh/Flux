@@ -165,6 +165,7 @@ export class DefaultFluxRuntime implements FluxRuntime {
   private totalInteractions = 0;
   private cognitiveReady = false;
   private running = false;
+  private userRequestActive = false;
   private backgroundTimer: ReturnType<typeof setInterval> | null = null;
   private lastTickAt: number | null = null;
   private tickCount = 0;
@@ -288,6 +289,7 @@ export class DefaultFluxRuntime implements FluxRuntime {
           model: req.model === "default" ? config.model : req.model,
           prompt: req.prompt,
           temperature: req.temperature ?? 0.7,
+          ...(req.maxTokens !== undefined && { maxTokens: req.maxTokens }),
         }),
     };
 
@@ -1243,35 +1245,42 @@ export class DefaultFluxRuntime implements FluxRuntime {
       // Best-effort
     }
 
-    // Run the 14-stage cognition pipeline
+    // Run the 14-stage cognition pipeline. Skip LLM-heavy background work
+    // entirely while a user /chat request is in flight — every background
+    // qwen3 call holds the single Ollama slot for 30-45s, and queueing a
+    // user's reply behind them is what made chats take minutes.
     let pipelineResult: CognitionResult | undefined;
     try {
-      pipelineResult = await this.pipeline.runTick();
-      this.lastPipelineDurationMs = pipelineResult.durationMs;
-      this.lastPipelineResult = pipelineResult;
+      if (!this.userRequestActive) {
+        pipelineResult = await this.pipeline.runTick();
+      }
+      this.lastPipelineDurationMs = pipelineResult?.durationMs ?? 0;
+      this.lastPipelineResult = pipelineResult ?? null;
 
       // Extract thoughts from pipeline result for streaming
-      for (const thought of pipelineResult.thoughts) {
-        this.recentThoughts.push({
-          type: thought.type,
-          content: thought.content,
-          confidence: thought.confidence.value,
-          timestamp: thought.timestamp,
-        });
-      }
-      if (this.recentThoughts.length > 50) {
-        this.recentThoughts = this.recentThoughts.slice(-50);
-      }
+      if (pipelineResult) {
+        for (const thought of pipelineResult.thoughts) {
+          this.recentThoughts.push({
+            type: thought.type,
+            content: thought.content,
+            confidence: thought.confidence.value,
+            timestamp: thought.timestamp,
+          });
+        }
+        if (this.recentThoughts.length > 50) {
+          this.recentThoughts = this.recentThoughts.slice(-50);
+        }
 
-      // Extract selected action
-      if (pipelineResult.selectedAction) {
-        this.recentActions.push({
-          type: pipelineResult.selectedAction.type,
-          reasoning: pipelineResult.selectedAction.reasoning,
-          confidence: pipelineResult.selectedAction.confidence,
-          timestamp: Date.now(),
-        });
-        if (this.recentActions.length > 50) this.recentActions.shift();
+        // Extract selected action
+        if (pipelineResult.selectedAction) {
+          this.recentActions.push({
+            type: pipelineResult.selectedAction.type,
+            reasoning: pipelineResult.selectedAction.reasoning,
+            confidence: pipelineResult.selectedAction.confidence,
+            timestamp: Date.now(),
+          });
+          if (this.recentActions.length > 50) this.recentActions.shift();
+        }
       }
     } catch {
       // Pipeline errors are non-fatal
@@ -1404,8 +1413,11 @@ export class DefaultFluxRuntime implements FluxRuntime {
       count += await this.gatherSensorObservations();
     }
 
-    // Source 6: Proactive screen understanding every 10th tick (vision LLM — expensive)
-    if (this.tickCount % 10 === 0) {
+    // Source 6: Proactive screen understanding every 60th tick (vision LLM — expensive).
+    // Local Ollama models generate 1500-2500 tokens per call (~30s on a 4050), so
+    // firing more often than every 5 minutes saturates the single-slot queue and
+    // makes user /chat requests wait minutes.
+    if (this.tickCount % 60 === 0) {
       try {
         const screenObs = await observeScreen(this.llmProvider);
         if (screenObs) {
@@ -1536,6 +1548,7 @@ export class DefaultFluxRuntime implements FluxRuntime {
           const hyprOutput = execSync("hyprctl activewindow -j 2>/dev/null", {
             encoding: "utf-8",
             timeout: 2000,
+            stdio: ["pipe", "pipe", "pipe"],
           }).trim();
           if (hyprOutput) {
             const data = JSON.parse(hyprOutput) as {
@@ -1555,7 +1568,11 @@ export class DefaultFluxRuntime implements FluxRuntime {
           try {
             const activeWindow = execSync(
               "xdotool getactivewindow getwindowname 2>/dev/null",
-              { encoding: "utf-8", timeout: 2000 },
+              {
+                encoding: "utf-8",
+                timeout: 2000,
+                stdio: ["pipe", "pipe", "pipe"],
+              },
             ).trim();
             const parts = activeWindow.split(" — ");
             app = parts[0]?.trim() ?? activeWindow;
@@ -1570,7 +1587,11 @@ export class DefaultFluxRuntime implements FluxRuntime {
           try {
             const focused = execSync(
               "cat /proc/$(cat /sys/class/tty/tty0/active 2>/dev/null | cut -d' ' -f2)/comm 2>/dev/null || echo ''",
-              { encoding: "utf-8", timeout: 1000 },
+              {
+                encoding: "utf-8",
+                timeout: 1000,
+                stdio: ["pipe", "pipe", "pipe"],
+              },
             ).trim();
             if (focused) app = focused;
           } catch {
@@ -1582,6 +1603,7 @@ export class DefaultFluxRuntime implements FluxRuntime {
         const output = execSync(`osascript -e '${script}' 2>/dev/null`, {
           encoding: "utf-8",
           timeout: 2000,
+          stdio: ["pipe", "pipe", "pipe"],
         }).trim();
         const parts = output.split(", ");
         app = parts[0]?.trim() ?? "";
@@ -1611,17 +1633,23 @@ export class DefaultFluxRuntime implements FluxRuntime {
     title: string;
     detail: string;
   } | null {
+    // Windows has no /proc or sysctl — the system-health sensor covers this
+    if (process.platform === "win32") return null;
     try {
       const loadavg = execSync(
         "cat /proc/loadavg 2>/dev/null || sysctl -n vm.loadavg 2>/dev/null",
-        { encoding: "utf-8", timeout: 2000 },
+        { encoding: "utf-8", timeout: 2000, stdio: ["pipe", "pipe", "pipe"] },
       ).trim();
       const parts = loadavg.split(" ");
       const load1 = parseFloat(parts[0] ?? "0");
       const cpus = parseInt(
         execSync(
           "nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4",
-          { encoding: "utf-8", timeout: 2000 },
+          {
+            encoding: "utf-8",
+            timeout: 2000,
+            stdio: ["pipe", "pipe", "pipe"],
+          },
         ).trim(),
         10,
       );
@@ -1888,15 +1916,14 @@ export class DefaultFluxRuntime implements FluxRuntime {
   async process(input: string): Promise<FluxRuntimeResult> {
     const start = Date.now();
     this.totalInteractions++;
+    this.userRequestActive = true;
 
-    // Step 1: Record user message in memory
-    await this.session.memory.add("user", input);
+    try {
+      // Step 1: Record user message in memory
+      await this.session.memory.add("user", input);
 
     // Step 2: Record in history
     this.history.push({ role: "user", content: input, timestamp: Date.now() });
-
-    // Step 3: Feed to cognitive system
-    this.cognitive.message(input);
 
     // Step 4: Process through service orchestrator (intent classification + routing)
     const getSystemContext = async () => {
@@ -1917,7 +1944,10 @@ export class DefaultFluxRuntime implements FluxRuntime {
         try {
           const sensor = this.sensors.get(sensorId);
           if (sensor) {
+            const ts = Date.now();
             const snap = await sensor.snapshot();
+            const dur = Date.now() - ts;
+            if (dur > 500) console.log(`[timing] sensor ${sensorId}: ${dur}ms`);
             if (snap) sensorSnapshots[sensorId] = snap;
           }
         } catch {}
@@ -2094,6 +2124,12 @@ export class DefaultFluxRuntime implements FluxRuntime {
       source: "assistant",
     });
 
+    // Step 7b: Feed to cognitive system AFTER the user response is produced.
+    // The cognitive cycle may trigger a local LLM thought-generation call
+    // (~30-40s on qwen3), and Ollama serves requests serially. Deferring keeps
+    // the user's chat response from queuing behind background reasoning.
+    this.cognitive.message(input);
+
     // Step 8: Record experience for self-evolution
     this.experienceDb.record({
       situation: input.slice(0, 200),
@@ -2176,7 +2212,7 @@ export class DefaultFluxRuntime implements FluxRuntime {
         let summaryText: string;
         if (this.llmProvider) {
           const llmResult = await this.llmProvider.complete({
-            model: "qwen2.5-coder:7b",
+            model: "qwen3:4b",
             prompt: `Summarise this conversation in 2-3 sentences, focusing on what was accomplished and any open items. Be concise and natural.\n\n${transcript}`,
             temperature: 0.3,
           });
@@ -2197,18 +2233,21 @@ export class DefaultFluxRuntime implements FluxRuntime {
       }
     }
 
-    return {
-      text: responseText,
-      confidence: 0.8,
-      toolsUsed: [],
-      duration,
-      metadata: {
-        totalInteractions: this.totalInteractions,
-        memorySize: this.workingMemory.snapshot().entries.length,
-        thoughtGraphNodes: this.thoughtGraph.snapshot().nodeCount,
-        thoughtGraphEdges: this.thoughtGraph.snapshot().edgeCount,
-      },
-    };
+      return {
+        text: responseText,
+        confidence: 0.8,
+        toolsUsed: [],
+        duration,
+        metadata: {
+          totalInteractions: this.totalInteractions,
+          memorySize: this.workingMemory.snapshot().entries.length,
+          thoughtGraphNodes: this.thoughtGraph.snapshot().nodeCount,
+          thoughtGraphEdges: this.thoughtGraph.snapshot().edgeCount,
+        },
+      };
+    } finally {
+      this.userRequestActive = false;
+    }
   }
 
   processEvent(event: {
@@ -2320,6 +2359,7 @@ export class DefaultFluxRuntime implements FluxRuntime {
       "audio",
       "notifications",
       "filesystem",
+      "system-health",
     ] as const) {
       try {
         const sensor = this.sensors.get(sensorId);

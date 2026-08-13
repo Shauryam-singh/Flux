@@ -126,7 +126,7 @@ export class BrowserContextSensor {
     try {
       const raw = execSync(
         "xdotool getactivewindow getwindowname 2>/dev/null",
-        { encoding: "utf-8", timeout: 1000 },
+        { encoding: "utf-8", timeout: 1000, stdio: ["pipe", "pipe", "pipe"] },
       ).trim();
 
       // Some browsers show URL in title

@@ -7,7 +7,7 @@ import type {
   LlmProvider,
 } from "../interfaces/multi-agent.js";
 
-const MODEL = "qwen2.5-coder:7b";
+const MODEL = "qwen3:4b";
 
 const ROLE_DESCRIPTIONS: Record<AgentRole, string> = {
   coder: "Write, refactor, and debug code. Create files, implement features, fix bugs.",

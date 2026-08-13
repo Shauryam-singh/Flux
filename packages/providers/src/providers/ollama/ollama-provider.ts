@@ -46,12 +46,12 @@ export class OllamaProvider extends BaseProvider {
   public getModels(): readonly ProviderModel[] {
     return [
       {
-        id: "qwen2.5:0.5b",
-        name: "Qwen 2.5 0.5B",
+        id: "qwen3:4b",
+        name: "Qwen3 4B",
         contextWindow: 32768,
         maxOutputTokens: 8192,
         supportsVision: false,
-        supportsTools: false,
+        supportsTools: true,
         supportsStreaming: true,
         local: true,
       },
@@ -115,12 +115,19 @@ export class OllamaProvider extends BaseProvider {
           ...(request.images && request.images.length > 0 && { images: request.images }),
         },
       ],
+      // Disable chain-of-thought thinking (qwen3 defaults to it), which
+      // roughly halves latency for chat requests.
+      think: false,
       ...(options !== undefined && { options }),
     };
 
+    const tHttp = Date.now();
     const response = await this.http.post<OllamaChatResponse>(
       `${this.baseUrl}/api/chat`,
       body,
+    );
+    console.log(
+      `[timing] ollama.complete http=${Date.now() - tHttp}ms model=${request.model} promptLen=${request.prompt.length}`,
     );
 
     return {
@@ -163,6 +170,7 @@ export class OllamaProvider extends BaseProvider {
           ...(request.images && request.images.length > 0 && { images: request.images }),
         },
       ],
+      think: false,
       ...(options !== undefined && { options }),
     };
 

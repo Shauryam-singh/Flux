@@ -48,7 +48,7 @@ export class DefaultDelegationEngine implements DelegationEngine {
     const agentId = this.getAgent(task.id) ?? "default";
     const decision: DelegationDecision = {
       agentId,
-      model: task.constraints.modelPreference ?? "qwen2.5-coder:7b",
+      model: task.constraints.modelPreference ?? "qwen3:4b",
       priority: task.priority,
       timeoutMs: task.constraints.timeoutMs || this.config.defaultTimeoutMs,
       retryStrategy: { ...DEFAULT_RETRY, maxRetries: task.constraints.maxRetries || this.config.defaultMaxRetries },

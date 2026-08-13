@@ -323,7 +323,7 @@ Respond with ONLY the two sections separated by ===SPLIT===.`;
 
     try {
       const response = await provider.complete({
-        model: "qwen2.5-coder:7b",
+        model: "qwen3:4b",
         prompt,
         temperature: 0.4,
       });

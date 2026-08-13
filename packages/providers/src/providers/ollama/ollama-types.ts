@@ -36,6 +36,8 @@ export interface OllamaChatRequest {
   readonly stream: boolean;
 
   readonly options?: OllamaChatOptions;
+
+  readonly think?: boolean;
 }
 
 export interface OllamaChatResponse {

@@ -54,12 +54,16 @@ export class CognitionPipeline {
       model: string;
       prompt: string;
       temperature?: number;
+      maxTokens?: number;
     }): Promise<{ text: string }>;
   };
   private attention: AttentionManager;
   private pendingObservations: Observation[] = [];
   private lastTickTime = 0;
   private tickCount = 0;
+  // Staggered so intent-predict doesn't expire at the same instant as the
+  // thought generator (90s offset) and flood Ollama with a synchronized burst.
+  private lastLlmPredictAt = Date.now() + 30_000;
 
   constructor(
     thoughtGraph: DefaultThoughtGraph,
@@ -71,6 +75,7 @@ export class CognitionPipeline {
         model: string;
         prompt: string;
         temperature?: number;
+        maxTokens?: number;
       }): Promise<{ text: string }>;
     },
     attention: AttentionManager,
@@ -415,8 +420,20 @@ export class CognitionPipeline {
       urgency = "none";
     }
 
-    // Try LLM prediction if available and we have enough context
-    if (merged.observations.length >= 3 && confidence < 0.7) {
+    // Try LLM prediction if available and we have enough context.
+    // Throttle to one LLM prediction per 5 minutes so the background cognition
+    // loop doesn't saturate the local Ollama queue (it otherwise fires an LLM
+    // call every tick, and each qwen3 call takes ~30s on this GPU).
+    if (
+      merged.observations.length >= 3 &&
+      confidence < 0.7 &&
+      Date.now() - this.lastLlmPredictAt >= 300_000
+    ) {
+      // Claim the throttle slot BEFORE awaiting so overlapping runTicks (the
+      // background loop fires a tick every 5s, but each tick blocks on the LLM
+      // for ~30-45s, so several pile up) can't all pass the 300s check and
+      // flood the single-slot Ollama queue with a synchronized burst.
+      this.lastLlmPredictAt = Date.now();
       try {
         const llmPrediction = await this.llmPredictIntent(
           merged,
@@ -457,6 +474,7 @@ export class CognitionPipeline {
     const response = await this.llmProvider.complete({
       model: "default",
       temperature: 0.2,
+      maxTokens: 120,
       prompt: `You are Flux, an AI's cognitive system. Predict what the user is likely to do next.
 
 Current state:

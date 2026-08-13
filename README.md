@@ -584,7 +584,7 @@ npx tauri dev
 | Language | TypeScript 6+ / Rust |
 | Runtime | Node.js 22+ |
 | Build | Turborepo + tsc |
-| LLM | Ollama (qwen2.5-coder, llava for vision) |
+| LLM | Ollama (qwen3, qwen2.5-coder, llava for vision) |
 | Desktop | Tauri v2 |
 | Frontend | Vanilla JS (glassmorphism UI) |
 | Voice STT | Whisper (@xenova/transformers) |

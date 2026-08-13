@@ -1041,6 +1041,9 @@ importers:
       '@ai-agent/sensors':
         specifier: workspace:*
         version: link:../sensors
+      '@ai-agent/services-accessibility-voice':
+        specifier: workspace:*
+        version: link:../services/accessibility-voice
       '@ai-agent/services-automations':
         specifier: workspace:*
         version: link:../services/automations
@@ -1065,6 +1068,9 @@ importers:
       '@ai-agent/services-context':
         specifier: workspace:*
         version: link:../services/context
+      '@ai-agent/services-context-suggestions':
+        specifier: workspace:*
+        version: link:../services/context-suggestions
       '@ai-agent/services-core':
         specifier: workspace:*
         version: link:../services/core
@@ -1131,6 +1137,9 @@ importers:
       '@ai-agent/services-vs-code':
         specifier: workspace:*
         version: link:../services/vs-code
+      '@ai-agent/services-wake-word':
+        specifier: workspace:*
+        version: link:../services/wake-word
       '@ai-agent/services-web-automation-chains':
         specifier: workspace:*
         version: link:../services/web-automation-chains
@@ -1504,6 +1513,15 @@ importers:
         specifier: workspace:*
         version: link:../shared
 
+  packages/services/accessibility-voice:
+    dependencies:
+      '@ai-agent/services-core':
+        specifier: workspace:*
+        version: link:../core
+      '@ai-agent/shared':
+        specifier: workspace:*
+        version: link:../../shared
+
   packages/services/automations:
     dependencies:
       '@ai-agent/services-core':
@@ -1586,6 +1604,15 @@ importers:
         version: link:../../shared
 
   packages/services/context:
+    dependencies:
+      '@ai-agent/services-core':
+        specifier: workspace:*
+        version: link:../core
+      '@ai-agent/shared':
+        specifier: workspace:*
+        version: link:../../shared
+
+  packages/services/context-suggestions:
     dependencies:
       '@ai-agent/services-core':
         specifier: workspace:*
@@ -1791,6 +1818,15 @@ importers:
       '@ai-agent/shared':
         specifier: workspace:*
         version: link:../../shared
+
+  packages/services/wake-word:
+    dependencies:
+      '@ai-agent/shared':
+        specifier: workspace:*
+        version: link:../../shared
+      '@ai-agent/voice-stt':
+        specifier: workspace:*
+        version: link:../../voice/stt
 
   packages/services/web-automation-chains:
     dependencies:

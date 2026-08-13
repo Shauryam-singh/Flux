@@ -5,6 +5,7 @@ export interface LlmProvider {
     model: string;
     prompt: string;
     temperature?: number;
+    maxTokens?: number;
   }): Promise<{ text: string }>;
 }
 

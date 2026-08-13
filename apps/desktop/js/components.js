@@ -697,14 +697,13 @@ export function renderSettingsDetail() {
         <div class="settings-row">
           <label class="settings-label">Voice</label>
           <select id="setting-voice" class="settings-select">
-            <option value="en-us+m3" ${settings.voice === "en-us+m3" ? "selected" : ""}>Male 1 (Default)</option>
-            <option value="en-us+f2" ${settings.voice === "en-us+f2" ? "selected" : ""}>Female 1</option>
-            <option value="en-us+f3" ${settings.voice === "en-us+f3" ? "selected" : ""}>Female 2</option>
-            <option value="en-us+f4" ${settings.voice === "en-us+f4" ? "selected" : ""}>Female 3</option>
-            <option value="en-us+m7" ${settings.voice === "en-us+m7" ? "selected" : ""}>Male 2</option>
-            <option value="en-gb+x-rp" ${settings.voice === "en-gb+x-rp" ? "selected" : ""}>British RP</option>
-            <option value="en-gb-scotland" ${settings.voice === "en-gb-scotland" ? "selected" : ""}>Scottish</option>
-            <option value="en-us+nrc" ${settings.voice === "en-us+nrc" ? "selected" : ""}>Whispery</option>
+            <option value="en_US-ryan-high" ${settings.voice === "en_US-ryan-high" ? "selected" : ""}>Ryan (Natural, Default)</option>
+            <option value="en_US-hfc_female-medium" ${settings.voice === "en_US-hfc_female-medium" ? "selected" : ""}>HFC Female</option>
+            <option value="en_US-joe-medium" ${settings.voice === "en_US-joe-medium" ? "selected" : ""}>Joe</option>
+            <option value="en_US-lessac-medium" ${settings.voice === "en_US-lessac-medium" ? "selected" : ""}>Lessac</option>
+            <option value="en_GB-cori-high" ${settings.voice === "en_GB-cori-high" ? "selected" : ""}>Cori (British)</option>
+            <option value="en_GB-northern_english_male-medium" ${settings.voice === "en_GB-northern_english_male-medium" ? "selected" : ""}>Northern English</option>
+            <option value="en_GB-southern_english_female-medium" ${settings.voice === "en_GB-southern_english_female-medium" ? "selected" : ""}>Southern English Female</option>
           </select>
         </div>
         <div class="settings-row">
@@ -732,6 +731,7 @@ export function renderSettingsDetail() {
         <div class="settings-row">
           <label class="settings-label">LLM Model</label>
           <select id="setting-model" class="settings-select">
+            <option value="qwen3:4b" ${settings.model === "qwen3:4b" ? "selected" : ""}>qwen3:4b</option>
             <option value="qwen2.5-coder:7b" ${settings.model === "qwen2.5-coder:7b" ? "selected" : ""}>qwen2.5-coder:7b</option>
             <option value="qwen2.5-coder:14b" ${settings.model === "qwen2.5-coder:14b" ? "selected" : ""}>qwen2.5-coder:14b</option>
             <option value="qwen2.5-coder:32b" ${settings.model === "qwen2.5-coder:32b" ? "selected" : ""}>qwen2.5-coder:32b</option>
@@ -894,7 +894,7 @@ export function renderSettingsDetail() {
       const newSettings = {
         autoSpeak:
           document.getElementById("setting-voice-autospeak")?.checked ?? true,
-        voice: document.getElementById("setting-voice")?.value || "en-us+m3",
+        voice: document.getElementById("setting-voice")?.value || "en_US-ryan-high",
         speed: parseFloat(
           document.getElementById("setting-speech-rate")?.value || "1",
         ),
@@ -905,7 +905,7 @@ export function renderSettingsDetail() {
           document.getElementById("setting-speech-volume")?.value || "1",
         ),
         model:
-          document.getElementById("setting-model")?.value || "qwen2.5-coder:7b",
+          document.getElementById("setting-model")?.value || "qwen3:4b",
         ollamaUrl:
           document.getElementById("setting-ollama-url")?.value ||
           "http://localhost:11434",
@@ -965,11 +965,11 @@ export function renderSettingsDetail() {
 function getStoredSettings() {
   const defaults = {
     autoSpeak: true,
-    voice: "en-us+m3",
+    voice: "en_US-ryan-high",
     speed: 1.0,
     pitch: 0.9,
     volume: 1.0,
-    model: "qwen2.5-coder:7b",
+    model: "qwen3:4b",
     ollamaUrl: "http://localhost:11434",
     tickInterval: "5000",
     particles: true,

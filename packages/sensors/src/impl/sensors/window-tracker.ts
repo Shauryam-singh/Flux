@@ -1,5 +1,5 @@
 import { execSync } from "node:child_process";
-import type { ObservationSource } from "@ai-agent/attention";
+import { runPowerShell } from "../powershell.js";
 
 /**
  * Tracks window focus history, app usage patterns, and context switching.
@@ -196,9 +196,8 @@ export class WindowTracker {
 
   private getWindowWindows(): WindowInfo | null {
     // Use PowerShell to get foreground window
-    const raw = execSync(
-      `pwsh -NoProfile -Command "` +
-        `$sig = Add-Type -TypeDefinition 'using System.Runtime.InteropServices; [DllImport(\\"user32.dll\\")] public static extern IntPtr GetForegroundWindow(); [DllImport(\\"user32.dll\\", CharSet=CharSet.Unicode)] public static extern int GetWindowText(IntPtr hWnd, System.Text.StringBuilder text, int count); [DllImport(\\"user32.dll\\")] public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);' -Name User32 -Namespace Native -PassThru;` +
+    const raw = runPowerShell(
+      `$sig = Add-Type -TypeDefinition 'using System.Runtime.InteropServices; [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow(); [DllImport("user32.dll", CharSet=CharSet.Unicode)] public static extern int GetWindowText(IntPtr hWnd, System.Text.StringBuilder text, int count); [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);' -Name User32 -Namespace Native -PassThru; ` +
         `$hwnd = [Native.User32]::GetForegroundWindow(); ` +
         `$sb = New-Object System.Text.StringBuilder 256; ` +
         `[Native.User32]::GetWindowText($hwnd, $sb, 256) | Out-Null; ` +
@@ -206,11 +205,11 @@ export class WindowTracker {
         `$proc = Get-Process -Id $pid -ErrorAction SilentlyContinue; ` +
         `$appName = if($proc){$proc.ProcessName}else{'unknown'}; ` +
         `$title = $sb.ToString(); ` +
-        `Write-Output \\"$appName|$title|$pid\\" ` +
-        `"`,
-      { encoding: "utf-8", timeout: 3000 },
-    ).trim();
+        `Write-Output "$appName|$title|$pid"`,
+      3000,
+    );
 
+    if (!raw) return null;
     const [app, title, pidStr] = raw.split("|");
     if (!app) return null;
 
@@ -229,6 +228,7 @@ export class WindowTracker {
       const raw = execSync("hyprctl activewindow -j 2>/dev/null", {
         encoding: "utf-8",
         timeout: 2000,
+        stdio: ["pipe", "pipe", "pipe"],
       }).trim();
       if (raw) {
         const data = JSON.parse(raw) as {
@@ -256,17 +256,26 @@ export class WindowTracker {
       const windowId = execSync("xdotool getactivewindow 2>/dev/null", {
         encoding: "utf-8",
         timeout: 1000,
+        stdio: ["pipe", "pipe", "pipe"],
       }).trim();
 
       if (windowId) {
         const title = execSync(
           `xdotool getwindowname ${windowId} 2>/dev/null`,
-          { encoding: "utf-8", timeout: 1000 },
+          {
+            encoding: "utf-8",
+            timeout: 1000,
+            stdio: ["pipe", "pipe", "pipe"],
+          },
         ).trim();
 
         const className = execSync(
           `xdotool getwindowclassname ${windowId} 2>/dev/null`,
-          { encoding: "utf-8", timeout: 1000 },
+          {
+            encoding: "utf-8",
+            timeout: 1000,
+            stdio: ["pipe", "pipe", "pipe"],
+          },
         ).trim();
 
         return {

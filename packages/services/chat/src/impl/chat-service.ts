@@ -168,11 +168,16 @@ export function createChatService(options?: ChatServiceOptions): Service {
       input: string,
       ctx: ServiceContext,
     ): Promise<ServiceResponse> {
+      const t0 = Date.now();
       await ctx.memory.add("user", input);
+      const t1 = Date.now();
 
       const history = await ctx.memory.history();
-      // Limit to last 20 turns to prevent context overflow
-      const recentHistory = history.slice(-40);
+      const t2 = Date.now();
+      // Limit to last 6 turns to keep prompts well under the model's
+      // context window (Ollama runs 4096 by default). Oversized prompts
+      // trigger qwen3 thinking and blow past the context limit.
+      const recentHistory = history.slice(-12);
       const messages = recentHistory.map((m) => `${m.role}: ${m.content}`).join("\n");
 
       // Get system context for the prompt
@@ -185,6 +190,7 @@ export function createChatService(options?: ChatServiceOptions): Service {
           // System context unavailable — continue without it
         }
       }
+      const t3 = Date.now();
 
       const prompt = `${personality}${systemContextPrompt}\n\nConversation:\n${messages}\n\nFlux:`;
 
@@ -197,6 +203,10 @@ export function createChatService(options?: ChatServiceOptions): Service {
         prompt,
         temperature: 0.8,
       });
+      const t4 = Date.now();
+      console.log(
+        `[timing] chat.execute total=${t4 - t0}ms memoryAdd=${t1 - t0}ms history=${t2 - t1}ms sysCtx=${t3 - t2}ms llm=${t4 - t3}ms`,
+      );
 
       const reply = response.text.trim();
       await ctx.memory.add("assistant", reply);

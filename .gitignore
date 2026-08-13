@@ -34,6 +34,11 @@ Thumbs.db
 *.log
 npm-debug.log*
 
+# Local scratch / downloaded artifacts
+dns-test.mjs
+piper_*.zip
+piper_*.tar.gz
+
 # Package locks (using pnpm)
 package-lock.json
 yarn.lock

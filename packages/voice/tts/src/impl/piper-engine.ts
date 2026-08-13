@@ -1,5 +1,14 @@
 import { execFileSync, execSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, unlinkSync, chmodSync, createWriteStream } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  unlinkSync,
+  chmodSync,
+  createWriteStream,
+  readdirSync,
+  statSync,
+} from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { Readable } from "node:stream";
@@ -11,6 +20,21 @@ import type {
 
 const PIPER_RELEASE_URL = "https://github.com/rhasspy/piper/releases/download/2023.11.14-2";
 const PIPER_VOICE_BASE_URL = "https://huggingface.co/rhasspy/piper-voices/resolve/main";
+
+// Natural, human-sounding default voice (high quality, 22.05kHz).
+const DEFAULT_PIPER_VOICE = "en_US-ryan-high";
+
+// Legacy espeak-style voice ids -> modern Piper voice names.
+const VOICE_ALIASES: Record<string, string> = {
+  "en-us+m3": "en_US-ryan-high",
+  "en-us+m7": "en_US-joe-medium",
+  "en-us+f2": "en_US-hfc_female-medium",
+  "en-us+f3": "en_US-hfc_female-medium",
+  "en-us+f4": "en_US-hfc_female-medium",
+  "en-us+nrc": "en_US-lessac-medium",
+  "en-gb+x-rp": "en_GB-cori-high",
+  "en-gb-scotland": "en_GB-northern_english_male-medium",
+};
 
 function getCacheDir(): string {
   const dir = join(homedir(), ".flux", "voice");
@@ -28,8 +52,47 @@ function getPlatform(): "linux" | "win32" | "darwin" {
   return process.platform as "linux" | "win32" | "darwin";
 }
 
-function getArch(): string {
+function getArch(): "x86_64" | "aarch64" {
   return process.arch === "arm64" ? "aarch64" : "x86_64";
+}
+
+/**
+ * Map the current platform + arch to a real Piper release asset.
+ * Piper 2023.11.14-2 ships: piper_windows_amd64.zip,
+ * piper_macos_{x64,aarch64}.tar.gz, piper_linux_{x86_64,aarch64,armv7l}.tar.gz
+ */
+function getAsset(): { name: string; ext: string } | null {
+  const platform = getPlatform();
+  const arch = getArch();
+  switch (platform) {
+    case "win32":
+      return { name: "piper_windows_amd64", ext: ".zip" };
+    case "darwin":
+      return { name: arch === "aarch64" ? "piper_macos_aarch64" : "piper_macos_x64", ext: ".tar.gz" };
+    case "linux":
+      return { name: arch === "aarch64" ? "piper_linux_aarch64" : "piper_linux_x86_64", ext: ".tar.gz" };
+    default:
+      return null;
+  }
+}
+
+/** Recursively locate the piper executable inside an extracted directory. */
+function findPiperBinary(dir: string): string | null {
+  const target = getPlatform() === "win32" ? "piper.exe" : "piper";
+  const direct = join(dir, target);
+  try {
+    if (existsSync(direct) && statSync(direct).isFile()) return direct;
+  } catch {}
+  try {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      if (!entry.isDirectory()) continue;
+      const candidate = join(dir, entry.name, target);
+      try {
+        if (existsSync(candidate) && statSync(candidate).isFile()) return candidate;
+      } catch {}
+    }
+  } catch {}
+  return null;
 }
 
 function commandExists(cmd: string): boolean {
@@ -59,14 +122,16 @@ async function downloadFile(url: string, dest: string): Promise<void> {
 async function downloadPiperBinary(): Promise<string | null> {
   const cacheDir = getCacheDir();
   const platform = getPlatform();
-  const arch = getArch();
 
-  const piperBinary = join(cacheDir, platform === "win32" ? "piper.exe" : "piper");
-  if (existsSync(piperBinary)) return piperBinary;
+  // Already installed?
+  const existing = findPiperBinary(cacheDir);
+  if (existing) return existing;
+
+  const asset = getAsset();
+  if (!asset) return null;
 
   try {
-    const ext = platform === "win32" ? ".zip" : ".tar.gz";
-    const filename = `piper_${platform}_${arch}${ext}`;
+    const filename = `${asset.name}${asset.ext}`;
     const url = `${PIPER_RELEASE_URL}/${filename}`;
     const archivePath = join(cacheDir, filename);
 
@@ -80,17 +145,17 @@ async function downloadPiperBinary(): Promise<string | null> {
       ], { stdio: "pipe" });
     } else {
       execFileSync("tar", ["xzf", archivePath, "-C", cacheDir], { stdio: "pipe" });
-      const extracted = join(cacheDir, "piper");
-      if (existsSync(extracted)) {
-        chmodSync(extracted, 0o755);
-      }
     }
 
     try { unlinkSync(archivePath); } catch { /* ignore */ }
 
-    if (existsSync(piperBinary)) {
-      process.stdout.write(`Piper binary installed at ${piperBinary}\n`);
-      return piperBinary;
+    const binary = findPiperBinary(cacheDir);
+    if (binary) {
+      if (platform !== "win32") {
+        try { chmodSync(binary, 0o755); } catch { /* ignore */ }
+      }
+      process.stdout.write(`Piper binary installed at ${binary}\n`);
+      return binary;
     }
   } catch (err) {
     process.stdout.write(`Failed to auto-download Piper: ${err}\n`);
@@ -99,13 +164,27 @@ async function downloadPiperBinary(): Promise<string | null> {
   return null;
 }
 
+/** Normalize any voice id (piper or legacy espeak style) to a Piper voice name. */
+function normalizeVoice(voice?: string): string {
+  const v = (voice ?? "").trim();
+  if (!v) return DEFAULT_PIPER_VOICE;
+  if (VOICE_ALIASES[v]) return VOICE_ALIASES[v];
+  // Looks like a piper voice id: lang_region-name-quality, e.g. en_US-ryan-high
+  if (/^[a-z]{2,3}_[A-Z]+-/.test(v)) return v;
+  return DEFAULT_PIPER_VOICE;
+}
+
 async function downloadVoiceModel(voice: string): Promise<string | null> {
   const modelsDir = getModelsDir();
   const modelPath = join(modelsDir, `${voice}.onnx`);
   if (existsSync(modelPath)) return modelPath;
 
   try {
-    const url = `${PIPER_VOICE_BASE_URL}/en/en_US/${voice.split("-").slice(1).join("-") || "lessac"}/${voice}.onnx`;
+    // Piper voice repos live at {lang}/{lang_region}/{name}/{quality}/{voice}.onnx
+    const [langRegion = "en_US", name = "ryan", ...qualityParts] = voice.split("-");
+    const lang = langRegion.split("_")[0];
+    const quality = qualityParts.join("-") || "medium";
+    const url = `${PIPER_VOICE_BASE_URL}/${lang}/${langRegion}/${name}/${quality}/${voice}.onnx`;
     process.stdout.write(`Downloading voice model: ${voice}...\n`);
     await downloadFile(url, modelPath);
 
@@ -136,11 +215,11 @@ export class PiperEngine implements TTSEngine {
   private initialized = false;
 
   constructor(options?: { voice?: string }) {
-    this.voice = options?.voice ?? "en_US-lessac-medium";
+    this.voice = normalizeVoice(options?.voice);
   }
 
   setVoice(voice: string): void {
-    this.voice = voice;
+    this.voice = normalizeVoice(voice);
     this.voiceModelPath = null; // Reset cached model path
   }
 
@@ -149,15 +228,11 @@ export class PiperEngine implements TTSEngine {
     this.initialized = true;
 
     const cacheDir = getCacheDir();
-    const platform = getPlatform();
-    const piperBinary = join(
-      cacheDir,
-      platform === "win32" ? "piper.exe" : "piper",
-    );
 
-    // Check existing binary
-    if (existsSync(piperBinary)) {
-      this.piperPath = piperBinary;
+    // Check for an existing binary (downloaded or in cache)
+    const existing = findPiperBinary(cacheDir);
+    if (existing) {
+      this.piperPath = existing;
     } else if (commandExists("piper")) {
       this.piperPath = "piper";
     } else {
@@ -175,10 +250,10 @@ export class PiperEngine implements TTSEngine {
     text: string,
     options?: TTSSynthesizeOptions,
   ): Promise<Buffer> {
-    const voice = options?.voice ?? this.voice;
+    const voice = normalizeVoice(options?.voice);
     const speed = options?.speed ?? 1.0;
     if (this.piperPath) {
-      const result = await this.synthesizeWithPiper(text, voice);
+      const result = await this.synthesizeWithPiper(text, voice, speed);
       if (result.length > 0) return result;
     }
     return this.synthesizeWithEspeak(text, voice, speed);
@@ -187,10 +262,11 @@ export class PiperEngine implements TTSEngine {
   private async synthesizeWithPiper(
     text: string,
     voice?: string,
+    speed = 1.0,
   ): Promise<Buffer> {
     const cacheDir = getCacheDir();
     const wavPath = join(cacheDir, "tts_output.wav");
-    const piperVoice = voice || this.voice;
+    const piperVoice = normalizeVoice(voice);
 
     try {
       const args = ["--model", piperVoice, "--output_file", wavPath];
@@ -204,13 +280,13 @@ export class PiperEngine implements TTSEngine {
         args[1] = modelPath;
       }
 
+      // Piper reads text from stdin; send cleaned text.
       const proc = execFile(
         this.piperPath!,
         args,
         { stdio: ["pipe", "pipe", "pipe"], timeout: 30000 },
       );
 
-      // Write text to piper's stdin
       if (proc.stdin) {
         proc.stdin.write(this.stripEmoji(text));
         proc.stdin.end();
@@ -277,7 +353,7 @@ export class PiperEngine implements TTSEngine {
   ): Promise<Buffer> {
     const cacheDir = getCacheDir();
     const wavPath = join(cacheDir, "tts_output.wav");
-    const espeakVoice = voice || "en-us+m3";
+    const espeakVoice = "en-us+m3";
     const espeakSpeed = Math.round(175 * (speed || 1.0));
 
     try {
@@ -332,7 +408,7 @@ export class PiperEngine implements TTSEngine {
   }
 
   async installVoice(voiceName?: string): Promise<boolean> {
-    const voice = voiceName ?? this.voice;
+    const voice = normalizeVoice(voiceName ?? this.voice);
     const result = await downloadVoiceModel(voice);
     if (result) {
       this.voiceModelPath = result;

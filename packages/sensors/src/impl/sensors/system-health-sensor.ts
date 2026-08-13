@@ -2,8 +2,9 @@ import type {
   ObservationPriority,
   ObservationSource,
 } from "@ai-agent/attention";
-import type { SensorEvent, SensorMetadata } from "../../types/sensor.js";
+import type { SensorMetadata } from "../../types/sensor.js";
 import { BaseSensor } from "../base-sensor.js";
+import { runPowerShell } from "../powershell.js";
 
 export interface SystemHealthState {
   readonly cpuUsagePercent: number;
@@ -83,76 +84,64 @@ export class SystemHealthSensor extends BaseSensor<SystemHealthState> {
   }
 
   private async collectWindowsHealth(): Promise<SystemHealthState> {
-    // CPU usage via PowerShell
-    const cpuRaw = this.execCommand(
-      `pwsh -NoProfile -Command "(Get-CimInstance Win32_Processor).LoadPercentage" 2>nul`,
-      5000,
+    // Single PowerShell invocation for all system metrics (avoids spawning
+    // powershell.exe multiple times, which is slow on Windows).
+    const raw = runPowerShell(
+      [
+        "$ErrorActionPreference='SilentlyContinue'",
+        "$cpu=(Get-CimInstance Win32_Processor).LoadPercentage",
+        "$os=Get-CimInstance Win32_OperatingSystem",
+        "$memPct=[math]::Round(($os.TotalVisibleMemorySize-$os.FreePhysicalMemory)/$os.TotalVisibleMemorySize*100,1)",
+        "$memUsed=[math]::Round(($os.TotalVisibleMemorySize-$os.FreePhysicalMemory)/1024)",
+        "$memTotal=[math]::Round($os.TotalVisibleMemorySize/1024)",
+        "$boot=[datetime]$os.LastBootUpTime",
+        "$procCount=(Get-Process).Count",
+        '$disks=@(Get-CimInstance Win32_LogicalDisk -Filter "DriveType=3")',
+        "$diskTotalSize=($disks | Measure-Object Size -Sum).Sum",
+        "$diskFreeSize=($disks | Measure-Object FreeSpace -Sum).Sum",
+        "$diskUsedSize=$diskTotalSize-$diskFreeSize",
+        "$diskPct=[math]::Round($diskUsedSize/$diskTotalSize*100,1)",
+        "$diskUsed=[math]::Round($diskUsedSize/1GB,1)",
+        "$diskTotal=[math]::Round($diskTotalSize/1GB,1)",
+        'Write-Output "$cpu|$memPct|$memUsed|$memTotal|$diskPct|$diskUsed|$diskTotal|$procCount|$boot"',
+        "Get-Process | Sort-Object CPU -Descending | Select-Object -First 5 Name, @{N='CPU';E={$_.CPU}}, @{N='MemMB';E={[math]::Round($_.WorkingSet64/1MB)}} | ForEach-Object { $_.Name + '|' + [math]::Round($_.CPU,1) + '|' + $_.MemMB }",
+      ].join("; "),
+      10000,
     );
-    const cpuUsagePercent = cpuRaw ? parseInt(cpuRaw, 10) || 0 : 0;
 
-    // Memory via PowerShell
-    const memRaw = this.execCommand(
-      `pwsh -NoProfile -Command "$os=Get-CimInstance Win32_OperatingSystem; [math]::Round(($os.TotalVisibleMemorySize-$os.FreePhysicalMemory)/$os.TotalVisibleMemorySize*100,1); [math]::Round(($os.TotalVisibleMemorySize-$os.FreePhysicalMemory)/1024); [math]::Round($os.TotalVisibleMemorySize/1024)"`,
-      5000,
-    );
-    const memParts = memRaw?.split(/\s+/) ?? [];
-    const memoryUsagePercent = parseFloat(memParts[0] ?? "0") || 0;
-    const memoryUsedMB = parseInt(memParts[1] ?? "0", 10) || 0;
-    const memoryTotalMB = parseInt(memParts[2] ?? "0", 10) || 0;
+    const lines = raw?.split("\n") ?? [];
+    const parts = (lines[0] ?? "").split("|");
+    const cpuUsagePercent = parseInt(parts[0] ?? "0", 10) || 0;
+    const memoryUsagePercent = parseFloat(parts[1] ?? "0") || 0;
+    const memoryUsedMB = parseInt(parts[2] ?? "0", 10) || 0;
+    const memoryTotalMB = parseInt(parts[3] ?? "0", 10) || 0;
+    const diskUsagePercent = parseFloat(parts[4] ?? "0") || 0;
+    const diskUsedGB = parseFloat(parts[5] ?? "0") || 0;
+    const diskTotalGB = parseFloat(parts[6] ?? "0") || 0;
+    const processCount = parseInt(parts[7] ?? "0", 10) || 0;
 
-    // Disk via PowerShell
-    const diskRaw = this.execCommand(
-      `pwsh -NoProfile -Command "$d=Get-CimInstance Win32_LogicalDisk -Filter \\"DriveType=3\\"; [math]::Round(($d.Size-$d.FreeSpace)/$d.Size*100,1); [math]::Round(($d.Size-$d.FreeSpace)/1GB,1); [math]::Round($d.Size/1GB,1)"`,
-      5000,
-    );
-    const diskParts = diskRaw?.split(/\s+/) ?? [];
-    const diskUsagePercent = parseFloat(diskParts[0] ?? "0") || 0;
-    const diskUsedGB = parseFloat(diskParts[1] ?? "0") || 0;
-    const diskTotalGB = parseFloat(diskParts[2] ?? "0") || 0;
-
-    // Uptime
-    const uptimeRaw = this.execCommand(
-      `pwsh -NoProfile -Command "(Get-CimInstance Win32_OS).LastBootUpTime"`,
-      3000,
-    );
     let uptimeSeconds = 0;
-    if (uptimeRaw) {
-      const bootTime = new Date(uptimeRaw).getTime();
+    const boot = parts[8];
+    if (boot) {
+      const bootTime = new Date(boot).getTime();
       uptimeSeconds = Math.max(0, Math.floor((Date.now() - bootTime) / 1000));
     }
 
-    // Process count
-    const procCount = this.execCommand(
-      `pwsh -NoProfile -Command "(Get-Process).Count"`,
-      3000,
-    );
-    const processCount = procCount ? parseInt(procCount, 10) || 0 : 0;
+    const topCpuProcesses = lines
+      .slice(1)
+      .filter(Boolean)
+      .map((line) => {
+        const [name, cpu, mem] = line.split("|");
+        return {
+          name: name?.trim() ?? "",
+          cpuPercent: parseFloat(cpu ?? "0") || 0,
+          memoryMB: parseInt(mem ?? "0", 10) || 0,
+        };
+      });
 
-    // Top CPU processes
-    const topProcs = this.execCommand(
-      `pwsh -NoProfile -Command "Get-Process | Sort-Object CPU -Descending | Select-Object -First 5 Name, @{N='CPU';E={$_.CPU}}, @{N='MemMB';E={[math]::Round($_.WorkingSet64/1MB)}} | ForEach-Object { $_.Name + '|' + [math]::Round($_.CPU,1) + '|' + $_.MemMB }" 2>nul`,
-      5000,
-    );
-    const topCpuProcesses = topProcs
-      ? topProcs
-          .split("\n")
-          .filter(Boolean)
-          .map((line) => {
-            const [name, cpu, mem] = line.split("|");
-            return {
-              name: name?.trim() ?? "",
-              cpuPercent: parseFloat(cpu ?? "0") || 0,
-              memoryMB: parseInt(mem ?? "0", 10) || 0,
-            };
-          })
-      : [];
-
-    // Network — try ping
-    const pingResult = this.execCommand(
-      `pwsh -NoProfile -Command "Test-Connection -ComputerName 8.8.8.8 -Count 1 -Quiet"`,
-      5000,
-    );
-    const networkOnline = pingResult?.toLowerCase().includes("true") ?? true;
+    // Network — fast native ping (1 request, 1s timeout)
+    const networkOnline =
+      this.execCommand("ping -n 1 -w 1000 8.8.8.8 2>nul") !== null;
 
     return {
       cpuUsagePercent,

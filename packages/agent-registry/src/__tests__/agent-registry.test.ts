@@ -40,7 +40,7 @@ const dummyConfig: AgentConfig = {
   priority: 1,
   costPerToken: 0,
   timeoutMs: 60000,
-  model: "qwen2.5-coder:7b",
+  model: "qwen3:4b",
   systemPrompt: "",
 };
 

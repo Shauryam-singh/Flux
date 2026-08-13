@@ -465,7 +465,7 @@ async function speakText(text) {
 
   const clean = text
     // Remove code blocks
-    .replace(/```[\s\S]*?```g, "code block")
+    .replace(/```[\s\S]*?```/g, "code block")
     .replace(/`[^`]+`/g, "code")
     // Remove markdown headers
     .replace(/^#{1,6}\s+/gm, "")
@@ -576,7 +576,7 @@ async function speakText(text) {
 }
 
 function getVoiceSettings() {
-  const defaults = { voice: "en-us+m3", speed: 1.0, pitch: 0.9, volume: 1.0 };
+  const defaults = { voice: "en_US-ryan-high", speed: 1.0, pitch: 0.9, volume: 1.0 };
   try {
     const saved = JSON.parse(
       localStorage.getItem("flux-voice-settings") || "{}",
@@ -750,10 +750,13 @@ function clearFollowUpTimer() {
 // ─── Event Listeners ───
 
 function initEventListeners() {
-  // Dormant orb click → HUD
+  // Dormant orb click → HUD (expand), then show full briefing
   const orb = document.getElementById("orb");
   if (orb) {
-    orb.addEventListener("click", () => setMode("hud"));
+    orb.addEventListener("click", () => {
+      setMode("hud");
+      showStartupBriefing();
+    });
   }
 
   // Dashboard close → HUD
@@ -1200,11 +1203,11 @@ function getStoredSettings() {
     if (raw) return JSON.parse(raw);
   } catch {}
   return {
-    voice: "en-us+m3",
+    voice: "en_US-ryan-high",
     speed: 1.0,
     pitch: 0.9,
     volume: 1.0,
-    model: "qwen2.5-coder:7b",
+    model: "qwen3:4b",
     autoSpeak: false,
   };
 }
@@ -1300,11 +1303,42 @@ function init() {
     startWakeWord();
   }
 
-  // Show startup briefing — switch to HUD first so modal is visible
-  setTimeout(async () => {
-    setMode("hud");
-    await showStartupBriefing();
-  }, 2500);
+  // Compact greeting bubble on the orb — app stays in orb mode until clicked
+  showOrbGreeting();
+}
+
+// ─── Startup Greeting (Orb) ───
+
+async function showOrbGreeting() {
+  const bubble = document.getElementById("orb-greeting");
+  if (!bubble) return;
+
+  let greeting = "";
+  try {
+    const resp = await fetch(`${API}/boot/briefing`);
+    if (resp.ok) {
+      const data = await resp.json();
+      greeting = (data.greeting || "").trim();
+    }
+  } catch {}
+
+  if (!greeting) {
+    const h = new Date().getHours();
+    const part = h < 12 ? "morning" : h < 17 ? "afternoon" : "evening";
+    greeting = `Good ${part}`;
+  }
+
+  bubble.textContent = greeting;
+  bubble.hidden = false;
+
+  // Fade out after a few seconds
+  setTimeout(() => {
+    bubble.classList.add("leaving");
+    setTimeout(() => {
+      bubble.hidden = true;
+      bubble.classList.remove("leaving");
+    }, 900);
+  }, 4000);
 }
 
 // ─── Startup Briefing ───

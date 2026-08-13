@@ -7,11 +7,16 @@ export interface LlmProvider {
     model: string;
     prompt: string;
     temperature?: number;
+    maxTokens?: number;
   }): Promise<{ text: string }>;
 }
 
 export class LlmThoughtGenerator implements ThoughtGenerator {
   private llmProvider: LlmProvider | null;
+  // Staggered initial offset so this timer doesn't expire at the same instant
+  // as the pipeline's intent-predict throttle and the observeScreen tick —
+  // synchronized expiry turns one background call into a 5-call burst.
+  private lastGenerateAt = Date.now() + 90_000;
 
   constructor(llmProvider: LlmProvider | null) {
     this.llmProvider = llmProvider;
@@ -27,6 +32,14 @@ export class LlmThoughtGenerator implements ThoughtGenerator {
   async generate(context: ReasoningContext): Promise<ReadonlyArray<Thought>> {
     if (!this.llmProvider || !this.needsLlm(context)) return [];
 
+    // Each local qwen3 LLM thought-generation call emits ~1500-2500 tokens
+    // (~30-40s on a laptop 4050) and Ollama serves requests serially. Fire
+    // at most one per 5 minutes so the first thought doesn't block the user's
+    // chat response.
+    if (Date.now() - this.lastGenerateAt < 300_000) return [];
+
+    this.lastGenerateAt = Date.now();
+
     const prompt = this.buildPrompt(context);
 
     try {
@@ -34,6 +47,7 @@ export class LlmThoughtGenerator implements ThoughtGenerator {
         model: "default",
         prompt,
         temperature: 0.3,
+        maxTokens: 150,
       });
 
       return this.parseThoughts(response.text, context);

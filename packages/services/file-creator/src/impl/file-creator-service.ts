@@ -684,7 +684,7 @@ async function generateWithLlm(
   if (!provider) return null;
   try {
     const result = await provider.complete({
-      model: "qwen2.5-coder:7b",
+      model: "qwen3:4b",
       prompt,
       temperature,
       max_tokens: 4096,

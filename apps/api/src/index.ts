@@ -7,7 +7,7 @@ const PORT = parseInt(process.env.FLUX_API_PORT ?? "3141", 10);
 
 const fluxConfig: FluxConfig = {
   provider: "ollama",
-  model: "qwen2.5-coder:7b",
+  model: "qwen3:4b",
   providerConfigs: {
     ollama: {
       baseUrl: process.env.OLLAMA_BASE_URL ?? "http://localhost:11434",
@@ -241,8 +241,10 @@ const server = createServer(async (req, res) => {
   }
 
   if (req.method === "POST" && req.url === "/chat") {
+    const t0 = Date.now();
     try {
       const body = await parseBody(req);
+      const t1 = Date.now();
       const { message } = JSON.parse(body.toString()) as ChatRequest;
 
       if (!message || typeof message !== "string") {
@@ -251,6 +253,10 @@ const server = createServer(async (req, res) => {
       }
 
       const reply = await flux.process(message);
+      const t2 = Date.now();
+      console.log(
+        `[timing] /chat total=${t2 - t0}ms parse=${t1 - t0}ms process=${t2 - t1}ms`,
+      );
 
       const response: ChatResponse = {
         reply,

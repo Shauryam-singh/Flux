@@ -43,8 +43,10 @@ export class NotificationSensor extends BaseSensor<NotificationState> {
   }
 
   protected async onStart(): Promise<void> {
-    // Start monitoring D-Bus notifications using dbus-monitor
-    this.startDBusMonitor();
+    // D-Bus notifications only exist on Linux
+    if (process.platform === "linux") {
+      this.startDBusMonitor();
+    }
   }
 
   protected async onStop(): Promise<void> {

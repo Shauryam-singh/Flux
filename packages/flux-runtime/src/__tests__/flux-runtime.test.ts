@@ -4,7 +4,7 @@ import type { FluxRuntimeConfig } from "../interfaces/flux-runtime.js";
 describe("FluxRuntime", () => {
   const testConfig: FluxRuntimeConfig = {
     provider: "ollama",
-    model: "qwen2.5-coder:7b",
+    model: "qwen3:4b",
     providerConfigs: { ollama: { baseUrl: "http://localhost:11434" } },
     maxMemoryCapacity: 10,
     attentionMinBrainScore: 40,

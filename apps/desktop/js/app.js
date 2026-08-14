@@ -471,6 +471,104 @@ function updateSpeakButton(speaking) {
   }
 }
 
+// Sequential TTS - doesn't stop existing audio, waits for it to finish
+async function speakTextSequential(text: string): Promise<void> {
+  if (!text) return;
+
+  const clean = text
+    .replace(/```[\s\S]*?```/g, "code block")
+    .replace(/`[^`]+`/g, "code")
+    .replace(/^#{1,6}\s+/gm, "")
+    .replace(/\*{1,3}([^*]+)\*{1,3}/g, "$1")
+    .replace(/_{1,3}([^_]+)_{1,3}/g, "$1")
+    .replace(/~~([^~]+)~~/g, "$1")
+    .replace(/^>\s+/gm, "")
+    .replace(/^[-*_]{3,}\s*$/gm, "")
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+    .replace(/!\[([^\]]*)\]\([^)]+\)/g, "$1")
+    .replace(/^[\s]*[-*+]\s+/gm, "")
+    .replace(/^[\s]*\d+\.\s+/gm, "")
+    .replace(/[#*_~>`|\\{}[\]()]/g, "")
+    .replace(/[\u{1F600}-\u{1F64F}]/gu, "")
+    .replace(/[\u{1F300}-\u{1F5FF}]/gu, "")
+    .replace(/[\u{1F680}-\u{1F6FF}]/gu, "")
+    .replace(/[\u{1F1E0}-\u{1F1FF}]/gu, "")
+    .replace(/[\u{2600}-\u{26FF}]/gu, "")
+    .replace(/[\u{2700}-\u{27BF}]/gu, "")
+    .replace(/[\u{FE00}-\u{FE0F}]/gu, "")
+    .replace(/[\u{200D}]/gu, "")
+    .replace(/[\u{1F900}-\u{1F9FF}]/gu, "")
+    .replace(/[\u{1FA00}-\u{1FA6F}]/gu, "")
+    .replace(/[\u{1FA70}-\u{1FAFF}]/gu, "")
+    .replace(/[\u{2300}-\u{23FF}]/gu, "")
+    .replace(/[\u{2B50}-\u{2B55}]/gu, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+  if (!clean) return;
+
+  const settings = getVoiceSettings();
+
+  // Wait for any existing audio to finish
+  if (currentAudio && !currentAudio.paused) {
+    await new Promise<void>((resolve) => {
+      currentAudio!.addEventListener("ended", () => resolve(), { once: true });
+      // Timeout in case audio never ends
+      setTimeout(resolve, 15000);
+    });
+  }
+
+  // Try API TTS
+  try {
+    const resp = await fetch(`${API}/voice/speak`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        text: clean,
+        voice: settings.voice,
+        speed: settings.speed,
+        pitch: settings.pitch,
+      }),
+    });
+    if (resp.ok) {
+      const blob = await resp.blob();
+      if (blob.size > 100) {
+        const url = URL.createObjectURL(blob);
+        const audio = new Audio(url);
+        audio.volume = settings.volume;
+        currentAudio = audio;
+        updateSpeakButton(true);
+
+        await new Promise<void>((resolve) => {
+          audio.addEventListener("ended", () => {
+            URL.revokeObjectURL(url);
+            resolve();
+          }, { once: true });
+          audio.addEventListener("error", () => {
+            URL.revokeObjectURL(url);
+            resolve();
+          }, { once: true });
+          audio.play().catch(() => resolve());
+        });
+        return;
+      }
+    }
+  } catch {}
+
+  // Fallback to Web Speech API
+  if ("speechSynthesis" in window) {
+    return new Promise((resolve) => {
+      const utterance = new SpeechSynthesisUtterance(clean);
+      utterance.lang = "en-US";
+      utterance.rate = settings.speed || 1.0;
+      utterance.pitch = settings.pitch || 1.0;
+      utterance.volume = settings.volume || 1.0;
+      utterance.onend = () => resolve();
+      utterance.onerror = () => resolve();
+      speechSynthesis.speak(utterance);
+    });
+  }
+}
+
 async function speakText(text) {
   if (!text) return;
 
@@ -649,19 +747,33 @@ async function sendChatMessageDirect(message, speak = false) {
     const bubble = addChatMessageStreaming("assistant");
 
     // Progressive TTS: accumulate text and speak each completed sentence
+    // Use a queue to ensure sentences are spoken in order without overlap
     let pendingSpeech = "";
-    let speechStarted = false;
+    let speechQueue: string[] = [];
+    let speaking = false;
 
-    const flushSpeech = async () => {
-      const trimmed = pendingSpeech.trim();
-      if (!trimmed) return;
-      pendingSpeech = "";
-      speechStarted = true;
-      try {
-        await speakText(trimmed);
-      } catch (e) {
-        console.warn("[Flux] streaming speakText failed:", e);
+    const processQueue = async () => {
+      if (speaking || speechQueue.length === 0) return;
+      speaking = true;
+      while (speechQueue.length > 0) {
+        const text = speechQueue.shift()!;
+        try {
+          // Don't call stopSpeaking - just let current audio finish
+          // and play next sentence after
+          await speakTextSequential(text);
+        } catch (e) {
+          console.warn("[Flux] streaming speakText failed:", e);
+        }
       }
+      speaking = false;
+    };
+
+    const queueSentence = (text: string) => {
+      const trimmed = text.trim();
+      if (!trimmed) return;
+      speechQueue.push(trimmed);
+      // Don't await - let it process in background
+      void processQueue();
     };
 
     while (true) {
@@ -692,8 +804,11 @@ async function sendChatMessageDirect(message, speak = false) {
           // Accumulate for speech — flush on sentence boundaries
           if (speak) {
             pendingSpeech += evt.token;
+            // Check for sentence boundary
             if (/[.!?…]\s*$/.test(pendingSpeech.trim())) {
-              await flushSpeech();
+              const sentence = pendingSpeech;
+              pendingSpeech = "";
+              queueSentence(sentence);
             }
           }
         } else if (evt.done) {
@@ -709,7 +824,19 @@ async function sendChatMessageDirect(message, speak = false) {
 
     // Speak any remaining partial sentence after streaming finishes
     if (speak && pendingSpeech.trim()) {
-      await flushSpeech();
+      queueSentence(pendingSpeech);
+      pendingSpeech = "";
+    }
+
+    // Wait for all queued speech to finish
+    if (speak) {
+      await new Promise<void>((resolve) => {
+        const check = () => {
+          if (!speaking && speechQueue.length === 0) resolve();
+          else setTimeout(check, 100);
+        };
+        check();
+      });
     }
   } catch (e) {
     const msg = e?.name === "AbortError" ? "Request timed out (120s)" : "API not reachable";

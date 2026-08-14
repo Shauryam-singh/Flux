@@ -187,7 +187,11 @@ export class BootBriefingGenerator {
     this.lastBriefing = now;
 
     // Fetch news concurrently with building the briefing
-    const newsPromise = this.fetchNews();
+    // Use a shorter timeout so briefing isn't blocked by slow news
+    const newsPromise = Promise.race([
+      this.fetchNews(),
+      new Promise<NewsHeadline[]>((resolve) => setTimeout(() => resolve([]), 3000)),
+    ]);
 
     // Build context for LLM
     const { greeting, timeString } = getTimeGreeting();

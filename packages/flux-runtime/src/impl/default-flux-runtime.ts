@@ -2578,8 +2578,16 @@ export class DefaultFluxRuntime implements FluxRuntime {
       progress: g.progress,
     }));
 
-    // Gather sensor snapshots (cached + parallel via shared helper)
-    const sensorSnapshots = await this.collectSensorSnapshots();
+    // Use cached sensor snapshots if available (avoid blocking SSE stream)
+    // Fresh cache (< 30s) is always used; stale cache is still better than
+    // waiting 3-8s for sensors to respond during a tick.
+    const now = Date.now();
+    let sensorSnapshots: Record<string, unknown>;
+    if (now - this.cachedSensorAt < this.SENSOR_CACHE_TTL_MS || Object.keys(this.cachedSensorSnapshots).length > 0) {
+      sensorSnapshots = { ...this.cachedSensorSnapshots };
+    } else {
+      sensorSnapshots = await this.collectSensorSnapshots();
+    }
 
     return {
       state: this.getState(),

@@ -807,6 +807,40 @@ const server = createServer(async (req, res) => {
     return;
   }
 
+  // ─── Weather (free API, no key needed) ─────────────────────────
+  if (req.method === "GET" && req.url?.startsWith("/weather")) {
+    try {
+      const urlObj = new URL(req.url ?? "/", `http://localhost:${PORT}`);
+      const city = urlObj.searchParams.get("city") || "auto:ip";
+      const weatherUrl = `https://wttr.in/${encodeURIComponent(String(city))}?format=j1`;
+      const resp = await fetch(weatherUrl, {
+        headers: { "User-Agent": "FluxAssistant/1.0" },
+        signal: AbortSignal.timeout(5000),
+      });
+      if (!resp.ok) {
+        sendJson(res, 200, { temp: null, condition: "Unable to fetch weather", city: String(city) });
+        return;
+      }
+      const data = await resp.json() as any;
+      const current = data?.current_condition?.[0];
+      if (current) {
+        sendJson(res, 200, {
+          temp: current.temp_C ? `${current.temp_C}°C` : current.temp_F ? `${current.temp_F}°F` : null,
+          feelsLike: current.FeelsLikeC ? `${current.FeelsLikeC}°C` : null,
+          condition: current.weatherDesc?.[0]?.value || "Unknown",
+          humidity: current.humidity ? `${current.humidity}%` : null,
+          wind: current.windspeedKmph ? `${current.windspeedKmph} km/h` : null,
+          city: data?.nearest_area?.[0]?.areaName?.[0]?.value || String(city),
+        });
+      } else {
+        sendJson(res, 200, { temp: null, condition: "No data available", city: String(city) });
+      }
+    } catch {
+      sendJson(res, 200, { temp: null, condition: "Weather service unavailable", city: "unknown" });
+    }
+    return;
+  }
+
   // ─── Agents (CRUD) ──────────────────────────────────────────────
   // GET /agents — list all agents
   if (req.method === "GET" && req.url === "/agents") {
@@ -1140,6 +1174,7 @@ server.listen(PORT, () => {
   console.log(`  GET  /habits              - Detected habits`);
   console.log(`  GET  /experiences         - Past experiences`);
   console.log(`  GET  /briefing            - Yesterday's summary`);
+  console.log(`  GET  /weather             - Current weather (free API)`);
   console.log(`  POST /voice/transcribe    - Transcribe audio (base64 WAV)`);
   console.log(`  POST /voice/speak         - Text to speech (returns WAV)`);
   console.log(`  POST /attention/process   - Process an observation event`);

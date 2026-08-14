@@ -21,18 +21,19 @@ import type {
 const PIPER_RELEASE_URL = "https://github.com/rhasspy/piper/releases/download/2023.11.14-2";
 const PIPER_VOICE_BASE_URL = "https://huggingface.co/rhasspy/piper-voices/resolve/main";
 
-// Natural, human-sounding default voice (high quality, 22.05kHz).
-const DEFAULT_PIPER_VOICE = "en_US-ryan-high";
+// Fast, natural-sounding default voice (medium quality for speed).
+const DEFAULT_PIPER_VOICE = "en_US-ryan-medium";
 
 // Legacy espeak-style voice ids -> modern Piper voice names.
+// Using medium quality for faster synthesis.
 const VOICE_ALIASES: Record<string, string> = {
-  "en-us+m3": "en_US-ryan-high",
+  "en-us+m3": "en_US-ryan-medium",
   "en-us+m7": "en_US-joe-medium",
   "en-us+f2": "en_US-hfc_female-medium",
   "en-us+f3": "en_US-hfc_female-medium",
   "en-us+f4": "en_US-hfc_female-medium",
   "en-us+nrc": "en_US-lessac-medium",
-  "en-gb+x-rp": "en_GB-cori-high",
+  "en-gb+x-rp": "en_GB-cori-medium",
   "en-gb-scotland": "en_GB-northern_english_male-medium",
 };
 
@@ -373,29 +374,33 @@ export class PiperEngine implements TTSEngine {
     voice?: string,
     speed = 1.0,
   ): Promise<Buffer> {
-    const cacheDir = getCacheDir();
-    // Use unique temp file to prevent race condition with concurrent requests
-    const wavPath = join(cacheDir, `tts_output_${Date.now()}_${Math.random().toString(36).slice(2)}.wav`);
     const piperVoice = normalizeVoice(voice);
 
     try {
-      const args = ["--model", piperVoice, "--output_file", wavPath];
-
-      // If we have a pre-downloaded model path, use it
       const modelPath = this.voiceModelPath ?? join(
         getModelsDir(),
         `${piperVoice}.onnx`,
       );
-      if (existsSync(modelPath)) {
-        args[1] = modelPath;
+      
+      // Use stdout pipe for faster output (no file I/O)
+      const args = ["--model", modelPath, "--output-raw"];
+      
+      // If model doesn't exist, try with voice name (piper will download)
+      if (!existsSync(modelPath)) {
+        args[1] = piperVoice;
       }
 
-      // Piper reads text from stdin; send cleaned text.
       const proc = spawn(
         this.piperPath!,
         args,
         { stdio: ["pipe", "pipe", "pipe"], windowsHide: true },
       );
+
+      // Collect raw PCM output from stdout
+      const chunks: Buffer[] = [];
+      if (proc.stdout) {
+        proc.stdout.on("data", (chunk: Buffer) => chunks.push(chunk));
+      }
 
       if (proc.stdin) {
         proc.stdin.write(this.stripEmoji(text));
@@ -407,7 +412,7 @@ export class PiperEngine implements TTSEngine {
         const timer = setTimeout(() => {
           proc.kill();
           reject(new Error("Piper timed out"));
-        }, 30000);
+        }, 15000);
         proc.on("close", (code) => {
           clearTimeout(timer);
           if (code === 0) resolve();
@@ -419,16 +424,46 @@ export class PiperEngine implements TTSEngine {
         });
       });
 
-      if (existsSync(wavPath)) {
-        const buf = readFileSync(wavPath);
-        try { unlinkSync(wavPath); } catch { /* ignore */ }
-        if (buf.length > 44) return buf;
+      const rawPcm = Buffer.concat(chunks);
+      if (rawPcm.length > 0) {
+        // Convert raw 16-bit PCM to WAV
+        return this.rawPcmToWav(rawPcm, 22050);
       }
     } catch {
       // Fall through to espeak
     }
 
     return Buffer.alloc(0);
+  }
+
+  /** Convert raw 16-bit PCM to WAV format */
+  private rawPcmToWav(pcm: Buffer, sampleRate: number): Buffer {
+    const numChannels = 1;
+    const bitsPerSample = 16;
+    const byteRate = sampleRate * numChannels * (bitsPerSample / 8);
+    const blockAlign = numChannels * (bitsPerSample / 8);
+    const dataSize = pcm.length;
+    const headerSize = 44;
+    const wav = Buffer.alloc(headerSize + dataSize);
+
+    // RIFF header
+    wav.write("RIFF", 0);
+    wav.writeUInt32LE(36 + dataSize, 4);
+    wav.write("WAVE", 8);
+    // fmt chunk
+    wav.write("fmt ", 12);
+    wav.writeUInt32LE(16, 16);
+    wav.writeUInt16LE(1, 20); // PCM
+    wav.writeUInt16LE(numChannels, 22);
+    wav.writeUInt32LE(sampleRate, 24);
+    wav.writeUInt32LE(byteRate, 28);
+    wav.writeUInt16LE(blockAlign, 32);
+    wav.writeUInt16LE(bitsPerSample, 34);
+    // data chunk
+    wav.write("data", 36);
+    wav.writeUInt32LE(dataSize, 40);
+    pcm.copy(wav, headerSize);
+    return wav;
   }
 
   private stripEmoji(text: string): string {

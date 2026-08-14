@@ -50,7 +50,8 @@ const RULES: RuleEntry[] = [
   [/\b(add|create|set|new)\s+(a\s+)?monitor\b/i, "monitor"],
   [/\b(remove|delete|disable)\s+(rule|monitor|watch)\s*(\d+)?\b/i, "monitor"],
   [/\b(enable|disable)\s+(rule|monitor|watch)\s*(\d+)?\b/i, "monitor"],
-  [/\b(check|scan|health)\b/i, "monitor"],
+  // Monitor requires context - "check system status", "scan disk", "health check"
+  [/\b(check|scan|health)\s+(system|server|disk|cpu|memory|network|service|status|monitor|health)\b/i, "monitor"],
 
   // ── Automations (trigger→action rules) ──
   [
@@ -64,7 +65,8 @@ const RULES: RuleEntry[] = [
   ],
   [/\b(enable|disable)\s+(automation|chain|rule)\s*(\d+)?\b/i, "automations"],
   [/\b(run|trigger|execute)\s+(automation|chain|rule)\s*(\d+)?\b/i, "automations"],
-  [/\b(automate|every\s+|when\s+|at\s+)\b/i, "automations"],
+  // Automation requires imperative context - "automate this", "create an automation"
+  [/\b(automate|create\s+an?\s+automation|set\s+up\s+an?\s+automation)\b/i, "automations"],
 
   // ── Reminders: personal data overview ("what is my goal", "how are my tasks") ──
   [

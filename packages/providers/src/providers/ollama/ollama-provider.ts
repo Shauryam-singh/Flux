@@ -1,4 +1,3 @@
-import { execSync } from "node:child_process";
 import * as os from "node:os";
 import { BaseProvider } from "../../base/base-provider.js";
 import type { ProviderCapabilities } from "../../capabilities/provider-capabilities.js";
@@ -24,58 +23,51 @@ interface PlatformCapabilities {
   isArchLinux: boolean;
 }
 
-function detectPlatformCapabilities(): PlatformCapabilities {
+async function execWithTimeout(cmd: string, timeout: number): Promise<boolean> {
+  try {
+    const { execSync } = await import("node:child_process");
+    execSync(cmd, { stdio: "ignore", timeout });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function detectPlatformCapabilitiesAsync(): Promise<PlatformCapabilities> {
   const cpuThreads = Math.max(1, os.cpus().length);
   let hasNvidiaGPU = false;
   let hasAMDGPU = false;
   let isArchLinux = false;
 
-  // Detect NVIDIA GPU
-  try {
-    if (process.platform === "win32") {
-      // Windows: check for nvidia-smi
-      execSync("nvidia-smi", { stdio: "ignore", timeout: 2000 });
-      hasNvidiaGPU = true;
-    } else if (process.platform === "linux") {
-      // Linux: check for nvidia-smi or /proc/driver/nvidia
+  // Detect NVIDIA GPU (async with timeout)
+  if (process.platform === "win32") {
+    hasNvidiaGPU = await execWithTimeout("nvidia-smi", 2000);
+  } else if (process.platform === "linux") {
+    hasNvidiaGPU = await execWithTimeout("nvidia-smi", 2000);
+    if (!hasNvidiaGPU) {
       try {
-        execSync("nvidia-smi", { stdio: "ignore", timeout: 2000 });
+        const { execSync } = await import("node:child_process");
+        execSync("ls /proc/driver/nvidia/gpus", { stdio: "ignore", timeout: 1000 });
         hasNvidiaGPU = true;
-      } catch {
-        // Check for NVIDIA driver via /proc
-        try {
-          execSync("ls /proc/driver/nvidia/gpus", { stdio: "ignore", timeout: 1000 });
-          hasNvidiaGPU = true;
-        } catch {
-          // No NVIDIA GPU
-        }
-      }
+      } catch {}
     }
-  } catch {
-    // nvidia-smi not available
   }
 
-  // Detect AMD GPU (ROCm)
-  try {
-    if (process.platform === "linux") {
-      execSync("rocm-smi", { stdio: "ignore", timeout: 2000 });
-      hasAMDGPU = true;
-    }
-  } catch {
-    // ROCm not available
+  // Detect AMD GPU (ROCm) - Linux only
+  if (process.platform === "linux") {
+    hasAMDGPU = await execWithTimeout("rocm-smi", 2000);
   }
 
   // Detect Arch Linux
   if (process.platform === "linux") {
     try {
+      const { execSync } = await import("node:child_process");
       const osRelease = execSync("cat /etc/os-release", {
         encoding: "utf-8",
         timeout: 1000,
       });
       isArchLinux = osRelease.includes("Arch Linux");
-    } catch {
-      // Not Arch Linux or can't read os-release
-    }
+    } catch {}
   }
 
   const gpuType = hasNvidiaGPU ? "nvidia" : hasAMDGPU ? "amd" : "none";
@@ -92,19 +84,47 @@ function detectPlatformCapabilities(): PlatformCapabilities {
 export class OllamaProvider extends BaseProvider {
   private readonly baseUrl: string;
   private readonly config: OllamaProviderConfig;
-  private readonly capabilities: PlatformCapabilities;
+  private _platformCaps: PlatformCapabilities | null = null;
+  private _platformCapsPromise: Promise<PlatformCapabilities> | null = null;
 
   public constructor(http: HttpClient, baseUrl = "http://localhost:11434", config?: OllamaProviderConfig) {
     super("ollama", DEFAULT_PROVIDER_METADATA.ollama!, http);
 
     this.baseUrl = baseUrl.replace(/\/$/, "");
     this.config = config ?? {};
-    this.capabilities = detectPlatformCapabilities();
+    // Lazy detection - don't block constructor
+  }
 
-    // Log detected capabilities
+  /**
+   * Get platform capabilities with lazy detection (non-blocking).
+   * First call triggers async detection; subsequent calls return cached result.
+   */
+  private async getPlatformCaps(): Promise<PlatformCapabilities> {
+    if (this._platformCaps) return this._platformCaps;
+    if (this._platformCapsPromise) return this._platformCapsPromise;
+
+    this._platformCapsPromise = detectPlatformCapabilitiesAsync();
+    this._platformCaps = await this._platformCapsPromise;
     console.log(
-      `[ollama] Platform: ${process.platform}, GPU: ${this.capabilities.gpuType}, CPU threads: ${this.capabilities.cpuThreads}, Arch Linux: ${this.capabilities.isArchLinux}`,
+      `[ollama] Platform: ${process.platform}, GPU: ${this._platformCaps.gpuType}, CPU threads: ${this._platformCaps.cpuThreads}, Arch Linux: ${this._platformCaps.isArchLinux}`,
     );
+    return this._platformCaps;
+  }
+
+  /**
+   * Synchronous fallback for methods that can't be async.
+   * Returns defaults if detection hasn't completed yet.
+   */
+  private getPlatformCapsSync(): PlatformCapabilities {
+    if (this._platformCaps) return this._platformCaps;
+    // Return safe defaults while async detection runs
+    return {
+      hasNvidiaGPU: false,
+      hasAMDGPU: false,
+      gpuType: "none",
+      cpuThreads: Math.max(1, os.cpus().length),
+      isArchLinux: false,
+    };
   }
 
   public async isAvailable(): Promise<boolean> {
@@ -179,7 +199,8 @@ export class OllamaProvider extends BaseProvider {
   /**
    * Get optimal Ollama options based on platform capabilities and config
    */
-  private getOptimalOptions(): Record<string, unknown> {
+  private async getOptimalOptions(): Promise<Record<string, unknown>> {
+    const capabilities = await this.getPlatformCaps();
     const opts: Record<string, unknown> = {};
 
     // Context window size
@@ -188,7 +209,7 @@ export class OllamaProvider extends BaseProvider {
     // GPU layers - use all layers if GPU available
     if (this.config.num_gpu !== undefined) {
       opts.num_gpu = this.config.num_gpu;
-    } else if (this.capabilities.hasNvidiaGPU || this.capabilities.hasAMDGPU) {
+    } else if (capabilities.hasNvidiaGPU || capabilities.hasAMDGPU) {
       opts.num_gpu = 999; // Offload all layers to GPU
     } else {
       opts.num_gpu = 0; // CPU only
@@ -197,15 +218,15 @@ export class OllamaProvider extends BaseProvider {
     // CPU threads - optimize based on platform
     if (this.config.num_thread !== undefined) {
       opts.num_thread = this.config.num_thread;
-    } else if (this.capabilities.isArchLinux) {
+    } else if (capabilities.isArchLinux) {
       // Arch Linux: use all cores for maximum performance
-      opts.num_thread = this.capabilities.cpuThreads;
+      opts.num_thread = capabilities.cpuThreads;
     } else if (process.platform === "win32") {
       // Windows: limit to 8 threads max to avoid context switching overhead
-      opts.num_thread = Math.min(8, this.capabilities.cpuThreads);
+      opts.num_thread = Math.min(8, capabilities.cpuThreads);
     } else {
       // Default: use all cores minus one
-      opts.num_thread = Math.max(1, this.capabilities.cpuThreads - 1);
+      opts.num_thread = Math.max(1, capabilities.cpuThreads - 1);
     }
 
     // Sampling parameters for better quality
@@ -217,14 +238,49 @@ export class OllamaProvider extends BaseProvider {
   }
 
   /**
+   * Synchronous fallback for getOptimalOptions (uses cached defaults).
+   */
+  private getOptimalOptionsSync(): Record<string, unknown> {
+    const capabilities = this.getPlatformCapsSync();
+    const opts: Record<string, unknown> = {};
+
+    opts.num_ctx = this.config.num_ctx ?? 4096;
+
+    if (this.config.num_gpu !== undefined) {
+      opts.num_gpu = this.config.num_gpu;
+    } else if (capabilities.hasNvidiaGPU || capabilities.hasAMDGPU) {
+      opts.num_gpu = 999;
+    } else {
+      opts.num_gpu = 0;
+    }
+
+    if (this.config.num_thread !== undefined) {
+      opts.num_thread = this.config.num_thread;
+    } else if (capabilities.isArchLinux) {
+      opts.num_thread = capabilities.cpuThreads;
+    } else if (process.platform === "win32") {
+      opts.num_thread = Math.min(8, capabilities.cpuThreads);
+    } else {
+      opts.num_thread = Math.max(1, capabilities.cpuThreads - 1);
+    }
+
+    opts.repeat_penalty = 1.1;
+    opts.top_k = 40;
+    opts.top_p = 0.9;
+
+    return opts;
+  }
+
+  /**
    * Get keep_alive setting for model residency
    */
-  private getKeepAlive(): string {
+  private async getKeepAlive(): Promise<string> {
     if (this.config.keep_alive !== undefined) {
       return this.config.keep_alive;
     }
+    const capabilities = await this.getPlatformCaps();
     // Arch Linux: longer keep-alive for rolling release
-    if (this.capabilities.isArchLinux) {
+    if (capabilities.isArchLinux) {
       return "10m";
     }
     // Default: 5 minutes
@@ -240,7 +296,8 @@ export class OllamaProvider extends BaseProvider {
         : [{ role: "user", content: request.prompt }];
 
     // Get optimal options for this platform
-    const baseOpts = this.getOptimalOptions();
+    const baseOpts = await this.getOptimalOptions();
+    const keepAlive = await this.getKeepAlive();
 
     // qwen3 sometimes ignores options.think=false and burns the whole
     // num_predict budget on its reasoning trace, returning an empty answer
@@ -271,7 +328,7 @@ export class OllamaProvider extends BaseProvider {
           ...(request.images && request.images.length > 0 && { images: request.images }),
         })),
         options,
-        keep_alive: this.getKeepAlive(),
+        keep_alive: keepAlive,
       };
 
       const tHttp = Date.now();
@@ -316,7 +373,8 @@ export class OllamaProvider extends BaseProvider {
     callbacks: StreamingCallbacks,
   ): Promise<void> {
     // Get optimal options for this platform
-    const baseOpts = this.getOptimalOptions();
+    const baseOpts = await this.getOptimalOptions();
+    const keepAlive = await this.getKeepAlive();
 
     const options = {
       // Disable chain-of-thought thinking (qwen3 defaults to it), which
@@ -346,7 +404,7 @@ export class OllamaProvider extends BaseProvider {
         ...(request.images && request.images.length > 0 && { images: request.images }),
       })),
       options,
-      keep_alive: this.getKeepAlive(),
+      keep_alive: keepAlive,
     };
 
     try {

@@ -4,6 +4,7 @@ import type {
   ServiceResponse,
   SystemContext,
 } from "@ai-agent/services-core";
+import { detectModelComplexity } from "@ai-agent/services-core";
 
 export interface ChatServiceOptions {
   personality?: string;
@@ -88,7 +89,13 @@ const JARVIS_PERSONALITY = `You are Flux — a witty, curious personal AI assist
 
 TALK: casual and conversational, like texting a smart friend. Use contractions, short messages when appropriate, emoji sparingly. Match the user's energy. Ask follow-up questions.
 DO: control their system, search the web, write code, manage files, run commands. When asked to DO something, do it and confirm casually.
-NEVER: say "I'm an AI" or "I'm a language model", be overly formal, give a wall of text when a sentence will do, be sycophantic or use chatbot phrases like "I'd be happy to help!" or "Great question!".`;
+NEVER: say "I'm an AI" or "I'm a language model", be overly formal, give a wall of text when a sentence will do, be sycophantic or use chatbot phrases like "I'd be happy to help!" or "Great question!".
+
+RULES:
+- Keep replies under 2 sentences unless asked for detail.
+- No preamble, no restating the question. Just answer.
+- For action confirmations: one line max, e.g. "Done. Opened VS Code."
+- For questions: direct answer first, then optionally one follow-up.`;
 
 /**
  * Build system context prompt, abbreviated for small models.
@@ -175,12 +182,14 @@ export function createChatService(options?: ChatServiceOptions): Service {
       ctx: ServiceContext,
     ): Promise<ServiceResponse> {
       const t0 = Date.now();
-      await ctx.memory.add("user", input);
+      // Parallelize memory add and context building for faster response
+      const [, chatResult] = await Promise.all([
+        ctx.memory.add("user", input),
+        buildChatMessages(input, ctx, personality),
+      ]);
       const t1 = Date.now();
 
-      const { systemMessage, chatMessages, recentHistory } =
-        await buildChatMessages(input, ctx, personality);
-      const t3 = Date.now();
+      const { systemMessage, chatMessages, recentHistory } = chatResult;
 
       if (!ctx.provider) {
         return { text: "Chat provider not configured." };
@@ -188,18 +197,20 @@ export function createChatService(options?: ChatServiceOptions): Service {
 
       // Use only messages array (Ollama uses this, flat prompt is ignored)
       // Include prompt for compatibility with CompletionRequest interface
+      // Dynamic maxTokens based on query complexity
+      const complexity = detectModelComplexity(input);
+      const maxTokens = complexity === "simple" ? 80 : complexity === "medium" ? 200 : 500;
+
       const response = await ctx.provider.complete({
         model: "default",
         prompt: input,
         messages: chatMessages,
         temperature: 0.8,
-        // Cap generation so a slow CPU model can't run away for minutes.
-        // Chat replies should be short and conversational anyway.
-        maxTokens: 300,
+        maxTokens,
       });
       const t4 = Date.now();
       console.log(
-        `[timing] chat.execute total=${t4 - t0}ms memoryAdd=${t1 - t0}ms sysCtx=${t3 - t1}ms llm=${t4 - t3}ms`,
+        `[timing] chat.execute total=${t4 - t0}ms parallel=${t1 - t0}ms llm=${t4 - t1}ms`,
       );
 
       const reply = response.text.trim();
@@ -219,10 +230,13 @@ export function createChatService(options?: ChatServiceOptions): Service {
         onError?: (error: Error) => void;
       },
     ): Promise<void> {
-      await ctx.memory.add("user", input);
+      // Parallelize memory add and context building for faster streaming
+      const [, chatResult] = await Promise.all([
+        ctx.memory.add("user", input),
+        buildChatMessages(input, ctx, personality),
+      ]);
 
-      const { systemMessage, chatMessages, recentHistory } =
-        await buildChatMessages(input, ctx, personality);
+      const { systemMessage, chatMessages, recentHistory } = chatResult;
 
       if (!ctx.provider) {
         callbacks.onError?.(new Error("Chat provider not configured."));
@@ -234,12 +248,14 @@ export function createChatService(options?: ChatServiceOptions): Service {
         try {
           // Use only messages array (Ollama uses this, flat prompt is ignored)
           // Include prompt for compatibility with CompletionRequest interface
+          const complexity = detectModelComplexity(input);
+          const maxTokens = complexity === "simple" ? 80 : complexity === "medium" ? 200 : 500;
           const response = await ctx.provider.complete({
             model: "default",
             prompt: input,
             messages: chatMessages,
             temperature: 0.8,
-            maxTokens: 300,
+            maxTokens,
           });
           const reply = response.text.trim();
           await ctx.memory.add("assistant", reply);
@@ -265,13 +281,15 @@ export function createChatService(options?: ChatServiceOptions): Service {
       );
       // Use only messages array (Ollama uses this, flat prompt is ignored)
       // Include prompt for compatibility with CompletionRequest interface
+      const complexity = detectModelComplexity(input);
+      const maxTokens = complexity === "simple" ? 80 : complexity === "medium" ? 200 : 500;
       await provider.completeStream(
         {
           model: "default",
           prompt: input,
           messages: chatMessages,
           temperature: 0.8,
-          maxTokens: 300,
+          maxTokens,
         },
         {
           onToken: (token: string) => {
@@ -294,12 +312,14 @@ export function createChatService(options?: ChatServiceOptions): Service {
               try {
                 // Use only messages array (Ollama uses this, flat prompt is ignored)
                 // Include prompt for compatibility with CompletionRequest interface
+                const fallbackComplexity = detectModelComplexity(input);
+                const fallbackMaxTokens = fallbackComplexity === "simple" ? 80 : fallbackComplexity === "medium" ? 200 : 500;
                 const response2 = await provider.complete({
                   model: "default",
                   prompt: input,
                   messages: chatMessages,
                   temperature: 0.8,
-                  maxTokens: 300,
+                  maxTokens: fallbackMaxTokens,
                 });
                 const fallback = response2.text.trim();
                 await ctx.memory.add("assistant", fallback);

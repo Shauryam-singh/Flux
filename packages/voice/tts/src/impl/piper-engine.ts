@@ -318,6 +318,11 @@ export class PiperEngine implements TTSEngine {
   private piperPath: string | null = null;
   private voiceModelPath: string | null = null;
   private initialized = false;
+  // Keep-alive: persistent piper process for faster synthesis
+  private piperProcess: import("node:child_process").ChildProcess | null = null;
+  private currentModelPath: string | null = null;
+  private piperBusy = false;
+  private piperStdoutBuffer = Buffer.alloc(0);
 
   constructor(options?: { voice?: string }) {
     this.voice = normalizeVoice(options?.voice);
@@ -353,6 +358,67 @@ export class PiperEngine implements TTSEngine {
     // Pre-download voice model if Piper is available
     if (this.piperPath) {
       this.voiceModelPath = await downloadVoiceModel(this.voice);
+      // Start persistent piper process for faster synthesis
+      this.startPersistentProcess();
+    }
+  }
+
+  /**
+   * Start a persistent piper process that stays alive between synthesis calls.
+   * This eliminates the 200-800ms cold-start overhead of reloading the ONNX model.
+   */
+  private startPersistentProcess(): void {
+    if (!this.piperPath || !this.voiceModelPath) return;
+    if (this.piperProcess && !this.piperProcess.killed) return;
+
+    try {
+      const args = ["--model", this.voiceModelPath, "--output-raw"];
+      this.piperProcess = spawn(this.piperPath, args, {
+        stdio: ["pipe", "pipe", "pipe"],
+        windowsHide: true,
+      });
+      this.currentModelPath = this.voiceModelPath;
+
+      // Collect stdout data
+      this.piperProcess.stdout?.on("data", (chunk: Buffer) => {
+        this.piperStdoutBuffer = Buffer.concat([this.piperStdoutBuffer, chunk]);
+      });
+
+      this.piperProcess.on("error", () => {
+        this.piperProcess = null;
+      });
+
+      this.piperProcess.on("close", () => {
+        this.piperProcess = null;
+      });
+
+      console.log("[piper] persistent process started");
+    } catch {
+      this.piperProcess = null;
+    }
+  }
+
+  /**
+   * Ensure the persistent piper process is using the correct model.
+   * If the model changed, restart the process.
+   */
+  private ensureCorrectModel(): void {
+    if (!this.voiceModelPath) return;
+    if (this.currentModelPath === this.voiceModelPath && this.piperProcess && !this.piperProcess.killed) {
+      return; // Already using correct model
+    }
+    // Kill old process and start new one with correct model
+    this.killPersistentProcess();
+    this.startPersistentProcess();
+  }
+
+  /**
+   * Kill the persistent piper process.
+   */
+  private killPersistentProcess(): void {
+    if (this.piperProcess) {
+      try { this.piperProcess.kill(); } catch {}
+      this.piperProcess = null;
     }
   }
 
@@ -390,6 +456,13 @@ export class PiperEngine implements TTSEngine {
         args[1] = piperVoice;
       }
 
+      // Try persistent process first (faster - no model reload)
+      this.ensureCorrectModel();
+      if (this.piperProcess && !this.piperProcess.killed && !this.piperBusy) {
+        return await this.synthesizeWithPersistentProcess(text);
+      }
+
+      // Fallback: spawn new process
       const proc = spawn(
         this.piperPath!,
         args,
@@ -436,6 +509,54 @@ export class PiperEngine implements TTSEngine {
     return Buffer.alloc(0);
   }
 
+  /**
+   * Synthesize using the persistent piper process (faster - no model reload).
+   */
+  private async synthesizeWithPersistentProcess(text: string): Promise<Buffer> {
+    if (!this.piperProcess || !this.piperProcess.stdin) {
+      return Buffer.alloc(0);
+    }
+
+    this.piperBusy = true;
+    this.piperStdoutBuffer = Buffer.alloc(0);
+
+    try {
+      // Write text to stdin
+      this.piperProcess.stdin.write(this.stripEmoji(text));
+      this.piperProcess.stdin.write("\n"); // newline signals end of input
+
+      // Wait for output with timeout
+      const rawPcm = await new Promise<Buffer>((resolve) => {
+        const timer = setTimeout(() => {
+          resolve(this.piperStdoutBuffer);
+        }, 5000); // 5 second timeout for persistent process
+
+        const checkOutput = () => {
+          if (this.piperStdoutBuffer.length > 0) {
+            // Small delay to ensure all data is received
+            setTimeout(() => {
+              clearTimeout(timer);
+              resolve(this.piperStdoutBuffer);
+            }, 100);
+          } else {
+            setTimeout(checkOutput, 10);
+          }
+        };
+        checkOutput();
+      });
+
+      this.piperBusy = false;
+
+      if (rawPcm.length > 0) {
+        return this.rawPcmToWav(rawPcm, 22050);
+      }
+    } catch {
+      this.piperBusy = false;
+    }
+
+    return Buffer.alloc(0);
+  }
+
   /** Convert raw 16-bit PCM to WAV format */
   private rawPcmToWav(pcm: Buffer, sampleRate: number): Buffer {
     const numChannels = 1;
@@ -467,34 +588,13 @@ export class PiperEngine implements TTSEngine {
   }
 
   private stripEmoji(text: string): string {
+    // Fast path: skip if no high Unicode chars (avoids 28 regex calls)
+    if (!/[\u{1F000}-\u{1FFFF}\u{2600}-\u{27BF}\u{FE00}-\u{FE0F}\u{200D}]/u.test(text)) {
+      return text;
+    }
+    // Single regex pass for emoji removal
     return text
-      .replace(/[\u{1F600}-\u{1F64F}]/gu, "")
-      .replace(/[\u{1F300}-\u{1F5FF}]/gu, "")
-      .replace(/[\u{1F680}-\u{1F6FF}]/gu, "")
-      .replace(/[\u{1F1E0}-\u{1F1FF}]/gu, "")
-      .replace(/[\u{2600}-\u{26FF}]/gu, "")
-      .replace(/[\u{2700}-\u{27BF}]/gu, "")
-      .replace(/[\u{FE00}-\u{FE0F}]/gu, "")
-      .replace(/[\u{200D}]/gu, "")
-      .replace(/[\u{20E3}]/gu, "")
-      .replace(/[\u{E0020}-\u{E007F}]/gu, "")
-      .replace(/[\u{1F900}-\u{1F9FF}]/gu, "")
-      .replace(/[\u{1FA00}-\u{1FA6F}]/gu, "")
-      .replace(/[\u{1FA70}-\u{1FAFF}]/gu, "")
-      .replace(/[\u{2000}-\u{200F}]/gu, "")
-      .replace(/[\u{2028}-\u{202F}]/gu, "")
-      .replace(/[\u{2030}-\u{2038}]/gu, "")
-      .replace(/[\u{203C}-\u{2047}]/gu, "")
-      .replace(/[\u{2049}-\u{2053}]/gu, "")
-      .replace(/[\u{2055}-\u{205E}]/gu, "")
-      .replace(/[\u{2190}-\u{21FF}]/gu, "")
-      .replace(/[\u{2300}-\u{23FF}]/gu, "")
-      .replace(/[\u{25A0}-\u{25FF}]/gu, "")
-      .replace(/[\u{2B00}-\u{2BFF}]/gu, "")
-      .replace(/[\u{3000}-\u{303F}]/gu, "")
-      .replace(/[\u{1F000}-\u{1F02F}]/gu, "")
-      .replace(/[\u{1F0A0}-\u{1F0FF}]/gu, "")
-      .replace(/[\u{1F100}-\u{1F1FF}]/gu, "")
+      .replace(/[\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu, "")
       .replace(/\s{2,}/g, " ")
       .trim();
   }

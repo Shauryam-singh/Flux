@@ -7,6 +7,7 @@ import type {
 } from "../interfaces/service-context.js";
 import type { ServiceRegistry } from "../interfaces/service-registry.js";
 import type { ServiceResponse } from "../interfaces/service-response.js";
+import type { IntentContext } from "./intent-classifier.js";
 import { classifyIntent } from "./intent-classifier.js";
 
 // Minimal orchestration interface (avoids circular dep with @ai-agent/multi-agent)
@@ -93,10 +94,25 @@ export class Orchestrator {
 
   private async resolveService(
     input: string,
+    ctx?: OrchestratorContext,
   ): Promise<Service> {
     let service: Service | null = null;
 
-    const intent = classifyIntent(input);
+    // Build intent context from system context if available
+    let intentCtx: IntentContext | undefined;
+    if (ctx?.getSystemContext) {
+      try {
+        const sysCtx = await ctx.getSystemContext();
+        const sensors = sysCtx.sensors as Record<string, unknown>;
+        intentCtx = {
+          isTerminal: (sensors.terminal as { isTerminal?: boolean })?.isTerminal === true,
+          gitDirty: (sensors.git as { dirty?: boolean })?.dirty === true,
+          dockerRunning: (sensors.docker as { running?: boolean })?.running === true,
+        };
+      } catch {}
+    }
+
+    const intent = classifyIntent(input, intentCtx);
     if (intent) {
       service = this.registry.get(intent) ?? null;
     }
@@ -145,7 +161,7 @@ export class Orchestrator {
       // Execute each command in sequence, collect responses
       const responses: string[] = [];
       for (const cmd of commands) {
-        const service = await this.resolveService(cmd);
+        const service = await this.resolveService(cmd, ctx);
         if (service) {
           try {
             const result = await service.execute(cmd, serviceCtx);
@@ -160,7 +176,7 @@ export class Orchestrator {
     }
 
     // Single command — resolve and execute normally
-    const service = await this.resolveService(input);
+    const service = await this.resolveService(input, ctx);
 
     if (!service) {
       return { text: "No service available to handle your request." };
@@ -188,7 +204,7 @@ export class Orchestrator {
       getSystemContext: ctx.getSystemContext,
     };
 
-    const service = await this.resolveService(input);
+    const service = await this.resolveService(input, ctx);
     if (!service || !service.executeStream) {
       // Fall back to non-streaming execution
       try {

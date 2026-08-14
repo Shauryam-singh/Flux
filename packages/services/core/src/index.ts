@@ -1,5 +1,6 @@
 export { DefaultServiceRegistry } from "./impl/default-service-registry.js";
-export { classifyIntent } from "./impl/intent-classifier.js";
+export { classifyIntent, detectModelComplexity } from "./impl/intent-classifier.js";
+export type { ModelComplexity } from "./impl/intent-classifier.js";
 export { Orchestrator } from "./impl/orchestrator.js";
 export type { Service } from "./interfaces/service.js";
 export type {

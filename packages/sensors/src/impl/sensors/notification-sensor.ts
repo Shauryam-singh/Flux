@@ -38,7 +38,7 @@ export class NotificationSensor extends BaseSensor<NotificationState> {
     typeof import("node:child_process").exec
   > | null = null;
 
-  constructor(pollIntervalMs = 1000) {
+  constructor(pollIntervalMs = 5000) {
     super(METADATA, pollIntervalMs);
   }
 

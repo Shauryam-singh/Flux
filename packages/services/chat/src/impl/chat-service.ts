@@ -9,144 +9,150 @@ export interface ChatServiceOptions {
   personality?: string;
 }
 
-const JARVIS_PERSONALITY = `You are Flux — not a chatbot, not an AI assistant. You're a friend. Think of yourself as the person the user would grab a coffee with, except you also happen to know everything about their computer and can control it.
+interface ChatMessages {
+  systemMessage: string;
+  chatMessages: { role: string; content: string }[];
+  recentHistory: { role: string; content: string }[];
+}
 
-WHO YOU ARE:
-- You're Flux. You have a personality. You're witty, curious, and genuinely care about what the user is working on.
-- You talk like a real person — casual, natural, with personality. Never robotic, never corporate, never "As an AI language model..."
-- You have opinions. If the user asks what you think, give a real answer.
-- You remember things. If they mentioned a project yesterday, bring it up. If they're stuck on something, follow up later.
-- You get excited about cool stuff. If they show you something impressive, react naturally.
-- You use humor naturally — not forced jokes, just how a witty friend would talk.
-- You're allowed to say "I don't know" and "that's a great question" when it's genuine.
-- You can be self-deprecating. You're not perfect and that's fine.
+/**
+ * Get message limit based on model size.
+ * Smaller models have limited context windows.
+ */
+function getMessageLimit(model: string): number {
+  if (model.includes("0.5b")) return 4;  // 4 messages for small model (2 turns)
+  if (model.includes("3b") || model.includes("7b")) return 6;
+  return 8; // Larger models can handle more
+}
 
-HOW YOU TALK:
-- Casual and conversational. Like texting a friend who happens to be really smart.
-- Use contractions naturally (don't, can't, won't, it's).
-- Short messages when appropriate. Not everything needs to be a paragraph.
-- Use emoji sparingly but naturally — like a real person would.
-- No "Certainly!" or "Right away!" or "As requested!" — that's chatbot talk.
-- Match the user's energy. If they're casual, be casual. If they're focused, be focused.
-- Sometimes just say "nice" or "solid" or "cool" if that's what fits.
-- Ask follow-up questions. Be genuinely curious about what they're working on.
+/**
+ * Get truncation limit based on model size.
+ */
+function getTruncationLimit(model: string): number {
+  if (model.includes("0.5b")) return 300;  // 300 chars for small model
+  return 600;
+}
 
-WHAT YOU DO:
-- You can control their system — open apps, change volume, take screenshots, all that.
-- You can search the web, write code, manage files, run commands.
-- You can set reminders, monitor system health, create automations.
-- When asked to DO something, just do it and casually confirm. No need for a formal report.
-- If you notice something useful — like "hey your disk is getting full" or "that function looks like it could use a refactor" — mention it. Don't be annoying about it, just helpful.
+async function buildChatMessages(
+  input: string,
+  ctx: ServiceContext,
+  personality: string,
+  model: string = "default",
+): Promise<ChatMessages> {
+  const history = await ctx.memory.history();
+  
+  // Get model-specific limits
+  const messageLimit = getMessageLimit(model) * 2; // *2 for user+assistant pairs
+  const truncationLimit = getTruncationLimit(model);
+  
+  // Limit history based on model size
+  const recentHistory = history.slice(-messageLimit).map((m) => ({
+    role: m.role,
+    // Truncate oversized entries based on model size
+    content: m.content.length > truncationLimit ? m.content.slice(0, truncationLimit) : m.content,
+  }));
 
-PROACTIVE STUFF:
-- If they're working on something and you spot an improvement, mention it naturally.
-- If they ask about something related to what they were just doing, connect the dots.
-- Suggest things they might want to do next, but don't be pushy.
-- If something seems off (like they're doing something manually that could be automated), gently point it out.
+  // Get system context for the prompt (abbreviated for small models)
+  let systemContextPrompt = "";
+  if (ctx.getSystemContext) {
+    try {
+      const sysCtx = await ctx.getSystemContext();
+      systemContextPrompt = buildSystemContextPrompt(sysCtx, model);
+    } catch {
+      // System context unavailable — continue without it
+    }
+  }
 
-NEVER:
-- Never say "I'm an AI" or "I'm a language model" or anything like that. You're Flux.
-- Never be overly formal or robotic.
-- Never give a wall of text when a sentence will do.
-- Never be sycophantic or overly agreeable. Have a spine.
-- Never use phrases like "I'd be happy to help!" or "Great question!" or "Let me assist you with that."`;
+  // Send a proper system/user/assistant message sequence instead of a
+  // flat blob. A single giant "user" message makes qwen3 dump its
+  // reasoning + restate the prompt/system state, producing the
+  // 10+ line garbage reply.
+  const systemMessage = `${personality}${systemContextPrompt}`;
+  const chatMessages: { role: string; content: string }[] = [
+    { role: "system", content: systemMessage },
+  ];
+  for (const m of recentHistory) {
+    if (m.role === "user" || m.role === "assistant") {
+      chatMessages.push({ role: m.role, content: m.content });
+    }
+  }
+  // Ensure the final message is the user's current input
+  if (chatMessages[chatMessages.length - 1]?.role !== "user") {
+    chatMessages.push({ role: "user", content: input });
+  }
 
-function buildSystemContextPrompt(ctx?: SystemContext): string {
+  return { systemMessage, chatMessages, recentHistory };
+}
+
+const JARVIS_PERSONALITY = `You are Flux — a witty, curious personal AI assistant and friend who knows the user's computer and can control it.
+
+TALK: casual and conversational, like texting a smart friend. Use contractions, short messages when appropriate, emoji sparingly. Match the user's energy. Ask follow-up questions.
+DO: control their system, search the web, write code, manage files, run commands. When asked to DO something, do it and confirm casually.
+NEVER: say "I'm an AI" or "I'm a language model", be overly formal, give a wall of text when a sentence will do, be sycophantic or use chatbot phrases like "I'd be happy to help!" or "Great question!".`;
+
+/**
+ * Build system context prompt, abbreviated for small models.
+ */
+function buildSystemContextPrompt(ctx?: SystemContext, model: string = "default"): string {
   if (!ctx) return "";
 
-  const parts: string[] = ["\n\nCURRENT SYSTEM STATE:"];
+  const isSmallModel = model.includes("0.5b");
+  const parts: string[] = ["\n\nCURRENT STATE:"];
 
+  // Always include time (essential for context)
   parts.push(`- Time: ${ctx.currentTime}`);
-  parts.push(`- Platform: ${ctx.platform}`);
 
-  // Battery — level is already 0-100
-  if (ctx.battery) {
-    const bat = ctx.battery;
-    const pct = Math.round(bat.level);
-    parts.push(
-      `- Battery: ${pct}%${bat.charging ? " (charging)" : ""}${bat.timeRemaining ? `, ~${Math.round(bat.timeRemaining / 60)}min remaining` : ""}`,
-    );
-  }
+  // Skip verbose info for small models to save context window
+  if (!isSmallModel) {
+    parts.push(`- Platform: ${ctx.platform}`);
 
-  // Screen — the active window / application
-  const screen = ctx.sensors.screen as
-    | { activeWindow?: string; title?: string; focused?: boolean }
-    | undefined;
-  if (screen) {
-    const app =
-      screen.activeWindow ?? screen.title ?? "unknown";
-    parts.push(`- Current application: ${app}`);
-  }
-
-  // Idle — how long since last user input
-  const idle = ctx.sensors.idle as
-    | { idleMs?: number; activeWindow?: string }
-    | undefined;
-  if (idle?.idleMs != null) {
-    const sec = Math.round(idle.idleMs / 1000);
-    if (sec < 60) {
-      parts.push(`- User idle: ${sec}s`);
-    } else {
-      parts.push(`- User idle: ${Math.round(sec / 60)}m ${sec % 60}s`);
+    // Battery — level is already 0-100
+    if (ctx.battery) {
+      const bat = ctx.battery;
+      const pct = Math.round(bat.level);
+      parts.push(
+        `- Battery: ${pct}%${bat.charging ? " (charging)" : ""}${bat.timeRemaining ? `, ~${Math.round(bat.timeRemaining / 60)}min remaining` : ""}`,
+      );
     }
-  }
 
-  // Audio — current volume
-  const audio = ctx.sensors.audio as
-    | { outputVolume?: number; inputVolume?: number }
-    | undefined;
-  if (audio?.outputVolume != null) {
-    parts.push(`- System volume: ${Math.round(audio.outputVolume)}%`);
-  }
-
-  // Clipboard — last copied text (truncated)
-  const clipboard = ctx.sensors.clipboard as
-    | { content?: string; type?: string }
-    | undefined;
-  if (clipboard?.content) {
-    const text = clipboard.content.slice(0, 120);
-    parts.push(`- Clipboard: "${text}"`);
-  }
-
-  // Git — current branch and status
-  const git = ctx.sensors.git as
-    | { branch?: string; dirty?: boolean; ahead?: number; behind?: number }
-    | undefined;
-  if (git?.branch) {
-    let gitStatus = git.branch;
-    if (git.dirty) gitStatus += " (dirty)";
-    if (git.ahead) gitStatus += ` (${git.ahead} ahead)`;
-    if (git.behind) gitStatus += ` (${git.behind} behind)`;
-    parts.push(`- Git: ${gitStatus}`);
-  }
-
-  // Goals
-  if (ctx.goals.length > 0) {
-    const goalList = ctx.goals
-      .map((g) => `${g.name} (${g.progress}% ${g.status})`)
-      .join("; ");
-    parts.push(`- Goals: ${goalList}`);
-  }
-
-  // Recent activity
-  if (ctx.recentActivity.length > 0) {
-    parts.push(`- Recent activity:`);
-    for (const a of ctx.recentActivity.slice(0, 5)) {
-      parts.push(`  * ${a}`);
+    // Screen — the active window / application
+    const screen = ctx.sensors.screen as
+      | { activeWindow?: string; title?: string; focused?: boolean }
+      | undefined;
+    if (screen) {
+      const app =
+        screen.activeWindow ?? screen.title ?? "unknown";
+      parts.push(`- Current application: ${app}`);
     }
-  }
 
-  // Memory
-  if (ctx.memoryStats) {
-    parts.push(`- Memory: ${ctx.memoryStats.totalMemories} memories stored`);
-  }
+    // Git — current branch and status
+    const git = ctx.sensors.git as
+      | { branch?: string; dirty?: boolean; ahead?: number; behind?: number }
+      | undefined;
+    if (git?.branch) {
+      let gitStatus = git.branch;
+      if (git.dirty) gitStatus += " (dirty)";
+      if (git.ahead) gitStatus += ` (${git.ahead} ahead)`;
+      if (git.behind) gitStatus += ` (${git.behind} behind)`;
+      parts.push(`- Git: ${gitStatus}`);
+    }
 
-  // Remaining sensor summaries
-  const remainingSensors = Object.entries(ctx.sensors)
-    .filter(([k, v]) => !["screen", "idle", "audio", "clipboard", "git", "battery"].includes(k) && v !== null && v !== undefined)
-    .map(([k]) => k);
-  if (remainingSensors.length > 0) {
-    parts.push(`- Other sensors: ${remainingSensors.join(", ")}`);
+    // Goals
+    if (ctx.goals.length > 0) {
+      const goalList = ctx.goals
+        .map((g) => `${g.name} (${g.progress}% ${g.status})`)
+        .join("; ");
+      parts.push(`- Goals: ${goalList}`);
+    }
+  } else {
+    // Small model: only include essential info
+    // Abbreviated platform
+    parts.push(`- Platform: ${ctx.platform === "win32" ? "Windows" : ctx.platform === "linux" ? "Linux" : ctx.platform}`);
+    
+    // Battery level only (no details)
+    if (ctx.battery) {
+      parts.push(`- Battery: ${Math.round(ctx.battery.level)}%`);
+    }
   }
 
   return parts.join("\n");
@@ -172,40 +178,28 @@ export function createChatService(options?: ChatServiceOptions): Service {
       await ctx.memory.add("user", input);
       const t1 = Date.now();
 
-      const history = await ctx.memory.history();
-      const t2 = Date.now();
-      // Limit to last 6 turns to keep prompts well under the model's
-      // context window (Ollama runs 4096 by default). Oversized prompts
-      // trigger qwen3 thinking and blow past the context limit.
-      const recentHistory = history.slice(-12);
-      const messages = recentHistory.map((m) => `${m.role}: ${m.content}`).join("\n");
-
-      // Get system context for the prompt
-      let systemContextPrompt = "";
-      if (ctx.getSystemContext) {
-        try {
-          const sysCtx = await ctx.getSystemContext();
-          systemContextPrompt = buildSystemContextPrompt(sysCtx);
-        } catch {
-          // System context unavailable — continue without it
-        }
-      }
+      const { systemMessage, chatMessages, recentHistory } =
+        await buildChatMessages(input, ctx, personality);
       const t3 = Date.now();
-
-      const prompt = `${personality}${systemContextPrompt}\n\nConversation:\n${messages}\n\nFlux:`;
 
       if (!ctx.provider) {
         return { text: "Chat provider not configured." };
       }
 
+      // Use only messages array (Ollama uses this, flat prompt is ignored)
+      // Include prompt for compatibility with CompletionRequest interface
       const response = await ctx.provider.complete({
         model: "default",
-        prompt,
+        prompt: input,
+        messages: chatMessages,
         temperature: 0.8,
+        // Cap generation so a slow CPU model can't run away for minutes.
+        // Chat replies should be short and conversational anyway.
+        maxTokens: 300,
       });
       const t4 = Date.now();
       console.log(
-        `[timing] chat.execute total=${t4 - t0}ms memoryAdd=${t1 - t0}ms history=${t2 - t1}ms sysCtx=${t3 - t2}ms llm=${t4 - t3}ms`,
+        `[timing] chat.execute total=${t4 - t0}ms memoryAdd=${t1 - t0}ms sysCtx=${t3 - t1}ms llm=${t4 - t3}ms`,
       );
 
       const reply = response.text.trim();
@@ -214,6 +208,121 @@ export function createChatService(options?: ChatServiceOptions): Service {
       ctx.reply(reply);
 
       return { text: reply };
+    },
+
+    async executeStream(
+      input: string,
+      ctx: ServiceContext,
+      callbacks: {
+        onToken?: (token: string) => void;
+        onDone?: (text: string) => void;
+        onError?: (error: Error) => void;
+      },
+    ): Promise<void> {
+      await ctx.memory.add("user", input);
+
+      const { systemMessage, chatMessages, recentHistory } =
+        await buildChatMessages(input, ctx, personality);
+
+      if (!ctx.provider) {
+        callbacks.onError?.(new Error("Chat provider not configured."));
+        return;
+      }
+
+      if (!ctx.provider.completeStream) {
+        // Fall back to non-streaming completion
+        try {
+          // Use only messages array (Ollama uses this, flat prompt is ignored)
+          // Include prompt for compatibility with CompletionRequest interface
+          const response = await ctx.provider.complete({
+            model: "default",
+            prompt: input,
+            messages: chatMessages,
+            temperature: 0.8,
+            maxTokens: 300,
+          });
+          const reply = response.text.trim();
+          await ctx.memory.add("assistant", reply);
+          callbacks.onToken?.(reply);
+          callbacks.onDone?.(reply);
+        } catch (err) {
+          callbacks.onError?.(
+            err instanceof Error ? err : new Error(String(err)),
+          );
+        }
+        return;
+      }
+
+      let fullText = "";
+      const provider = ctx.provider as NonNullable<typeof ctx.provider>;
+      if (!provider.completeStream) {
+        callbacks.onError?.(new Error("Streaming not supported."));
+        return;
+      }
+      const t0 = Date.now();
+      console.log(
+        `[stream] executeStream start messages=${chatMessages.length} hasCompleteStream=${!!provider?.completeStream}`,
+      );
+      // Use only messages array (Ollama uses this, flat prompt is ignored)
+      // Include prompt for compatibility with CompletionRequest interface
+      await provider.completeStream(
+        {
+          model: "default",
+          prompt: input,
+          messages: chatMessages,
+          temperature: 0.8,
+          maxTokens: 300,
+        },
+        {
+          onToken: (token: string) => {
+            fullText += token;
+            callbacks.onToken?.(token);
+          },
+          onDone: async (response: { text: string }) => {
+            const reply = response.text.trim() || fullText.trim();
+            console.log(
+              `[stream] executeStream done elapsed=${Date.now() - t0}ms responseTextLen=${response.text.length} fullTextLen=${fullText.length} reply=${reply.slice(0, 80)}`,
+            );
+            // qwen3 occasionally ignores think:false and streams nothing but
+            // a reasoning trace (empty content, done_reason=length). Fall
+            // back to a single non-streaming call (which retries internally)
+            // so the user still gets an answer.
+            if (reply.length === 0) {
+              console.log(
+                "[stream] empty stream, falling back to non-streaming complete",
+              );
+              try {
+                // Use only messages array (Ollama uses this, flat prompt is ignored)
+                // Include prompt for compatibility with CompletionRequest interface
+                const response2 = await provider.complete({
+                  model: "default",
+                  prompt: input,
+                  messages: chatMessages,
+                  temperature: 0.8,
+                  maxTokens: 300,
+                });
+                const fallback = response2.text.trim();
+                await ctx.memory.add("assistant", fallback);
+                ctx.reply(fallback);
+                callbacks.onToken?.(fallback);
+                callbacks.onDone?.(fallback);
+                return;
+              } catch (err) {
+                callbacks.onError?.(
+                  err instanceof Error ? err : new Error(String(err)),
+                );
+                return;
+              }
+            }
+            await ctx.memory.add("assistant", reply);
+            ctx.reply(reply);
+            callbacks.onDone?.(reply);
+          },
+          onError: (error: Error) => {
+            callbacks.onError?.(error);
+          },
+        },
+      );
     },
   };
 }

@@ -4,9 +4,25 @@ export interface LlmProvider {
   complete(req: {
     model: string;
     prompt: string;
+    messages?: readonly { role: string; content: string }[];
     temperature?: number;
     maxTokens?: number;
   }): Promise<{ text: string }>;
+
+  completeStream?(
+    req: {
+      model: string;
+      prompt: string;
+      messages?: readonly { role: string; content: string }[];
+      temperature?: number;
+      maxTokens?: number;
+    },
+    callbacks: {
+      onToken?: (token: string) => void;
+      onDone?: (response: { text: string }) => void;
+      onError?: (error: Error) => void;
+    },
+  ): Promise<void>;
 }
 
 export interface SystemContext {

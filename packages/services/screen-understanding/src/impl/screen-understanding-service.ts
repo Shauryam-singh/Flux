@@ -480,18 +480,13 @@ export async function observeScreen(
           const data = await response.json() as { message?: { content?: string } };
           description = data.message?.content ?? "";
         } else {
-          description = await provider.complete({
-            model: "default",
-            prompt: "[Screen observation] Describe general desktop activity.",
-            temperature: 0.3,
-          }).then((r) => r.text);
+          // Vision model not available (e.g. llava:7b not installed) — return
+          // null instead of burning 5-7s on a text-model call that has no
+          // screenshot to describe.
+          return null;
         }
       } catch {
-        description = await provider.complete({
-          model: "default",
-          prompt: "[Screen observation unavailable] Note that screen observation is active.",
-          temperature: 0.3,
-        }).then((r) => r.text);
+        return null;
       }
     } else {
       description = "Screen observation requires a vision-capable LLM provider.";

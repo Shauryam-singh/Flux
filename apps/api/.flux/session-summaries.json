@@ -1,0 +1,13 @@
+{
+  "summaries": [
+    {
+      "id": "1b7d8476-7f40-42e6-8247-f6f35099dcd2",
+      "timestamp": 1786710060701,
+      "summary": "User: What's the current weather in New York City?\nAssistant: I'm sorry, but as an AI language model, I don't have real-time data or access to external APIs that could provide information about the current weather conditions. However, you can check the weather forecast on websites like Weather.com or apps like AccuWeather for more up-to-date and accurate information.",
+      "conversationId": "conv_1786710060700",
+      "messageCount": 5,
+      "consumed": false,
+      "consumedAt": null
+    }
+  ]
+}

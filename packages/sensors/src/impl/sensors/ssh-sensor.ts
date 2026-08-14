@@ -48,7 +48,8 @@ export class SSHSensor extends BaseSensor<SSHState> {
     this.recentConnections = [];
   }
 
-  protected async onSnapshot(): Promise<SSHState> {
+  protected async onSnapshot(): Promise<SSHState | null> {
+    if (process.platform !== "linux") return null;
     const sessions = await this.listSessions();
     return {
       activeSessions: sessions,
@@ -58,6 +59,7 @@ export class SSHSensor extends BaseSensor<SSHState> {
   }
 
   protected async onRefresh(): Promise<SSHState | null> {
+    if (process.platform !== "linux") return null;
     const sessions = await this.listSessions();
     return {
       activeSessions: sessions,

@@ -4,6 +4,7 @@ import type { Provider } from "../interfaces/provider.js";
 import type { ProviderFactory } from "../interfaces/provider-factory.js";
 import { AnthropicProvider } from "../providers/anthropic/anthropic-provider.js";
 import { OllamaProvider } from "../providers/ollama/ollama-provider.js";
+import type { OllamaProviderConfig } from "../providers/ollama/ollama-types.js";
 import { OpenAIProvider } from "../providers/openai/openai-provider.js";
 import { OpenRouterProvider } from "../providers/openrouter/openrouter-provider.js";
 import type { ProviderName } from "../types/provider-name.js";
@@ -11,6 +12,11 @@ import type { ProviderName } from "../types/provider-name.js";
 export interface ProviderConfig {
   apiKey?: string;
   baseUrl?: string;
+  // Ollama-specific config
+  num_ctx?: number;
+  num_gpu?: number;
+  num_thread?: number;
+  keep_alive?: string;
 }
 
 export class DefaultProviderFactory implements ProviderFactory {
@@ -25,11 +31,20 @@ export class DefaultProviderFactory implements ProviderFactory {
     const providerConfig = this.config[name] ?? {};
 
     switch (name.toLowerCase()) {
-      case "ollama":
+      case "ollama": {
+        const ollamaConfig: OllamaProviderConfig = {
+          baseUrl: providerConfig.baseUrl ?? "http://localhost:11434",
+          ...(providerConfig.num_ctx !== undefined && { num_ctx: providerConfig.num_ctx }),
+          ...(providerConfig.num_gpu !== undefined && { num_gpu: providerConfig.num_gpu }),
+          ...(providerConfig.num_thread !== undefined && { num_thread: providerConfig.num_thread }),
+          ...(providerConfig.keep_alive !== undefined && { keep_alive: providerConfig.keep_alive }),
+        };
         return new OllamaProvider(
           this.http,
-          providerConfig.baseUrl ?? "http://localhost:11434",
+          ollamaConfig.baseUrl,
+          ollamaConfig,
         );
+      }
 
       case "openai":
         return new OpenAIProvider(

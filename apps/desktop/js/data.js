@@ -40,6 +40,9 @@ export const state = {
   suggestions: [],
   chatHistory: [],
   proactiveMessages: [],
+  // Track when data was last updated for staleness detection
+  lastUpdateTime: 0,
+  isStale: false,
 };
 
 // ─── SSE Connection ───
@@ -75,6 +78,7 @@ function connectSSE() {
 
     eventSource.addEventListener("open", () => {
       state.connected = true;
+      state.isStale = false;
       emit("connection", true);
     });
   } catch {
@@ -89,6 +93,9 @@ function connectSSE() {
 function handleStreamEvent(data) {
   if (data.type === "snapshot" || data.type === "tick") {
     state.connected = true;
+    state.lastUpdateTime = Date.now();
+    state.isStale = false;
+    emit("connection", true);
 
     // Update runtime state
     if (data.state) {
@@ -247,9 +254,13 @@ function handleStreamEvent(data) {
     }
 
     // Fetch supplementary data — on snapshot (initial) and periodically
+    // Goals refresh on every tick for realtime updates, timeline/memory every 3 ticks
     if (data.type === "snapshot" || (data.tickNumber && data.tickNumber % 3 === 0)) {
       fetchTimeline();
       fetchMemoryStats();
+    }
+    // Goals always refresh for realtime progress updates
+    if (data.type === "snapshot" || data.type === "tick") {
       fetchGoals();
     }
 
@@ -665,6 +676,9 @@ export function startDataEngine() {
   // Connect to SSE stream
   connectSSE();
 
+  // Start staleness detection
+  startStalenessCheck();
+
   // If no connection after 2s, populate with minimal defaults
   setTimeout(() => {
     if (!state.connected) {
@@ -680,9 +694,41 @@ export function startDataEngine() {
   }, 2000);
 }
 
+// ─── Staleness Detection ───
+// Check every 10 seconds if data hasn't been updated in 30 seconds
+const STALENESS_THRESHOLD_MS = 30000;
+const STALENESS_CHECK_MS = 10000;
+
+let stalenessCheckInterval = null;
+
+function startStalenessCheck() {
+  if (stalenessCheckInterval) return;
+  
+  stalenessCheckInterval = setInterval(() => {
+    if (state.lastUpdateTime > 0) {
+      const elapsed = Date.now() - state.lastUpdateTime;
+      const wasStale = state.isStale;
+      state.isStale = elapsed > STALENESS_THRESHOLD_MS;
+      
+      // Emit staleness event if state changed
+      if (wasStale !== state.isStale) {
+        emit("staleness", state.isStale);
+      }
+    }
+  }, STALENESS_CHECK_MS);
+}
+
+function stopStalenessCheck() {
+  if (stalenessCheckInterval) {
+    clearInterval(stalenessCheckInterval);
+    stalenessCheckInterval = null;
+  }
+}
+
 export function stopDataEngine() {
   intervals.forEach(clearInterval);
   intervals = [];
+  stopStalenessCheck();
   if (eventSource) {
     eventSource.close();
     eventSource = null;

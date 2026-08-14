@@ -106,6 +106,12 @@ export function updateSensors(sensors) {
       })
       .join("");
   });
+
+  // Keep the sensors detail tab in sync when data arrives
+  const detailPanel = document.getElementById("panel-sensors");
+  if (detailPanel && detailPanel.classList.contains("active")) {
+    renderSensorsDetail(sensors);
+  }
 }
 
 export function updateThought(thoughts) {
@@ -165,11 +171,27 @@ export function updateDashboardCognition(text, stage, stageName) {
   }
 }
 
-export function updateStatusText(connected) {
+export function updateStatusText(connected, isStale = false) {
   const el = document.getElementById("status-text");
   const dot = document.getElementById("status-dot");
-  if (el) el.textContent = connected ? "Connected" : "Disconnected";
-  if (dot) dot.className = "status-dot" + (connected ? " online" : "");
+  if (el) {
+    if (!connected) {
+      el.textContent = "Disconnected";
+    } else if (isStale) {
+      el.textContent = "Stale";
+    } else {
+      el.textContent = "Connected";
+    }
+  }
+  if (dot) {
+    if (!connected) {
+      dot.className = "status-dot";
+    } else if (isStale) {
+      dot.className = "status-dot online stale";
+    } else {
+      dot.className = "status-dot online";
+    }
+  }
 }
 
 export function updateModel(model) {
@@ -249,6 +271,12 @@ export function renderSensorsDetail(sensors) {
   const el = document.getElementById("sensors-detail");
   if (!el) return;
 
+  if (!sensors || sensors.length === 0) {
+    el.innerHTML =
+      '<div class="memory-empty">Waiting for sensor data...</div>';
+    return;
+  }
+
   el.innerHTML = sensors
     .map((s) => {
       const statusClass =
@@ -287,16 +315,26 @@ export async function renderMemoryPage() {
 
   let data;
   try {
-    const resp = await fetch(`${API}/memory/all`);
-    if (!resp.ok) throw new Error("API error");
-    data = await resp.json();
-  } catch {
-    // API not running — show fallback
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10000);
+    try {
+      const resp = await fetch(`${API}/memory/all`, {
+        signal: controller.signal,
+      });
+      if (!resp.ok) throw new Error("API error");
+      data = await resp.json();
+    } finally {
+      clearTimeout(timeout);
+    }
+  } catch (e) {
+    // API not running or timed out — show fallback
+    const message =
+      e?.name === "AbortError" ? "Request timed out" : "API not running";
     sections.forEach((id) => {
       const el = document.getElementById(id);
       if (el)
         el.innerHTML =
-          '<div class="memory-empty">API not running</div>';
+          `<div class="memory-empty">${message}</div>`;
     });
     return;
   }

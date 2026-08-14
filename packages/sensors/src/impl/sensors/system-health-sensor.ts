@@ -37,9 +37,14 @@ const METADATA: SensorMetadata = {
 
 export class SystemHealthSensor extends BaseSensor<SystemHealthState> {
   private lastState: SystemHealthState | null = null;
+  private lastCollectAt = 0;
   private readonly isWindows: boolean;
+  private readonly cacheWindowMs = 2000;
 
-  constructor(pollIntervalMs = 10000) {
+  // CPU delta tracking (avoids the 500ms sleep between /proc/stat samples)
+  private prevCpuSample: { idle: number; total: number; at: number } | null = null;
+
+  constructor(pollIntervalMs = 30000) {
     super(METADATA, pollIntervalMs);
     this.isWindows = process.platform === "win32";
   }
@@ -50,10 +55,25 @@ export class SystemHealthSensor extends BaseSensor<SystemHealthState> {
 
   protected async onStop(): Promise<void> {
     this.lastState = null;
+    this.prevCpuSample = null;
   }
 
   protected async onSnapshot(): Promise<SystemHealthState | null> {
-    return this.collectSystemHealth();
+    // Serve cached state within a short window so rapid snapshot() calls
+    // (chat context gathering, background ticks) don't each spawn a 3s
+    // PowerShell process.
+    if (
+      this.lastState &&
+      Date.now() - this.lastCollectAt < this.cacheWindowMs
+    ) {
+      return this.lastState;
+    }
+    const state = await this.collectSystemHealth();
+    if (state) {
+      this.lastState = state;
+      this.lastCollectAt = Date.now();
+    }
+    return state;
   }
 
   protected async onRefresh(): Promise<SystemHealthState | null> {
@@ -62,6 +82,7 @@ export class SystemHealthSensor extends BaseSensor<SystemHealthState> {
       this.detectChanges(this.lastState, newState);
     }
     this.lastState = newState;
+    this.lastCollectAt = Date.now();
     return newState;
   }
 
@@ -95,7 +116,8 @@ export class SystemHealthSensor extends BaseSensor<SystemHealthState> {
         "$memUsed=[math]::Round(($os.TotalVisibleMemorySize-$os.FreePhysicalMemory)/1024)",
         "$memTotal=[math]::Round($os.TotalVisibleMemorySize/1024)",
         "$boot=[datetime]$os.LastBootUpTime",
-        "$procCount=(Get-Process).Count",
+        "$procs=@(Get-Process)",
+        "$procCount=$procs.Count",
         '$disks=@(Get-CimInstance Win32_LogicalDisk -Filter "DriveType=3")',
         "$diskTotalSize=($disks | Measure-Object Size -Sum).Sum",
         "$diskFreeSize=($disks | Measure-Object FreeSpace -Sum).Sum",
@@ -104,7 +126,7 @@ export class SystemHealthSensor extends BaseSensor<SystemHealthState> {
         "$diskUsed=[math]::Round($diskUsedSize/1GB,1)",
         "$diskTotal=[math]::Round($diskTotalSize/1GB,1)",
         'Write-Output "$cpu|$memPct|$memUsed|$memTotal|$diskPct|$diskUsed|$diskTotal|$procCount|$boot"',
-        "Get-Process | Sort-Object CPU -Descending | Select-Object -First 5 Name, @{N='CPU';E={$_.CPU}}, @{N='MemMB';E={[math]::Round($_.WorkingSet64/1MB)}} | ForEach-Object { $_.Name + '|' + [math]::Round($_.CPU,1) + '|' + $_.MemMB }",
+        "$procs | Sort-Object CPU -Descending | Select-Object -First 5 Name, @{N='CPU';E={$_.CPU}}, @{N='MemMB';E={[math]::Round($_.WorkingSet64/1MB)}} | ForEach-Object { $_.Name + '|' + [math]::Round($_.CPU,1) + '|' + $_.MemMB }",
       ].join("; "),
       10000,
     );
@@ -139,9 +161,10 @@ export class SystemHealthSensor extends BaseSensor<SystemHealthState> {
         };
       });
 
-    // Network — fast native ping (1 request, 1s timeout)
+    // Network — fast native ping (1 request, short timeout). Cached by the
+    // snapshot cache window so it only runs occasionally.
     const networkOnline =
-      this.execCommand("ping -n 1 -w 1000 8.8.8.8 2>nul") !== null;
+      this.execCommand("ping -n 1 -w 500 8.8.8.8 2>nul") !== null;
 
     return {
       cpuUsagePercent,
@@ -198,7 +221,7 @@ export class SystemHealthSensor extends BaseSensor<SystemHealthState> {
     const networkOnline =
       this.execCommand(
         "ping -c1 -W1 8.8.8.8 >/dev/null 2>&1 && echo true || echo false",
-        3000,
+        2000,
       ) === "true";
 
     // Uptime
@@ -247,31 +270,32 @@ export class SystemHealthSensor extends BaseSensor<SystemHealthState> {
   }
 
   private async getCpuUsageLinux(): Promise<number> {
-    // Read /proc/stat twice with a short delay to calculate CPU usage
+    // Read /proc/stat and compute CPU usage from the delta against the
+    // previous sample (no 500ms sleep needed).
     const readCpu = (): { idle: number; total: number } | null => {
       const raw = this.execCommand("head -1 /proc/stat", 1000);
       if (!raw) return null;
       const parts = raw.split(/\s+/);
       const values = parts.slice(1).map(Number);
-      const idle = values[3] ?? 0;
+      const idle = (values[3] ?? 0) + (values[4] ?? 0); // idle + iowait
       const total = values.reduce((a, b) => a + b, 0);
       return { idle, total };
     };
 
-    const first = readCpu();
-    if (!first) return 0;
+    const sample = readCpu();
+    if (!sample) return 0;
 
-    // Wait 500ms
-    this.execCommand("sleep 0.5", 1000);
+    const prev = this.prevCpuSample;
+    this.prevCpuSample = { ...sample, at: Date.now() };
 
-    const second = readCpu();
-    if (!second) return 0;
+    if (!prev) return 0;
 
-    const idleDiff = second.idle - first.idle;
-    const totalDiff = second.total - first.total;
-    if (totalDiff === 0) return 0;
+    const idleDiff = sample.idle - prev.idle;
+    const totalDiff = sample.total - prev.total;
+    if (totalDiff <= 0) return 0;
 
-    return Math.round(((totalDiff - idleDiff) / totalDiff) * 100);
+    // Sample interval is usually ~10s (poll interval) or shorter; no sleep needed.
+    return Math.min(100, Math.round(((totalDiff - idleDiff) / totalDiff) * 100));
   }
 
   private detectChanges(

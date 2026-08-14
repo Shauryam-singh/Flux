@@ -278,7 +278,7 @@ Synthesize these results into a single, coherent final response. Combine all out
 
     try {
       const synthesis = await provider.complete({
-        model: "qwen3:4b",
+        model: "default",
         prompt: synthesisPrompt,
         temperature: 0.3,
       });

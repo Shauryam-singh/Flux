@@ -29,7 +29,7 @@ const METADATA: SensorMetadata = {
 export class SpotifySensor extends BaseSensor<SpotifyState> {
   private lastTrack: string | null = null;
 
-  constructor(pollIntervalMs = 3000) {
+  constructor(pollIntervalMs = 15000) {
     super(METADATA, pollIntervalMs);
   }
 
@@ -43,10 +43,12 @@ export class SpotifySensor extends BaseSensor<SpotifyState> {
   }
 
   protected async onSnapshot(): Promise<SpotifyState | null> {
+    if (process.platform !== "linux") return null;
     return this.readSpotifyState();
   }
 
   protected async onRefresh(): Promise<SpotifyState | null> {
+    if (process.platform !== "linux") return null;
     const state = await this.readSpotifyState();
     if (state && state.track !== this.lastTrack) {
       this.lastTrack = state.track;

@@ -26,7 +26,7 @@ export class ClipboardSensor extends BaseSensor<ClipboardState> {
   private changeCount = 0;
   private lastChanged = 0;
 
-  constructor(pollIntervalMs = 2000) {
+  constructor(pollIntervalMs = 10000) {
     super(METADATA, pollIntervalMs);
   }
 

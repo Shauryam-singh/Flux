@@ -330,20 +330,13 @@ export function startGraph() {
   graphActive = true;
   initGraphNodes();
   animateGraph();
+}
 
-  graphUpdateTimer = setInterval(() => {
-    fetch("http://localhost:3141/state")
-      .then((r) => r.json())
-      .then((data) => {
-        const thoughts =
-          data?.recentThoughts || data?.pipelineResult?.thoughts || [];
-        const edges = data?.pipelineResult?.edges || [];
-        if (thoughts.length > 0) {
-          updateGraphFromData(thoughts, edges);
-        }
-      })
-      .catch(() => {});
-  }, 3000);
+// Export for SSE-based updates
+export function updateGraphFromThoughts(thoughts) {
+  if (!graphActive || !thoughts || thoughts.length === 0) return;
+  const edges = [];
+  updateGraphFromData(thoughts, edges);
 }
 
 export function stopGraph() {

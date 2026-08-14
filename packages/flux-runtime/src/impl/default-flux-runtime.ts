@@ -166,6 +166,7 @@ export class DefaultFluxRuntime implements FluxRuntime {
   private cognitiveReady = false;
   private running = false;
   private userRequestActive = false;
+  private tickInFlight = false;
   private backgroundTimer: ReturnType<typeof setInterval> | null = null;
   private lastTickAt: number | null = null;
   private tickCount = 0;
@@ -245,6 +246,12 @@ export class DefaultFluxRuntime implements FluxRuntime {
   private lastCorrelationCheck = 0;
   private lastTimeAwareCheck = 0;
   private lastAutomationCheck = 0;
+  // Cache of sensor snapshots for the system context, reused for a short
+  // window so consecutive chat turns don't re-run all sensors (~2-4s).
+  private cachedSensorSnapshots: Record<string, unknown> = {};
+  private cachedSensorAt = 0;
+  // Increased from 30s to 60s to reduce sensor overhead during active chat
+  private readonly SENSOR_CACHE_TTL_MS = 60000;
 
   constructor(config: FluxRuntimeConfig) {
     this.config = config;
@@ -289,8 +296,24 @@ export class DefaultFluxRuntime implements FluxRuntime {
           model: req.model === "default" ? config.model : req.model,
           prompt: req.prompt,
           temperature: req.temperature ?? 0.7,
+          ...(req.messages !== undefined && { messages: req.messages }),
           ...(req.maxTokens !== undefined && { maxTokens: req.maxTokens }),
         }),
+      completeStream: (req, callbacks) => {
+        if (!this.provider.completeStream) {
+          throw new Error("Streaming not supported by provider");
+        }
+        return this.provider.completeStream(
+          {
+            model: req.model === "default" ? config.model : req.model,
+            prompt: req.prompt,
+            temperature: req.temperature ?? 0.7,
+            ...(req.messages !== undefined && { messages: req.messages }),
+            ...(req.maxTokens !== undefined && { maxTokens: req.maxTokens }),
+          },
+          callbacks,
+        );
+      },
     };
 
     // --- Layer 3: Services ---
@@ -521,8 +544,13 @@ export class DefaultFluxRuntime implements FluxRuntime {
       void this.sensors.startAll();
     }
 
+    // Pre-warm the sensor snapshot cache so the first user /chat request doesn't
+    // pay a 3-4s parallel sensor sweep while building its system context.
+    void this.collectSensorSnapshots();
+
     // Start our observation gathering loop
-    const tickMs = this.config.backgroundTickMs ?? 5000;
+    // Increased from 5s to 15s to reduce background LLM load and sensor overhead
+    const tickMs = this.config.backgroundTickMs ?? 15000;
     this.backgroundTimer = setInterval(() => {
       void this.runTick();
     }, tickMs);
@@ -1227,6 +1255,20 @@ export class DefaultFluxRuntime implements FluxRuntime {
   private async runTick(): Promise<void> {
     if (!this.running) return;
 
+    // While a user /chat request is in flight, bail out of ALL background work.
+    // Ollama serves requests serially on CPU, and every background call (intent
+    // prediction, screen observation) holds the single slot for seconds — queueing
+    // the user's reply behind them is what pushes wall-clock time past 6s.
+    if (this.userRequestActive) {
+      this.lastTickAt = Date.now();
+      return;
+    }
+
+    // Never run two ticks concurrently. setInterval fires every 5s without
+    // awaiting, so slow ticks would otherwise pile up and flood the queue.
+    if (this.tickInFlight) return;
+    this.tickInFlight = true;
+
     const tickStart = Date.now();
     this.tickCount++;
     let observationsGathered = 0;
@@ -1305,6 +1347,8 @@ export class DefaultFluxRuntime implements FluxRuntime {
         // Handler errors are non-fatal
       }
     }
+
+    this.tickInFlight = false;
   }
 
   private async gatherObservations(): Promise<number> {
@@ -1416,8 +1460,9 @@ export class DefaultFluxRuntime implements FluxRuntime {
     // Source 6: Proactive screen understanding every 60th tick (vision LLM — expensive).
     // Local Ollama models generate 1500-2500 tokens per call (~30s on a 4050), so
     // firing more often than every 5 minutes saturates the single-slot queue and
-    // makes user /chat requests wait minutes.
-    if (this.tickCount % 60 === 0) {
+    // makes user /chat requests wait minutes. Also skip entirely while a user
+    // request is in flight so it can never hold the Ollama slot behind the reply.
+    if (this.tickCount % 60 === 0 && !this.userRequestActive) {
       try {
         const screenObs = await observeScreen(this.llmProvider);
         if (screenObs) {
@@ -1542,7 +1587,62 @@ export class DefaultFluxRuntime implements FluxRuntime {
       let app = "";
       let title = "";
 
-      if (platform === "linux") {
+      if (platform === "win32") {
+        // Windows: Use PowerShell to get active window
+        try {
+          const psCommand = `
+            Add-Type @"
+              using System;
+              using System.Runtime.InteropServices;
+              public class Win32 {
+                [DllImport("user32.dll")]
+                public static extern IntPtr GetForegroundWindow();
+                [DllImport("user32.dll")]
+                public static extern int GetWindowText(IntPtr hWnd, System.Text.StringBuilder text, int count);
+                [DllImport("user32.dll")]
+                public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
+              }
+"@
+            $hwnd = [Win32]::GetForegroundWindow()
+            $pid = 0
+            [Win32]::GetWindowThreadProcessId($hwnd, [ref]$pid) | Out-Null
+            $proc = Get-Process -Id $pid -ErrorAction SilentlyContinue
+            $title = New-Object System.Text.StringBuilder(256)
+            [Win32]::GetWindowText($hwnd, $title, 256) | Out-Null
+            @{ ProcessName = $proc.ProcessName; Title = $title.ToString() } | ConvertTo-Json
+          `.trim();
+          
+          const output = execSync(`powershell -Command "${psCommand.replace(/"/g, '\\"').replace(/\n/g, ' ')}"`, {
+            encoding: "utf-8",
+            timeout: 3000,
+            stdio: ["pipe", "pipe", "pipe"],
+          }).trim();
+          
+          if (output) {
+            const data = JSON.parse(output) as { ProcessName?: string; Title?: string };
+            app = data.ProcessName ?? "";
+            title = data.Title ?? "";
+          }
+        } catch {
+          // PowerShell failed, try alternative method
+          try {
+            // Fallback: Use tasklist to get foreground window
+            const output = execSync('powershell -Command "Get-Process | Where-Object {$_.MainWindowTitle -ne \'\'} | Select-Object -First 1 ProcessName, MainWindowTitle | ConvertTo-Json"', {
+              encoding: "utf-8",
+              timeout: 3000,
+              stdio: ["pipe", "pipe", "pipe"],
+            }).trim();
+            
+            if (output) {
+              const data = JSON.parse(output) as { ProcessName?: string; MainWindowTitle?: string };
+              app = data.ProcessName ?? "";
+              title = data.MainWindowTitle ?? "";
+            }
+          } catch {
+            // Both methods failed
+          }
+        }
+      } else if (platform === "linux") {
         // Try Hyprland first (Wayland)
         try {
           const hyprOutput = execSync("hyprctl activewindow -j 2>/dev/null", {
@@ -1919,39 +2019,16 @@ export class DefaultFluxRuntime implements FluxRuntime {
     this.userRequestActive = true;
 
     try {
-      // Step 1: Record user message in memory
-      await this.session.memory.add("user", input);
+      // Step 1: Record user message in memory — handled by the routed
+      // service (chat, search, files, etc. all write user+assistant), so
+      // writing here would duplicate every message.
 
-    // Step 2: Record in history
-    this.history.push({ role: "user", content: input, timestamp: Date.now() });
+      // Step 2: Record in history
+      this.history.push({ role: "user", content: input, timestamp: Date.now() });
 
     // Step 4: Process through service orchestrator (intent classification + routing)
     const getSystemContext = async () => {
-      const sensorSnapshots: Record<string, unknown> = {};
-      for (const sensorId of [
-        "git",
-        "docker",
-        "battery",
-        "idle",
-        "clipboard",
-        "spotify",
-        "audio",
-        "notifications",
-        "screen",
-        "filesystem",
-        "system-health",
-      ] as const) {
-        try {
-          const sensor = this.sensors.get(sensorId);
-          if (sensor) {
-            const ts = Date.now();
-            const snap = await sensor.snapshot();
-            const dur = Date.now() - ts;
-            if (dur > 500) console.log(`[timing] sensor ${sensorId}: ${dur}ms`);
-            if (snap) sensorSnapshots[sensorId] = snap;
-          }
-        } catch {}
-      }
+      const sensorSnapshots = await this.collectSensorSnapshots();
 
       const batterySnap = sensorSnapshots.battery as
         | { level?: number; isCharging?: boolean; timeToEmpty?: number | null; timeToFull?: number | null; status?: string }
@@ -2045,43 +2122,6 @@ export class DefaultFluxRuntime implements FluxRuntime {
         platform: process.platform,
       };
 
-      // Enrich with knowledge base search results for the current query
-      try {
-        const kbResults = this.knowledgeBase.search(input, 3);
-        if (kbResults.length > 0) {
-          sysResult.knowledgeBase = kbResults.map((r) => ({
-            file: r.filePath,
-            snippet: r.content.slice(0, 200),
-          }));
-        }
-      } catch {
-        // Knowledge base unavailable
-      }
-
-      // Enrich with multi-agent status
-      try {
-        const agents = this.multiAgent.getAgents();
-        sysResult.agents = {
-          count: agents.length,
-          domains: agents.map((a) => a.domain),
-        };
-      } catch {
-        // Multi-agent unavailable
-      }
-
-      // Enrich with cross-device sync status
-      try {
-        const syncStatus = this.crossDevice.getStatus();
-        sysResult.crossDevice = {
-          enabled: syncStatus.enabled,
-          sharedDir: syncStatus.sharedDir,
-          lastPush: syncStatus.lastPush,
-          lastPull: syncStatus.lastPull,
-        };
-      } catch {
-        // Cross-device unavailable
-      }
-
       return sysResult as unknown as SystemContext;
     };
 
@@ -2099,8 +2139,8 @@ export class DefaultFluxRuntime implements FluxRuntime {
     const responseText = result.text;
     const duration = Date.now() - start;
 
-    // Step 5: Record assistant response in memory
-    await this.session.memory.add("assistant", responseText);
+    // Step 5: Record assistant response in memory — the routed service
+    // (chat, search, files, etc.) already wrote it, so skip the duplicate.
 
     // Step 6: Record in history
     this.history.push({
@@ -2212,7 +2252,7 @@ export class DefaultFluxRuntime implements FluxRuntime {
         let summaryText: string;
         if (this.llmProvider) {
           const llmResult = await this.llmProvider.complete({
-            model: "qwen3:4b",
+            model: "default",
             prompt: `Summarise this conversation in 2-3 sentences, focusing on what was accomplished and any open items. Be concise and natural.\n\n${transcript}`,
             temperature: 0.3,
           });
@@ -2245,6 +2285,129 @@ export class DefaultFluxRuntime implements FluxRuntime {
           thoughtGraphEdges: this.thoughtGraph.snapshot().edgeCount,
         },
       };
+    } finally {
+      this.userRequestActive = false;
+    }
+  }
+
+  async processStream(
+    input: string,
+    callbacks: {
+      onToken?: (token: string) => void;
+      onDone?: (text: string) => void;
+      onError?: (error: Error) => void;
+    },
+  ): Promise<void> {
+    const start = Date.now();
+    this.totalInteractions++;
+    this.userRequestActive = true;
+
+    try {
+      // Step 1: Record in history
+      this.history.push({ role: "user", content: input, timestamp: Date.now() });
+
+      const getSystemContext = async () => {
+        // Skip sensor collection during chat if cache is fresh to minimize delay
+        const sensorSnapshots = await this.collectSensorSnapshots(true);
+
+        const batterySnap = sensorSnapshots.battery as
+          | { level?: number; isCharging?: boolean; timeToEmpty?: number | null; timeToFull?: number | null; status?: string }
+          | undefined;
+        const recentActivity: string[] = [];
+        for (const event of this.recentSensorEvents.slice(0, 5)) {
+          recentActivity.push(`[${event.sensorId}] ${event.type}`);
+        }
+        for (const thought of this.recentThoughts.slice(-3)) {
+          recentActivity.push(`Thought: ${thought.content.slice(0, 80)}`);
+        }
+        const goals = this.goalManager
+          .getAll()
+          .filter((g) => g.status === "active" || g.status === "in_progress")
+          .map((g) => ({
+            name: g.title,
+            progress: g.progress,
+            status: g.status as string,
+          }));
+
+        const sysResult: Record<string, unknown> = {
+          battery: batterySnap
+            ? {
+                level: batterySnap.level ?? 0,
+                charging: batterySnap.isCharging ?? false,
+                ...(batterySnap.timeToEmpty != null
+                  ? { timeRemaining: batterySnap.timeToEmpty }
+                  : batterySnap.timeToFull != null
+                    ? { timeRemaining: batterySnap.timeToFull }
+                    : {}),
+              }
+            : null,
+          sensors: sensorSnapshots,
+          goals,
+          recentActivity,
+          memoryStats: { totalMemories: this.memory.getStats().totalMemories },
+          currentTime: new Date().toLocaleString(),
+          platform: process.platform,
+        };
+        return sysResult as unknown as SystemContext;
+      };
+
+      let fullText = "";
+      await this.orchestrator.processStream(
+        input,
+        {
+          sessionId: this.session.id,
+          memory: this.session.memory,
+          provider: this.llmProvider,
+          reply: () => {},
+          speak: () => {},
+          emit: () => {},
+          getSystemContext,
+          multiAgent: this.multiAgent,
+        },
+        {
+          onToken: (token: string) => {
+            fullText += token;
+            callbacks.onToken?.(token);
+          },
+          onDone: async (text: string) => {
+            fullText = text;
+            const duration = Date.now() - start;
+            this.history.push({
+              role: "assistant",
+              content: text,
+              timestamp: Date.now(),
+            });
+            this.workingMemory.add({
+              type: "observation",
+              content: `Assistant: ${text.slice(0, 200)}`,
+              weight: 0.6,
+              source: "assistant",
+            });
+            this.memory.storeEpisodic({
+              type: "episodic",
+              category: "interaction",
+              event: `User asked: ${input.slice(0, 150)}`,
+              context: `Assistant replied: ${text.slice(0, 200)}`,
+              participants: ["user", "assistant"],
+              location: null,
+              duration,
+              outcome: text.length > 0 ? "responded" : "no response",
+              emotionalValence: text.length > 0 ? 0.5 : -0.2,
+              content: `Q: ${input.slice(0, 200)}\nA: ${text.slice(0, 300)}`,
+              strength: 0.8,
+              confidence: 0.9,
+              source: "chat",
+              tags: ["chat", "conversation"],
+              relatedIds: [],
+              relatedEpisodeIds: [],
+            });
+            callbacks.onDone?.(text);
+          },
+          onError: (error: Error) => {
+            callbacks.onError?.(error);
+          },
+        },
+      );
     } finally {
       this.userRequestActive = false;
     }
@@ -2291,6 +2454,74 @@ export class DefaultFluxRuntime implements FluxRuntime {
       cognitiveMemoryCount: memStats.totalMemories,
       memoryStats: memStats,
     };
+  }
+
+  /**
+   * Collect sensor snapshots, caching results for SENSOR_CACHE_TTL_MS and
+   * running all sensors in parallel. Shared by the chat system-context
+   * builder and the streaming snapshot so the SSE tick doesn't re-run every
+   * sensor on each 5s interval.
+   * 
+   * @param skipIfCached - If true, skip collection even if cache is stale
+   *   (used during chat to avoid blocking on slow sensors)
+   */
+  private async collectSensorSnapshots(skipIfCached = false): Promise<Record<string, unknown>> {
+    const now = Date.now();
+    if (now - this.cachedSensorAt < this.SENSOR_CACHE_TTL_MS) {
+      return { ...this.cachedSensorSnapshots };
+    }
+
+    // During active user requests, use stale cache to avoid blocking chat
+    if (skipIfCached && Object.keys(this.cachedSensorSnapshots).length > 0) {
+      return { ...this.cachedSensorSnapshots };
+    }
+
+    const sensorSnapshots: Record<string, unknown> = {};
+    const sensorIds = [
+      "git",
+      "docker",
+      "battery",
+      "idle",
+      "clipboard",
+      "spotify",
+      "audio",
+      "notifications",
+      "screen",
+      "filesystem",
+      "system-health",
+    ] as const;
+
+    // Run all sensor snapshots in parallel so slow sensors (battery,
+    // system-health, git) don't block each other.
+    await Promise.allSettled(
+      sensorIds.map(async (sensorId) => {
+        try {
+          const sensor = this.sensors.get(sensorId);
+          if (!sensor) return;
+          const ts = Date.now();
+          const snap = await sensor.snapshot();
+          const dur = Date.now() - ts;
+          if (dur > 500) console.log(`[timing] sensor ${sensorId}: ${dur}ms`);
+          if (snap) {
+            sensorSnapshots[sensorId] = snap;
+          } else {
+            // Sensor available but no data yet — return minimal state
+            const sensorState = sensor.getState();
+            sensorSnapshots[sensorId] = {
+              status: sensorState.status,
+              available: true,
+              lastUpdate: sensorState.lastUpdate || 0,
+            };
+          }
+        } catch {
+          // Best-effort
+        }
+      }),
+    );
+
+    this.cachedSensorSnapshots = sensorSnapshots;
+    this.cachedSensorAt = now;
+    return { ...sensorSnapshots };
   }
 
   async getStreamingSnapshot(): Promise<{
@@ -2347,40 +2578,8 @@ export class DefaultFluxRuntime implements FluxRuntime {
       progress: g.progress,
     }));
 
-    // Gather sensor snapshots
-    const sensorSnapshots: Record<string, unknown> = {};
-    for (const sensorId of [
-      "git",
-      "docker",
-      "battery",
-      "idle",
-      "clipboard",
-      "spotify",
-      "audio",
-      "notifications",
-      "filesystem",
-      "system-health",
-    ] as const) {
-      try {
-        const sensor = this.sensors.get(sensorId);
-        if (sensor) {
-          const snap = await sensor.snapshot();
-          if (snap) {
-            sensorSnapshots[sensorId] = snap;
-          } else {
-            // Sensor available but no data yet — return minimal state
-            const sensorState = sensor.getState();
-            sensorSnapshots[sensorId] = {
-              status: sensorState.status,
-              available: true,
-              lastUpdate: sensorState.lastUpdate || 0,
-            };
-          }
-        }
-      } catch {
-        // Best-effort
-      }
-    }
+    // Gather sensor snapshots (cached + parallel via shared helper)
+    const sensorSnapshots = await this.collectSensorSnapshots();
 
     return {
       state: this.getState(),

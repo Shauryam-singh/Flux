@@ -58,7 +58,7 @@ export class DockerSensor extends BaseSensor<DockerState> {
   private lastContainers: Map<string, DockerContainer> = new Map();
   private recentEvents: DockerEvent[] = [];
 
-  constructor(pollIntervalMs = 5000) {
+  constructor(pollIntervalMs = 30000) {
     super(METADATA, pollIntervalMs);
   }
 

@@ -53,7 +53,7 @@ export class GitSensor extends BaseSensor<GitState> {
   private lastState: GitState | null = null;
   private readonly repoPath: string;
 
-  constructor(repoPath: string, pollIntervalMs = 3000) {
+  constructor(repoPath: string, pollIntervalMs = 15000) {
     super(METADATA, pollIntervalMs);
     this.repoPath = repoPath;
   }
@@ -94,19 +94,30 @@ export class GitSensor extends BaseSensor<GitState> {
     const branch = this.execGit("git rev-parse --abbrev-ref HEAD");
     if (branch === null) return null;
 
-    const isDirty = this.execGit("git status --porcelain") !== "";
-    const staged = this.execGit("git diff --cached --numstat");
-    const unstaged = this.execGit("git diff --numstat");
-    const untracked = this.execGit("git ls-files --others --exclude-standard");
+    // Single porcelain call gives us dirty state plus staged/unstaged/
+    // untracked counts — avoids 4 separate process spawns on Windows.
+    const porcelain = this.execGit("git status --porcelain") ?? "";
+    const lines = porcelain.split("\n").filter(Boolean);
+    let stagedCount = 0;
+    let unstagedCount = 0;
+    let untrackedCount = 0;
+    let merging = false;
+    for (const line of lines) {
+      const x = line[0];
+      const y = line[1];
+      if (x === "?" && y === "?") {
+        untrackedCount++;
+      } else {
+        if (x && x !== " ") stagedCount++;
+        if (y && y !== " ") unstagedCount++;
+        if (x === "U" || y === "U") merging = true;
+      }
+    }
+
     const aheadBehind = this.execGit(
       "git rev-list --left-right --count HEAD...@{upstream}",
     );
     const log = this.execGit("git log --format=%H|%s|%an|%at -10");
-    const tag = this.execGit("git describe --tags --exact-match 2>/dev/null");
-    const merging =
-      this.execGit("test -f .git/MERGE_HEAD && echo true") === "true";
-    const rebasing =
-      this.execGit("test -d .git/rebase-merge && echo true") === "true";
 
     const ahead = aheadBehind
       ? parseInt(aheadBehind.split("\t")[0] ?? "0", 10)
@@ -132,18 +143,16 @@ export class GitSensor extends BaseSensor<GitState> {
 
     return {
       branch,
-      isDirty,
-      stagedCount: staged ? staged.split("\n").filter(Boolean).length : 0,
-      unstagedCount: unstaged ? unstaged.split("\n").filter(Boolean).length : 0,
-      untrackedCount: untracked
-        ? untracked.split("\n").filter(Boolean).length
-        : 0,
+      isDirty: lines.length > 0,
+      stagedCount,
+      unstagedCount,
+      untrackedCount,
       ahead,
       behind,
       recentCommits,
-      currentTag: tag || null,
+      currentTag: null,
       merging,
-      rebasing,
+      rebasing: false,
     };
   }
 

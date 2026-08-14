@@ -4,6 +4,7 @@ import type {
 } from "@ai-agent/attention";
 import type { SensorEvent, SensorMetadata } from "../../types/sensor.js";
 import { BaseSensor } from "../base-sensor.js";
+import { runPowerShell } from "../powershell.js";
 
 export interface BatteryState {
   readonly level: number; // 0-100
@@ -115,23 +116,38 @@ export class BatterySensor extends BaseSensor<BatteryState> {
   }
 
   private async readWindowsBattery(): Promise<BatteryState | null> {
-    const output = this.execCommand(
-      'powershell -command "Get-WmiObject Win32_Battery | Select-Object EstimatedChargeRemaining, BatteryStatus"',
+    const output = runPowerShell(
+      'Get-CimInstance Win32_Battery | Select-Object -First 1 EstimatedChargeRemaining, BatteryStatus | ConvertTo-Json -Compress',
     );
     if (!output) return null;
 
-    const lines = output.split("\n").filter((l) => l.trim());
-    if (lines.length < 2) return null;
+    try {
+      const parsed = JSON.parse(output);
+      const level = parseInt(String(parsed.EstimatedChargeRemaining ?? "0"), 10);
+      const status = parseInt(String(parsed.BatteryStatus ?? "0"), 10);
 
-    const level = parseInt(lines[1]?.trim() ?? "0", 10);
-    const status = parseInt(lines[2]?.trim() ?? "0", 10);
+      return {
+        level: isNaN(level) ? 0 : level,
+        isCharging: status === 2 || status === 6 || status === 7 || status === 8,
+        timeToEmpty: null,
+        timeToFull: null,
+        status: status === 2 ? "charging" : "discharging",
+      };
+    } catch {
+      // Fall back to line-based parsing (non-JSON output)
+      const lines = output.split("\n").filter((l) => l.trim());
+      if (lines.length < 2) return null;
 
-    return {
-      level: isNaN(level) ? 0 : level,
-      isCharging: status === 2 || status === 6 || status === 7 || status === 8,
-      timeToEmpty: null,
-      timeToFull: null,
-      status: status === 2 ? "charging" : "discharging",
-    };
+      const level = parseInt(lines[1]?.trim() ?? "0", 10);
+      const status = parseInt(lines[2]?.trim() ?? "0", 10);
+
+      return {
+        level: isNaN(level) ? 0 : level,
+        isCharging: status === 2 || status === 6 || status === 7 || status === 8,
+        timeToEmpty: null,
+        timeToFull: null,
+        status: status === 2 ? "charging" : "discharging",
+      };
+    }
   }
 }

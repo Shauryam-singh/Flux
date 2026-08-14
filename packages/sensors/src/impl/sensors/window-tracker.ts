@@ -88,6 +88,8 @@ export class WindowTracker {
   private appSessions: Map<string, AppSession> = new Map();
   private switchTimestamps: number[] = [];
   private readonly isWindows: boolean;
+  private lastPollAt = 0;
+  private static readonly POLL_INTERVAL_MS = 3000;
 
   constructor() {
     this.isWindows = process.platform === "win32";
@@ -95,8 +97,16 @@ export class WindowTracker {
 
   /**
    * Poll current window. Returns new window info if changed, null otherwise.
+   * Throttled to at most once every 3s — each poll spawns a PowerShell process
+   * on Windows (Add-Type compile per call), so rapid ticks must not hammer it.
    */
   poll(): WindowInfo | null {
+    const now = Date.now();
+    if (now - this.lastPollAt < WindowTracker.POLL_INTERVAL_MS) {
+      return null;
+    }
+    this.lastPollAt = now;
+
     const info = this.getActiveWindow();
     if (!info) return null;
 

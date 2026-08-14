@@ -1,4 +1,4 @@
-import type { SpecialistAgent, AgentConfig } from "../interfaces/specialist-agent.js";
+﻿import type { SpecialistAgent, AgentConfig } from "../interfaces/specialist-agent.js";
 import type { Task, TaskResult, AgentMessage, AgentHealth, AgentMetadata, AgentCapability } from "@ai-agent/exec-types";
 
 let idCounter = 0;
@@ -133,7 +133,7 @@ export abstract class BaseSpecialistAgent implements SpecialistAgent {
   }
 }
 
-// ─── Built-in Specialist Agents ───
+// â”€â”€â”€ Built-in Specialist Agents â”€â”€â”€
 
 export class CodingAgent extends BaseSpecialistAgent {
   constructor() {
@@ -143,12 +143,12 @@ export class CodingAgent extends BaseSpecialistAgent {
       description: "Writes, edits, and refactors code",
       version: "1.0.0",
       capabilities: ["code_generation", "code_editing", "refactoring", " debugging"],
-      supportedModels: ["qwen3:4b", "gpt-4"],
+      supportedModels: ["qwen2.5:0.5b", "gpt-4"],
       maxConcurrentTasks: 2,
       priority: 10,
       costPerToken: 0.00003,
       timeoutMs: 300000,
-      model: "qwen3:4b",
+      model: "qwen2.5:0.5b",
       systemPrompt: "You are a coding specialist.",
     });
   }
@@ -177,12 +177,12 @@ export class ResearchAgent extends BaseSpecialistAgent {
       description: "Researches topics, gathers information, summarizes findings",
       version: "1.0.0",
       capabilities: ["research", "web_search", "summarization", "analysis"],
-      supportedModels: ["qwen3:4b", "gpt-4"],
+      supportedModels: ["qwen2.5:0.5b", "gpt-4"],
       maxConcurrentTasks: 3,
       priority: 8,
       costPerToken: 0.00002,
       timeoutMs: 600000,
-      model: "qwen3:4b",
+      model: "qwen2.5:0.5b",
       systemPrompt: "You are a research specialist.",
     });
   }
@@ -211,12 +211,12 @@ export class DocumentationAgent extends BaseSpecialistAgent {
       description: "Writes and maintains documentation",
       version: "1.0.0",
       capabilities: ["documentation", "writing", "formatting"],
-      supportedModels: ["qwen3:4b"],
+      supportedModels: ["qwen2.5:0.5b"],
       maxConcurrentTasks: 2,
       priority: 6,
       costPerToken: 0.00002,
       timeoutMs: 300000,
-      model: "qwen3:4b",
+      model: "qwen2.5:0.5b",
       systemPrompt: "You are a documentation specialist.",
     });
   }
@@ -245,12 +245,12 @@ export class TestingAgent extends BaseSpecialistAgent {
       description: "Writes and runs tests",
       version: "1.0.0",
       capabilities: ["testing", "test_generation", "test_analysis"],
-      supportedModels: ["qwen3:4b"],
+      supportedModels: ["qwen2.5:0.5b"],
       maxConcurrentTasks: 2,
       priority: 9,
       costPerToken: 0.00002,
       timeoutMs: 300000,
-      model: "qwen3:4b",
+      model: "qwen2.5:0.5b",
       systemPrompt: "You are a testing specialist.",
     });
   }
@@ -279,12 +279,12 @@ export class GitAgent extends BaseSpecialistAgent {
       description: "Manages git operations",
       version: "1.0.0",
       capabilities: ["git_operations", "branching", "merging"],
-      supportedModels: ["qwen3:4b"],
+      supportedModels: ["qwen2.5:0.5b"],
       maxConcurrentTasks: 1,
       priority: 8,
       costPerToken: 0.00001,
       timeoutMs: 120000,
-      model: "qwen3:4b",
+      model: "qwen2.5:0.5b",
       systemPrompt: "You are a git specialist.",
     });
   }
@@ -313,12 +313,12 @@ export class DebugAgent extends BaseSpecialistAgent {
       description: "Diagnoses and fixes bugs",
       version: "1.0.0",
       capabilities: ["debugging", "error_analysis", "root_cause_analysis"],
-      supportedModels: ["qwen3:4b", "gpt-4"],
+      supportedModels: ["qwen2.5:0.5b", "gpt-4"],
       maxConcurrentTasks: 1,
       priority: 11,
       costPerToken: 0.00003,
       timeoutMs: 600000,
-      model: "qwen3:4b",
+      model: "qwen2.5:0.5b",
       systemPrompt: "You are a debugging specialist.",
     });
   }
@@ -347,12 +347,12 @@ export class ReviewAgent extends BaseSpecialistAgent {
       description: "Reviews code and provides feedback",
       version: "1.0.0",
       capabilities: ["code_review", "quality_analysis", "security_review"],
-      supportedModels: ["qwen3:4b"],
+      supportedModels: ["qwen2.5:0.5b"],
       maxConcurrentTasks: 2,
       priority: 7,
       costPerToken: 0.00002,
       timeoutMs: 300000,
-      model: "qwen3:4b",
+      model: "qwen2.5:0.5b",
       systemPrompt: "You are a code review specialist.",
     });
   }

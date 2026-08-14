@@ -77,6 +77,14 @@ export interface FluxRuntime {
   readonly knowledge: DefaultKnowledgeConsolidation;
   readonly habits: DefaultHabitDiscovery;
   process(input: string): Promise<FluxRuntimeResult>;
+  processStream(
+    input: string,
+    callbacks: {
+      onToken?: (token: string) => void;
+      onDone?: (text: string) => void;
+      onError?: (error: Error) => void;
+    },
+  ): Promise<void>;
   processEvent(event: {
     source: ObservationSource;
     title: string;

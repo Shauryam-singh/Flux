@@ -240,22 +240,10 @@ export class BootBriefingGenerator {
     let spokenText: string;
     let markdown: string;
 
-    if (provider) {
-      const llmResult = await this.generateWithLLM(
-        greeting,
-        recap,
-        news,
-        systemStatus,
-        goals,
-        ctx,
-        provider,
-      );
-      spokenText = llmResult.spokenText;
-      markdown = llmResult.markdown;
-    } else {
-      spokenText = this.buildTemplateSpokenText(greeting, recap, news, goals, systemStatus, ctx.sessionSummaries);
-      markdown = this.buildTemplateMarkdown(greeting, recap, news, goals, systemStatus, ctx.sessionSummaries);
-    }
+    // Always use template for boot briefing — LLM prompt is too complex
+    // for small models and wastes time on CPU
+    spokenText = this.buildTemplateSpokenText(greeting, recap, news, goals, systemStatus, ctx.sessionSummaries);
+    markdown = this.buildTemplateMarkdown(greeting, recap, news, goals, systemStatus, ctx.sessionSummaries);
 
     return {
       greeting,
@@ -323,9 +311,13 @@ Respond with ONLY the two sections separated by ===SPLIT===.`;
 
     try {
       const response = await provider.complete({
-        model: "qwen3:4b",
+        model: "default",
         prompt,
         temperature: 0.4,
+        // Cap the response — spoken text (~120 words) + compact markdown.
+        // Without a cap the model generates until it naturally stops,
+        // which on CPU takes 50-170s.
+        maxTokens: 400,
       });
 
       const parts = response.text.split("===SPLIT===");

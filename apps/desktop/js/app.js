@@ -2,7 +2,7 @@
 // FLUX APP — Main entry point, mode switching, voice, command palette
 // ═══════════════════════════════════════════════════════════════
 
-import { startGraph, startParticles, stopGraph } from "./animations.js";
+import { startGraph, startParticles, stopGraph, updateGraphFromThoughts } from "./animations.js";
 import * as UI from "./components.js";
 import { on, startDataEngine, state } from "./data.js";
 
@@ -52,30 +52,36 @@ function setMode(mode) {
 }
 
 async function resizeWindow(mode) {
-  if (!window.__TAURI_INTERNALS__) return;
+  if (!window.__TAURI_INTERNALS__) {
+    console.log("[Flux] Not in Tauri, skipping resize");
+    return;
+  }
   try {
     const { getCurrentWindow } = await import("@tauri-apps/api/window");
     const win = getCurrentWindow();
-    switch (mode) {
-      case "dormant":
-        await win.setSize({ width: 120, height: 120 });
-        await win.center();
-        break;
-      case "hud":
-        await win.setSize({ width: 340, height: 580 });
-        await win.center();
-        break;
-      case "dashboard":
-        await win.setSize({ width: 1200, height: 800 });
-        await win.center();
-        break;
-    }
-  } catch {
-    // Not in Tauri
+
+    // Minimum required pixels for each GUI tier (design minimums — the
+    // .hud media query forces 100vw below 600px, so we can't measure it).
+    const SIZES = {
+      dormant: { width: 120, height: 120 },
+      hud: { width: 328, height: 568 }, // .hud 320x560 + shadow margin
+      dashboard: { width: 1024, height: 720 }, // 2-column overview minimum
+    };
+    const s = SIZES[mode] || SIZES.dormant;
+
+    console.log(`[Flux] Resizing window to ${s.width}x${s.height} for mode: ${mode}`);
+    await win.setSize({ width: s.width, height: s.height });
+    await win.center();
+  } catch (e) {
+    console.error("[Flux] Failed to resize window:", e);
   }
 }
 
 // ─── Window Dragging (frameless window) ───
+
+// Tracks whether the most recent press turned into a real drag. Used to
+// suppress the orb's click-to-expand after the user drags the orb.
+let lastPressDragged = false;
 
 function initDrag() {
   let isDragging = false;
@@ -88,6 +94,7 @@ function initDrag() {
       )
     )
       return;
+    lastPressDragged = false;
     isDragging = true;
     startX = e.screenX;
     startY = e.screenY;
@@ -96,12 +103,15 @@ function initDrag() {
 
   async function onMouseMove(e) {
     if (!isDragging || !window.__TAURI_INTERNALS__) return;
+    const dx = e.screenX - startX;
+    const dy = e.screenY - startY;
+    if (!lastPressDragged && Math.abs(dx) + Math.abs(dy) > 5) {
+      lastPressDragged = true;
+    }
     try {
       const { getCurrentWindow } = await import("@tauri-apps/api/window");
       const win = getCurrentWindow();
       const pos = await win.outerPosition();
-      const dx = e.screenX - startX;
-      const dy = e.screenY - startY;
       await win.setPosition({ x: pos.x + dx, y: pos.y + dy });
       startX = e.screenX;
       startY = e.screenY;
@@ -111,6 +121,10 @@ function initDrag() {
   function onMouseUp() {
     isDragging = false;
     document.body.style.userSelect = "";
+    // Reset after the click event has been dispatched
+    setTimeout(() => {
+      lastPressDragged = false;
+    }, 0);
   }
 
   document.addEventListener("mousedown", onMouseDown);
@@ -604,12 +618,14 @@ async function sendChatMessageDirect(message, speak = false) {
   // Add user message to conversation thread
   addChatMessage("user", message);
 
-  let reply = null;
+  let fullReply = "";
 
   try {
+    // Use streaming chat so tokens appear as they're generated and the
+    // first sentence can be spoken long before the full reply is done.
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 15000);
-    const resp = await fetch(`${API}/chat`, {
+    const timeout = setTimeout(() => controller.abort(), 120000);
+    const resp = await fetch(`${API}/chat/stream`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ message }),
@@ -625,10 +641,78 @@ async function sendChatMessageDirect(message, speak = false) {
       return;
     }
 
-    const data = await resp.json();
-    reply = data.reply || null;
+    const reader = resp.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+
+    // Create the assistant bubble now so tokens stream into it
+    const bubble = addChatMessageStreaming("assistant");
+
+    // Progressive TTS: accumulate text and speak each completed sentence
+    let pendingSpeech = "";
+    let speechStarted = false;
+
+    const flushSpeech = async () => {
+      const trimmed = pendingSpeech.trim();
+      if (!trimmed) return;
+      pendingSpeech = "";
+      speechStarted = true;
+      try {
+        await speakText(trimmed);
+      } catch (e) {
+        console.warn("[Flux] streaming speakText failed:", e);
+      }
+    };
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() ?? "";
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed.startsWith("data:")) continue;
+        const payload = trimmed.slice(5).trim();
+        if (!payload) continue;
+
+        let evt;
+        try {
+          evt = JSON.parse(payload);
+        } catch {
+          continue;
+        }
+
+        if (evt.token) {
+          fullReply += evt.token;
+          updateChatMessageStreaming(bubble, fullReply);
+
+          // Accumulate for speech — flush on sentence boundaries
+          if (speak) {
+            pendingSpeech += evt.token;
+            if (/[.!?…]\s*$/.test(pendingSpeech.trim())) {
+              await flushSpeech();
+            }
+          }
+        } else if (evt.done) {
+          fullReply = evt.text || fullReply;
+          updateChatMessageStreaming(bubble, fullReply);
+        } else if (evt.error) {
+          addChatMessage("system", `Error: ${evt.error}`);
+        }
+      }
+    }
+
+    finalizeChatMessageStreaming(bubble);
+
+    // Speak any remaining partial sentence after streaming finishes
+    if (speak && pendingSpeech.trim()) {
+      await flushSpeech();
+    }
   } catch (e) {
-    const msg = e?.name === "AbortError" ? "Request timed out (15s)" : "API not reachable";
+    const msg = e?.name === "AbortError" ? "Request timed out (120s)" : "API not reachable";
     UI.showToast(`Error: ${msg}`, "error", 5000);
     addChatMessage("system", `Error: ${msg}`);
 
@@ -640,25 +724,33 @@ async function sendChatMessageDirect(message, speak = false) {
           setTimeout(() => reject(new Error("timeout")), 10000),
         ),
       ]);
-      if (tauriResult) reply = tauriResult;
+      if (tauriResult) {
+        fullReply = tauriResult;
+        addChatMessage("assistant", fullReply);
+        if (speak) {
+          try {
+            await speakText(fullReply);
+            if (getWakeWordEnabled()) {
+              setTimeout(() => {
+                if (isWakeWordRunning()) return;
+                startFollowUpListen();
+              }, 500);
+            }
+          } catch (e) {
+            console.warn("[Flux] speakText failed:", e);
+          }
+        }
+      }
     } catch {}
   }
 
-  if (reply) {
-    addChatMessage("assistant", reply);
-    if (speak) {
-      try {
-        await speakText(reply);
-        // Multi-turn: after speaking, listen for follow-up
-        if (getWakeWordEnabled()) {
-          setTimeout(() => {
-            if (isWakeWordRunning()) return; // Already listening
-            startFollowUpListen();
-          }, 500);
-        }
-      } catch (e) {
-        console.warn("[Flux] speakText failed:", e);
-      }
+  if (fullReply) {
+    // Multi-turn: after speaking, listen for follow-up
+    if (speak && getWakeWordEnabled()) {
+      setTimeout(() => {
+        if (isWakeWordRunning()) return;
+        startFollowUpListen();
+      }, 500);
     }
   }
 }
@@ -698,6 +790,43 @@ function addChatMessage(role, content, proactiveMsg) {
   while (container.children.length > 50) {
     container.removeChild(container.firstChild);
   }
+}
+
+// ─── Streaming Chat Bubble Helpers ───
+
+function addChatMessageStreaming(role) {
+  const container = document.getElementById("chat-messages");
+  if (!container) return null;
+
+  const div = document.createElement("div");
+  div.className = `chat-msg chat-${role}`;
+  const icon = role === "assistant" ? "🤖" : "👤";
+  div.innerHTML = `<span class="chat-icon">${icon}</span><span class="chat-text"></span>`;
+
+  container.appendChild(div);
+  container.scrollTop = container.scrollHeight;
+
+  while (container.children.length > 50) {
+    container.removeChild(container.firstChild);
+  }
+  return div;
+}
+
+function updateChatMessageStreaming(bubble, text) {
+  if (!bubble) return;
+  const el = bubble.querySelector(".chat-text");
+  if (!el) return;
+  const truncated = text.length > 2000 ? text.slice(0, 2000) + "..." : text;
+  el.innerHTML = escapeHtmlSimple(truncated);
+  const container = document.getElementById("chat-messages");
+  if (container) container.scrollTop = container.scrollHeight;
+}
+
+function finalizeChatMessageStreaming(bubble) {
+  if (!bubble) return;
+  const el = bubble.querySelector(".chat-text");
+  if (!el) return;
+  el.innerHTML = escapeHtmlSimple(el.textContent || "");
 }
 
 // Handle proactive suggestion actions
@@ -750,10 +879,12 @@ function clearFollowUpTimer() {
 // ─── Event Listeners ───
 
 function initEventListeners() {
-  // Dormant orb click → HUD (expand), then show full briefing
+  // Dormant orb: drag to move, click to expand to HUD (medium GUI) with briefing
   const orb = document.getElementById("orb");
   if (orb) {
     orb.addEventListener("click", () => {
+      // A real drag (moving the orb around) must not expand the window
+      if (lastPressDragged) return;
       setMode("hud");
       showStartupBriefing();
     });
@@ -763,6 +894,12 @@ function initEventListeners() {
   const dashClose = document.getElementById("dash-close");
   if (dashClose) {
     dashClose.addEventListener("click", () => setMode("hud"));
+  }
+
+  // HUD minimize → dormant (orb)
+  const hudMinimize = document.getElementById("hud-minimize");
+  if (hudMinimize) {
+    hudMinimize.addEventListener("click", () => setMode("dormant"));
   }
 
   // HUD action buttons
@@ -907,7 +1044,17 @@ function isInputFocused() {
 
 // ─── Tab Switching ───
 
+let activeTabRefreshInterval = null;
+let activeTabName = null;
+
 function switchTab(tabName) {
+  // Clear previous tab refresh interval
+  if (activeTabRefreshInterval) {
+    clearInterval(activeTabRefreshInterval);
+    activeTabRefreshInterval = null;
+  }
+  activeTabName = tabName;
+
   document.querySelectorAll(".tab").forEach((t) => {
     t.classList.toggle("active", t.dataset.tab === tabName);
   });
@@ -918,18 +1065,54 @@ function switchTab(tabName) {
 
   if (tabName === "sensors") {
     UI.renderSensorsDetail(state.sensors);
+    // Auto-refresh sensors every 5 seconds
+    activeTabRefreshInterval = setInterval(() => {
+      if (activeTabName === "sensors") {
+        UI.renderSensorsDetail(state.sensors);
+      }
+    }, 5000);
   } else if (tabName === "memory") {
     UI.renderMemoryPage();
+    // Auto-refresh memory every 10 seconds
+    activeTabRefreshInterval = setInterval(() => {
+      if (activeTabName === "memory") {
+        UI.renderMemoryPage();
+      }
+    }, 10000);
   } else if (tabName === "graph") {
     startGraph();
   } else if (tabName === "goals") {
     fetchAndRenderGoals();
+    // Auto-refresh goals every 5 seconds
+    activeTabRefreshInterval = setInterval(() => {
+      if (activeTabName === "goals") {
+        fetchAndRenderGoals();
+      }
+    }, 5000);
   } else if (tabName === "projects") {
     fetchAndRenderProjects();
+    // Auto-refresh projects every 10 seconds
+    activeTabRefreshInterval = setInterval(() => {
+      if (activeTabName === "projects") {
+        fetchAndRenderProjects();
+      }
+    }, 10000);
   } else if (tabName === "agents") {
     fetchAndRenderAgents();
+    // Auto-refresh agents every 10 seconds
+    activeTabRefreshInterval = setInterval(() => {
+      if (activeTabName === "agents") {
+        fetchAndRenderAgents();
+      }
+    }, 10000);
   } else if (tabName === "timeline") {
     fetchAndRenderTimeline();
+    // Auto-refresh timeline every 10 seconds
+    activeTabRefreshInterval = setInterval(() => {
+      if (activeTabName === "timeline") {
+        fetchAndRenderTimeline();
+      }
+    }, 10000);
   } else if (tabName === "settings") {
     UI.renderSettingsDetail();
   }
@@ -1223,7 +1406,8 @@ function isWakeWordRunning() {
 function bindDataEvents() {
   on("time", UI.updateTime);
   on("cpu", UI.updateCpu);
-  on("connection", UI.updateStatusText);
+  on("connection", (connected) => UI.updateStatusText(connected, state.isStale));
+  on("staleness", (isStale) => UI.updateStatusText(state.connected, isStale));
   on("cognition", (text) => {
     UI.updateCognition(text);
     UI.updateDashboardCognition(
@@ -1238,7 +1422,11 @@ function bindDataEvents() {
   on("tasks", UI.updateTasks);
   on("memories", UI.updateMemories);
   on("sensors", UI.updateSensors);
-  on("thought", UI.updateThought);
+  on("thought", (thoughts) => {
+    UI.updateThought(thoughts);
+    // Update thought graph from SSE data
+    updateGraphFromThoughts(thoughts);
+  });
   on("worldModel", UI.updateWorldModel);
   on("mood", UI.updateMood);
   on("confidence", UI.updateConfidence);
@@ -1314,11 +1502,13 @@ async function showOrbGreeting() {
   if (!bubble) return;
 
   let greeting = "";
+  let speak = "";
   try {
     const resp = await fetch(`${API}/boot/briefing`);
     if (resp.ok) {
       const data = await resp.json();
       greeting = (data.greeting || "").trim();
+      speak = (data.spokenText || "").trim();
     }
   } catch {}
 
@@ -1330,6 +1520,11 @@ async function showOrbGreeting() {
 
   bubble.textContent = greeting;
   bubble.hidden = false;
+
+  // Speak the little brief — short greeting, or the full spoken briefing.
+  try {
+    await speakText(speak || greeting);
+  } catch {}
 
   // Fade out after a few seconds
   setTimeout(() => {

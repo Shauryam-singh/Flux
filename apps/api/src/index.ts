@@ -7,7 +7,7 @@ const PORT = parseInt(process.env.FLUX_API_PORT ?? "3141", 10);
 
 const fluxConfig: FluxConfig = {
   provider: "ollama",
-  model: "qwen3:4b",
+  model: "qwen2.5:0.5b",
   providerConfigs: {
     ollama: {
       baseUrl: process.env.OLLAMA_BASE_URL ?? "http://localhost:11434",
@@ -17,11 +17,74 @@ const fluxConfig: FluxConfig = {
 
 const flux = createFlux(fluxConfig);
 
+process.on("unhandledRejection", (reason) => {
+  console.error("[unhandledRejection]", reason);
+});
+process.on("uncaughtException", (err) => {
+  console.error("[uncaughtException]", err);
+});
+process.on("exit", (code) => {
+  console.error(`[exit] code=${code}`);
+});
+process.on("SIGTERM", () => {
+  console.error("[SIGTERM] received");
+});
+process.on("SIGINT", () => {
+  console.error("[SIGINT] received");
+});
+process.on("beforeExit", (code) => {
+  console.error(`[beforeExit] code=${code}`);
+});
+
 // Start background cognition loop (observe → think → update → sleep → repeat)
 flux.runtime.start();
 
 const stt = new WhisperEngine();
 const tts = new PiperEngine();
+
+// TTS Queue to prevent overlapping speech and serialize requests
+interface TTSQueueItem {
+  text: string;
+  resolve: (buffer: Buffer) => void;
+  reject: (error: Error) => void;
+}
+
+const ttsQueue: TTSQueueItem[] = [];
+let ttsProcessing = false;
+
+async function processTTSQueue(): Promise<void> {
+  if (ttsProcessing || ttsQueue.length === 0) return;
+  ttsProcessing = true;
+
+  while (ttsQueue.length > 0) {
+    // Cancel previous request if new one arrives (take latest)
+    const item = ttsQueue.pop()!;
+    // Clear queue of old requests
+    ttsQueue.length = 0;
+
+    try {
+      await tts.initialize();
+      const audio = await tts.synthesize(item.text);
+      item.resolve(audio);
+    } catch (err) {
+      item.reject(err instanceof Error ? err : new Error(String(err)));
+    }
+  }
+
+  ttsProcessing = false;
+}
+
+function queueTTS(text: string): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    ttsQueue.push({ text, resolve, reject });
+    void processTTSQueue();
+  });
+}
+
+// Pre-warm TTS engine at startup to avoid first-request delay
+void tts.initialize().catch(() => {
+  // Best-effort - will retry on first request
+});
 
 interface ChatRequest {
   message: string;
@@ -103,54 +166,76 @@ const server = createServer(async (req, res) => {
         "Access-Control-Allow-Origin": "*",
       });
 
-      await flux.session.memory.add("user", message);
-
-      // Build the prompt with conversation history
-      const history = await flux.session.memory.history();
-      const messages = history.map((m) => `${m.role}: ${m.content}`).join("\n");
-      const prompt = `You are Flux — not a chatbot. You're a friend. Talk like a real person — casual, natural, witty. Match the user's energy. No "As an AI..." or "I'd be happy to help!" Just be genuine.\n\nConversation:\n${messages}\n\nFlux:`;
-
       let fullText = "";
 
-      if (flux.runtime.provider.completeStream) {
-        await flux.runtime.provider.completeStream(
-          { model: flux.model, prompt, temperature: 0.7 },
-          {
-            onToken: (token: string) => {
-              fullText += token;
-              res.write(`data: ${JSON.stringify({ token, done: false })}\n\n`);
-            },
-            onDone: async (response: unknown) => {
-              await flux.session.memory.add("assistant", fullText);
-              res.write(
-                `data: ${JSON.stringify({ token: "", done: true, text: fullText })}\n\n`,
-              );
-              res.end();
-            },
-            onError: (error: Error) => {
-              res.write(
-                `data: ${JSON.stringify({ error: error.message })}\n\n`,
-              );
-              res.end();
-            },
+      if (flux.runtime.processStream) {
+        // Full pipeline: structured messages (personality + system context +
+        // history + current input), think:false, maxTokens cap — same as the
+        // non-streaming /chat path so qwen3 doesn't dump reasoning.
+        await flux.runtime.processStream(message, {
+          onToken: (token: string) => {
+            fullText += token;
+            res.write(`data: ${JSON.stringify({ token, done: false })}\n\n`);
           },
-        );
-      } else {
-        // Fallback: non-streaming
-        const response = await flux.llmProvider.complete({
-          model: flux.model,
-          prompt,
-          temperature: 0.7,
+          onDone: (text: string) => {
+            res.write(
+              `data: ${JSON.stringify({ token: "", done: true, text })}\n\n`,
+            );
+            res.end();
+          },
+          onError: (error: Error) => {
+            res.write(
+              `data: ${JSON.stringify({ error: error.message })}\n\n`,
+            );
+            res.end();
+          },
         });
-        fullText = response.text;
-        await flux.session.memory.add("assistant", fullText);
-        res.write(
-          `data: ${JSON.stringify({ token: fullText, done: false })}\n\n`,
-        );
-        res.write(
-          `data: ${JSON.stringify({ token: "", done: true, text: fullText })}\n\n`,
-        );
-        res.end();
+      } else {
+        // Legacy fallback path
+        await flux.session.memory.add("user", message);
+        const history = await flux.session.memory.history();
+        const messages = history.map((m) => `${m.role}: ${m.content}`).join("\n");
+        const prompt = `You are Flux — not a chatbot. You're a friend. Talk like a real person — casual, natural, witty. Match the user's energy. No "As an AI..." or "I'd be happy to help!" Just be genuine.\n\nConversation:\n${messages}\n\nFlux:`;
+
+        if (flux.runtime.provider.completeStream) {
+          await flux.runtime.provider.completeStream(
+            { model: flux.model, prompt, temperature: 0.7 },
+            {
+              onToken: (token: string) => {
+                fullText += token;
+                res.write(`data: ${JSON.stringify({ token, done: false })}\n\n`);
+              },
+              onDone: async () => {
+                await flux.session.memory.add("assistant", fullText);
+                res.write(
+                  `data: ${JSON.stringify({ token: "", done: true, text: fullText })}\n\n`,
+                );
+                res.end();
+              },
+              onError: (error: Error) => {
+                res.write(
+                  `data: ${JSON.stringify({ error: error.message })}\n\n`,
+                );
+                res.end();
+              },
+            },
+          );
+        } else {
+          const response = await flux.llmProvider.complete({
+            model: flux.model,
+            prompt,
+            temperature: 0.7,
+          });
+          fullText = response.text;
+          await flux.session.memory.add("assistant", fullText);
+          res.write(
+            `data: ${JSON.stringify({ token: fullText, done: false })}\n\n`,
+          );
+          res.write(
+            `data: ${JSON.stringify({ token: "", done: true, text: fullText })}\n\n`,
+          );
+          res.end();
+        }
       }
     } catch (err) {
       const error = err instanceof Error ? err.message : String(err);
@@ -331,8 +416,6 @@ const server = createServer(async (req, res) => {
         return;
       }
 
-      await tts.initialize();
-
       // Strip emoji from text before TTS
       const cleanText = json.text
         .replace(/[\u{1F600}-\u{1F64F}]/gu, "")
@@ -349,12 +432,8 @@ const server = createServer(async (req, res) => {
         .replace(/\s{2,}/g, " ")
         .trim();
 
-      const audio = await tts.synthesize(cleanText, {
-        ...(json.voice != null ? { voice: json.voice } : {}),
-        ...(json.speed != null ? { speed: json.speed } : {}),
-        ...(json.pitch != null ? { pitch: json.pitch } : {}),
-        ...(json.volume != null ? { volume: json.volume } : {}),
-      });
+      // Use TTS queue to prevent overlapping speech
+      const audio = await queueTTS(cleanText);
 
       res.writeHead(200, {
         "Content-Type": "audio/wav",
@@ -649,21 +728,36 @@ const server = createServer(async (req, res) => {
       "reflection",
     ];
     const memories: Record<string, unknown[]> = {};
-    for (const type of allTypes) {
-      const result = flux.runtime.memory.query({
-        types: [type],
-        sortBy: "recency",
-        limit,
-      });
-      memories[type] = [...result.memories];
+    try {
+      for (const type of allTypes) {
+        const result = flux.runtime.memory.query({
+          types: [type],
+          sortBy: "recency",
+          limit,
+        });
+        memories[type] = [...result.memories];
+      }
+    } catch (error) {
+      console.error("[api] /memory/all query failed:", error);
+      sendJson(res, 500, { error: "Memory query failed" });
+      return;
     }
     // Also include chat history from session memory
-    const chatHistory = await flux.session.memory.history();
-    sendJson(res, 200, {
-      memories,
-      chatHistory,
-      stats: flux.runtime.memory.getStats(),
-    });
+    try {
+      const chatHistory = await flux.session.memory.history();
+      sendJson(res, 200, {
+        memories,
+        chatHistory,
+        stats: flux.runtime.memory.getStats(),
+      });
+    } catch (error) {
+      console.error("[api] /memory/all history failed:", error);
+      sendJson(res, 200, {
+        memories,
+        chatHistory: [],
+        stats: flux.runtime.memory.getStats(),
+      });
+    }
     return;
   }
 

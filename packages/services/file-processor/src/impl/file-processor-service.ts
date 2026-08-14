@@ -230,7 +230,7 @@ async function queryLlm(
   if (!provider) return null;
   try {
     const result = await provider.complete({
-      model: "qwen3:4b",
+      model: "default",
       prompt,
       temperature: 0.3,
     });

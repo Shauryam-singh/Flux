@@ -1,4 +1,4 @@
-import { execFileSync, execSync } from "node:child_process";
+import { execFileSync, execSync, spawn } from "node:child_process";
 import {
   existsSync,
   mkdirSync,
@@ -10,7 +10,7 @@ import {
   statSync,
 } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { dirname, join, parse } from "node:path";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import type {
@@ -95,6 +95,39 @@ function findPiperBinary(dir: string): string | null {
   return null;
 }
 
+/** Walk the working directory and its ancestors looking for the archive. */
+function findLocalArchive(
+  filename: string,
+  minSize: number,
+): string | null {
+  let dir = process.cwd();
+  const root = parse(dir).root;
+  while (true) {
+    const candidate = join(dir, filename);
+    try {
+      if (existsSync(candidate) && statSync(candidate).size >= minSize) {
+        return candidate;
+      }
+    } catch {}
+    if (dir === root) break;
+    dir = dirname(dir);
+  }
+  return null;
+}
+
+/** Walk up the directory tree looking for an extracted piper binary. */
+function findPiperBinaryInTree(startDir: string): string | null {
+  let dir = startDir;
+  const root = parse(dir).root;
+  while (true) {
+    const found = findPiperBinary(dir);
+    if (found) return found;
+    if (dir === root) break;
+    dir = dirname(dir);
+  }
+  return null;
+}
+
 function commandExists(cmd: string): boolean {
   try {
     if (getPlatform() === "win32") {
@@ -114,9 +147,28 @@ async function downloadFile(url: string, dest: string): Promise<void> {
     throw new Error(`Failed to download ${url}: ${response.status}`);
   }
 
+  // Truncated downloads (interrupted connection) corrupt the model and make
+  // piper crash. Verify the full length when the server reports one.
+  const expectedSize = response.headers.get("content-length");
+  if (expectedSize && Number(expectedSize) > 0) {
+    const existing = existsSync(dest) ? statSync(dest).size : 0;
+    if (existing >= Number(expectedSize)) {
+      process.stdout.write(`Skipping already-downloaded file (${existing} bytes) at ${dest}\n`);
+      return;
+    }
+  }
+
   const nodeStream = Readable.fromWeb(response.body as unknown as ReadableStream<Uint8Array>);
   const fileStream = createWriteStream(dest);
   await pipeline(nodeStream, fileStream);
+
+  if (expectedSize && Number(expectedSize) > 0) {
+    const actual = existsSync(dest) ? statSync(dest).size : 0;
+    if (actual < Number(expectedSize)) {
+      try { unlinkSync(dest); } catch { /* ignore */ }
+      throw new Error(`Incomplete download: got ${actual}/${expectedSize} bytes for ${url}`);
+    }
+  }
 }
 
 async function downloadPiperBinary(): Promise<string | null> {
@@ -135,17 +187,40 @@ async function downloadPiperBinary(): Promise<string | null> {
     const url = `${PIPER_RELEASE_URL}/${filename}`;
     const archivePath = join(cacheDir, filename);
 
+    // Reuse an existing archive instead of re-downloading. Look in the
+    // cache dir first, then the working directory (and its ancestors — the
+    // user may keep the ZIP in the project root while the API runs from a
+    // subfolder). A valid piper ZIP is multi-MB; anything tiny is a
+    // truncated/failed download and gets replaced.
+    const MIN_VALID_ZIP = 1024 * 1024;
+    const localArchive =
+      existsSync(archivePath) && statSync(archivePath).size >= MIN_VALID_ZIP
+        ? archivePath
+        : findLocalArchive(filename, MIN_VALID_ZIP);
+    if (localArchive && localArchive !== archivePath) {
+      process.stdout.write(`Using existing Piper archive at ${localArchive}\n`);
+      await extractPiperArchive(localArchive, cacheDir, platform);
+      const binary = findPiperBinary(cacheDir);
+      if (binary) {
+        process.stdout.write(`Piper binary installed at ${binary}\n`);
+        return binary;
+      }
+      // Extraction failed — fall through and re-download
+    } else if (localArchive === archivePath) {
+      process.stdout.write(`Using cached Piper archive at ${archivePath}\n`);
+      await extractPiperArchive(archivePath, cacheDir, platform);
+      const binary = findPiperBinary(cacheDir);
+      if (binary) {
+        process.stdout.write(`Piper binary installed at ${binary}\n`);
+        return binary;
+      }
+      // Extraction failed — fall through and re-download
+    }
+
     process.stdout.write(`Downloading Piper TTS binary from ${url}...\n`);
     await downloadFile(url, archivePath);
 
-    if (platform === "win32") {
-      execFileSync("powershell", [
-        "-Command",
-        `Expand-Archive -Path '${archivePath}' -DestinationPath '${cacheDir}' -Force`,
-      ], { stdio: "pipe" });
-    } else {
-      execFileSync("tar", ["xzf", archivePath, "-C", cacheDir], { stdio: "pipe" });
-    }
+    await extractPiperArchive(archivePath, cacheDir, platform);
 
     try { unlinkSync(archivePath); } catch { /* ignore */ }
 
@@ -164,6 +239,21 @@ async function downloadPiperBinary(): Promise<string | null> {
   return null;
 }
 
+async function extractPiperArchive(
+  archivePath: string,
+  cacheDir: string,
+  platform: string,
+): Promise<void> {
+  if (platform === "win32") {
+    execFileSync("powershell", [
+      "-Command",
+      `Expand-Archive -Path '${archivePath}' -DestinationPath '${cacheDir}' -Force`,
+    ], { stdio: "pipe" });
+  } else {
+    execFileSync("tar", ["xzf", archivePath, "-C", cacheDir], { stdio: "pipe" });
+  }
+}
+
 /** Normalize any voice id (piper or legacy espeak style) to a Piper voice name. */
 function normalizeVoice(voice?: string): string {
   const v = (voice ?? "").trim();
@@ -177,7 +267,12 @@ function normalizeVoice(voice?: string): string {
 async function downloadVoiceModel(voice: string): Promise<string | null> {
   const modelsDir = getModelsDir();
   const modelPath = join(modelsDir, `${voice}.onnx`);
-  if (existsSync(modelPath)) return modelPath;
+  // A valid piper onnx voice is many MB; a tiny file is a truncated/failed
+  // download and must be re-fetched (otherwise piper crashes on load).
+  if (existsSync(modelPath) && statSync(modelPath).size >= 1024 * 1024) {
+    return modelPath;
+  }
+  try { unlinkSync(modelPath); } catch { /* ignore */ }
 
   try {
     // Piper voice repos live at {lang}/{lang_region}/{name}/{quality}/{voice}.onnx
@@ -186,7 +281,16 @@ async function downloadVoiceModel(voice: string): Promise<string | null> {
     const quality = qualityParts.join("-") || "medium";
     const url = `${PIPER_VOICE_BASE_URL}/${lang}/${langRegion}/${name}/${quality}/${voice}.onnx`;
     process.stdout.write(`Downloading voice model: ${voice}...\n`);
-    await downloadFile(url, modelPath);
+    // Voice models are ~120MB; a dropped connection is common, so retry.
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        await downloadFile(url, modelPath);
+        break;
+      } catch (err) {
+        if (attempt === 3) throw err;
+        process.stdout.write(`Download interrupted (${err}), retrying (${attempt + 1}/3)...\n`);
+      }
+    }
 
     const jsonUrl = `${url}.json`;
     const jsonPath = join(modelsDir, `${voice}.onnx.json`);
@@ -229,8 +333,13 @@ export class PiperEngine implements TTSEngine {
 
     const cacheDir = getCacheDir();
 
-    // Check for an existing binary (downloaded or in cache)
-    const existing = findPiperBinary(cacheDir);
+    // Check for an existing binary (downloaded, in cache, or pointed at by
+    // the PIPER_BINARY env var / present in the working directory tree)
+    const envBinary = process.env.PIPER_BINARY;
+    const existing =
+      (envBinary && existsSync(envBinary) ? envBinary : null) ??
+      findPiperBinary(cacheDir) ??
+      findPiperBinaryInTree(process.cwd());
     if (existing) {
       this.piperPath = existing;
     } else if (commandExists("piper")) {
@@ -265,7 +374,8 @@ export class PiperEngine implements TTSEngine {
     speed = 1.0,
   ): Promise<Buffer> {
     const cacheDir = getCacheDir();
-    const wavPath = join(cacheDir, "tts_output.wav");
+    // Use unique temp file to prevent race condition with concurrent requests
+    const wavPath = join(cacheDir, `tts_output_${Date.now()}_${Math.random().toString(36).slice(2)}.wav`);
     const piperVoice = normalizeVoice(voice);
 
     try {
@@ -281,10 +391,10 @@ export class PiperEngine implements TTSEngine {
       }
 
       // Piper reads text from stdin; send cleaned text.
-      const proc = execFile(
+      const proc = spawn(
         this.piperPath!,
         args,
-        { stdio: ["pipe", "pipe", "pipe"], timeout: 30000 },
+        { stdio: ["pipe", "pipe", "pipe"], windowsHide: true },
       );
 
       if (proc.stdin) {
@@ -294,11 +404,19 @@ export class PiperEngine implements TTSEngine {
 
       // Wait for process to finish
       await new Promise<void>((resolve, reject) => {
+        const timer = setTimeout(() => {
+          proc.kill();
+          reject(new Error("Piper timed out"));
+        }, 30000);
         proc.on("close", (code) => {
+          clearTimeout(timer);
           if (code === 0) resolve();
           else reject(new Error(`Piper exited with code ${code}`));
         });
-        proc.on("error", reject);
+        proc.on("error", (err) => {
+          clearTimeout(timer);
+          reject(err);
+        });
       });
 
       if (existsSync(wavPath)) {
@@ -416,13 +534,4 @@ export class PiperEngine implements TTSEngine {
     }
     return false;
   }
-}
-
-function execFile(
-  command: string,
-  args: string[],
-  options: { stdio: (string | "pipe" | "inherit")[]; timeout: number },
-): ReturnType<typeof import("node:child_process").execFile> {
-  const { execFile: execFileCb } = require("node:child_process") as typeof import("node:child_process");
-  return execFileCb(command, args, options);
 }

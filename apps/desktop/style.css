@@ -412,6 +412,29 @@ ul, ol {
   flex-shrink: 0;
 }
 
+.hud-minimize {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.hud-minimize:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: rgba(85, 214, 255, 0.1);
+}
+
 .topbar-brand {
   display: flex;
   align-items: center;
@@ -443,6 +466,17 @@ ul, ol {
   background: var(--success);
   box-shadow: 0 0 6px var(--success);
   animation: breathe 2s ease-in-out infinite;
+}
+
+.status-dot.online.stale {
+  background: #f59e0b;
+  box-shadow: 0 0 6px #f59e0b;
+  animation: pulse-warning 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse-warning {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
 }
 
 .topbar-stats {

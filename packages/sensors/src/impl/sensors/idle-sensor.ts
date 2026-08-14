@@ -28,7 +28,7 @@ export class IdleSensor extends BaseSensor<IdleState> {
   private lastIdleSeconds = 0;
   private readonly idleThresholdMs: number;
 
-  constructor(idleThresholdSeconds = 60, pollIntervalMs = 5000) {
+  constructor(idleThresholdSeconds = 60, pollIntervalMs = 15000) {
     super(METADATA, pollIntervalMs);
     this.idleThresholdMs = idleThresholdSeconds * 1000;
   }
@@ -41,7 +41,8 @@ export class IdleSensor extends BaseSensor<IdleState> {
     // No cleanup needed
   }
 
-  protected async onSnapshot(): Promise<IdleState> {
+  protected async onSnapshot(): Promise<IdleState | null> {
+    if (process.platform !== "linux") return null;
     const idleSeconds = await this.getIdleSeconds();
     const activeWindow = this.getActiveWindow();
 
@@ -56,6 +57,7 @@ export class IdleSensor extends BaseSensor<IdleState> {
   }
 
   protected async onRefresh(): Promise<IdleState | null> {
+    if (process.platform !== "linux") return null;
     const idleSeconds = await this.getIdleSeconds();
     const activeWindow = this.getActiveWindow();
 

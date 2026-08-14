@@ -118,6 +118,9 @@ const RULES: RuleEntry[] = [
   [/\b(shutdown|restart|reboot|sleep|lock|suspend)\b/i, "system"],
   [/\b(screenshot|take\s+(a\s+)?screenshot)\b/i, "system"],
 
+  // ── Chat/Casual (before search — greetings and personal questions) ──
+  [/\b(how are you|how('re|\s+are)\s+(you|u|it|things|everything)|what('s| is)\s+up|hey flux|hi flux|hello flux|how('s|\s+is)\s+it\s+going)\b/i, "chat"],
+
   // ── Search (factual questions — NOT identity/conversation) ──
   [/\b(search|look\s*up|find|google|research)\s+/i, "search"],
   [/\b(tell\s+me\s+about|explain|describe)\s+/i, "search"],
@@ -162,6 +165,8 @@ export interface IntentContext {
   readonly cpuHigh?: boolean;
 }
 
+export type ModelComplexity = "simple" | "medium" | "complex";
+
 /**
  * Classify user intent from input text.
  * Optional context allows elevating/depressing intents based on sensor state.
@@ -202,6 +207,60 @@ export function classifyIntent(
   }
 
   return null;
+}
+
+/**
+ * Detect the complexity of user input to determine optimal model size.
+ * - simple: Greetings, yes/no, short queries → use small model (0.5B)
+ * - medium: Regular chat, questions → use small model (0.5B)
+ * - complex: Code generation, planning, analysis → use larger model (7B+)
+ */
+export function detectModelComplexity(input: string): ModelComplexity {
+  const trimmed = input.trim().toLowerCase();
+
+  // Simple: greetings, yes/no, very short queries
+  if (trimmed.length < 20) return "simple";
+  if (/^(hi|hello|hey|thanks|thank you|ok|okay|yes|no|sure|cool|nice|great|good|bad|yeah|yep|nope|nah|bye|goodbye)\s*[!?.]*$/i.test(trimmed)) {
+    return "simple";
+  }
+
+  // Complex: code generation, planning, analysis, multi-step tasks
+  // Code-related keywords
+  if (/\b(write|create|implement|build|develop|code|program|function|class|component|module|script|test|refactor|debug|fix|architect|design)\b/i.test(trimmed)) {
+    return "complex";
+  }
+
+  // Planning/analysis keywords
+  if (/\b(plan|design|architect|analyze|review|explain|describe|compare|evaluate|assess|optimize|improve|simplify)\b/i.test(trimmed)) {
+    return "complex";
+  }
+
+  // Multi-step or long queries
+  if (trimmed.length > 200) return "complex";
+  if (/\b(and|then|after|before|also|plus|including|step|first|second|third)\b/i.test(trimmed) && trimmed.length > 100) {
+    return "complex";
+  }
+
+  // Technical questions with multiple parts
+  const sentenceCount = trimmed.split(/[.!?]+/).filter(s => s.trim().length > 5).length;
+  if (sentenceCount >= 3) return "complex";
+
+  // Medium: regular chat, questions, explanations
+  return "medium";
+}
+
+/**
+ * Get the recommended model size based on complexity.
+ * Returns the model name suffix (e.g., "0.5b", "7b")
+ */
+export function getRecommendedModel(complexity: ModelComplexity): string {
+  switch (complexity) {
+    case "simple":
+    case "medium":
+      return "0.5b"; // Fast, conversational
+    case "complex":
+      return "7b"; // Better reasoning for code/planning
+  }
 }
 
 function matchesContext(condition: string, context: IntentContext): boolean {

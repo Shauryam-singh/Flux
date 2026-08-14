@@ -168,4 +168,39 @@ export class Orchestrator {
 
     return service.execute(input, serviceCtx);
   }
+
+  async processStream(
+    input: string,
+    ctx: OrchestratorContext,
+    callbacks: {
+      onToken?: (token: string) => void;
+      onDone?: (text: string) => void;
+      onError?: (error: Error) => void;
+    },
+  ): Promise<void> {
+    const serviceCtx: ServiceContext = {
+      sessionId: ctx.sessionId,
+      memory: ctx.memory,
+      provider: ctx.provider,
+      reply: ctx.reply,
+      speak: ctx.speak,
+      emit: ctx.emit,
+      getSystemContext: ctx.getSystemContext,
+    };
+
+    const service = await this.resolveService(input);
+    if (!service || !service.executeStream) {
+      // Fall back to non-streaming execution
+      try {
+        const result = await this.process(input, ctx);
+        callbacks.onToken?.(result.text);
+        callbacks.onDone?.(result.text);
+      } catch (err) {
+        callbacks.onError?.(err instanceof Error ? err : new Error(String(err)));
+      }
+      return;
+    }
+
+    await service.executeStream(input, serviceCtx, callbacks);
+  }
 }

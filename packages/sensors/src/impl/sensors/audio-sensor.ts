@@ -24,7 +24,7 @@ const METADATA: SensorMetadata = {
 };
 
 export class AudioSensor extends BaseSensor<AudioState> {
-  constructor(pollIntervalMs = 5000) {
+  constructor(pollIntervalMs = 15000) {
     super(METADATA, pollIntervalMs);
   }
 
@@ -37,10 +37,12 @@ export class AudioSensor extends BaseSensor<AudioState> {
   }
 
   protected async onSnapshot(): Promise<AudioState | null> {
+    if (process.platform !== "linux") return null;
     return this.readAudioState();
   }
 
   protected async onRefresh(): Promise<AudioState | null> {
+    if (process.platform !== "linux") return null;
     return this.readAudioState();
   }
 

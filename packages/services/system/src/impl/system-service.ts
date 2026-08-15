@@ -1009,9 +1009,22 @@ async function workspaceAction(action: string, target?: string): Promise<string>
     return "No supported window manager detected (need Hyprland or Sway)";
   } else if (platform === "win32") {
     // Virtual desktops via keyboard shortcut
-    const key = action === "ws_left" ? "%{LEFT}" : action === "ws_right" ? "%{RIGHT}" : target;
-    await runPowerShell(`$wsh = New-Object -ComObject WScript.Shell; $wsh.SendKeys("^%${action === "ws_left" ? "{LEFT}" : "{RIGHT}"}")`);
-    return `Workspace **${action === "ws_left" ? "left" : "right"}**`;
+    // Win+Ctrl+Left/Right to switch virtual desktops
+    const keyCombo = action === "ws_left" ? "^%{LEFT}" : "^%{RIGHT}";
+    await runPowerShell(`$wsh = New-Object -ComObject WScript.Shell; $wsh.SendKeys("${keyCombo}")`);
+    const dir = action === "ws_left" ? "left" : "right";
+    
+    // For goto, use Win+Ctrl+D to create and Win+Ctrl+F4 to close
+    if (action === "ws_goto" && target) {
+      // Windows 11 doesn't have direct desktop jump, simulate with multiple switches
+      for (let i = 0; i < parseInt(target) - 1; i++) {
+        await runPowerShell(`$wsh = New-Object -ComObject WScript.Shell; $wsh.SendKeys("^%{RIGHT}")`);
+        await new Promise(r => setTimeout(r, 100));
+      }
+      return `Switched to virtual desktop **${target}**`;
+    }
+    
+    return `Workspace **${dir}**`;
   }
 
   return "Workspace management not available";
@@ -1272,15 +1285,31 @@ async function openApplication(appName: string): Promise<string> {
   if (!appName) return "What would you like to open?";
 
   const appMap: Record<string, string> = {
+    // Windows 11 apps
+    "edge": "msedge", "microsoft edge": "msedge", "msedge": "msedge",
+    "terminal": "wt", "windows terminal": "wt", "wt": "wt",
+    "powershell": "pwsh", "pwsh": "pwsh",
+    "notepad": "notepad", "notepad++": "notepad++",
+    "paint": "mspaint", "mspaint": "mspaint",
+    "snipping tool": "snippingtool", "snip": "snippingtool",
+    "file explorer": "explorer", "explorer": "explorer",
+    "task manager": "taskmgr", "taskmgr": "taskmgr",
+    "settings": "ms-settings:", "control panel": "control",
+    "calculator": "calc", "calc": "calc",
+    "calendar": "outlookcal:", "outlook": "outlook",
+    "teams": "ms-teams", "microsoft teams": "ms-teams",
+    "onenote": "onenote", "microsoft onenote": "onenote",
+    "xbox": "xbox", "xbox app": "xbox",
+    "store": "ms-windows-store:", "microsoft store": "ms-windows-store:",
+    // Linux apps
     "vs code": "code", "vscode": "code", "visual studio code": "code",
     "chrome": "google-chrome", "google chrome": "google-chrome",
     "firefox": "firefox", "mozilla": "firefox",
-    "terminal": "kitty", "kitty": "kitty",
+    "kitty": "kitty",
     "alacritty": "alacritty", "wezterm": "wezterm",
     "nautilus": "nautilus", "thunar": "thunar",
-    "files": "thunar", "file manager": "thunar", "explorer": "thunar",
-    "settings": "gnome-control-center", "preferences": "gnome-control-center",
-    "calculator": "gnome-calculator",
+    "files": "thunar", "file manager": "thunar",
+    "preferences": "gnome-control-center",
     "spotify": "spotify", "music": "spotify",
     "discord": "discord", "chat": "discord",
     "slack": "slack", "code": "code",
@@ -1477,6 +1506,7 @@ async function getSystemInfo(): Promise<string> {
       mem: "$os = Get-CimInstance Win32_OperatingSystem; [math]::Round(($os.TotalVisibleMemorySize - $os.FreePhysicalMemory)/1MB, 2)",
       memTotal: "[math]::Round((Get-CimInstance Win32_OperatingSystem).TotalVisibleMemorySize/1MB, 2)",
       uptime: "(Get-CimInstance Win32_OperatingSystem).LocalDateTime - (Get-CimInstance Win32_OperatingSystem).LastBootUpTime | ForEach-Object { '{0}d {1}h {2}m' -f $_.Days,$_.Hours,$_.Minutes }",
+      disk: "Get-CimInstance Win32_LogicalDisk -Filter \"DriveType=3\" | Select-Object DeviceID, @{N='Used(GB)';E={[math]::Round(($_.Size-$_.FreeSpace)/1GB,1)}}, @{N='Total(GB)';E={[math]::Round($_.Size/1GB,1)}} | Format-Table -AutoSize | Out-String",
     });
 
     if (results.os) parts.push(`OS: ${results.os}`);
@@ -1484,6 +1514,7 @@ async function getSystemInfo(): Promise<string> {
     if (results.cpu) parts.push(`CPU: ${results.cpu}`);
     if (results.mem && results.memTotal) parts.push(`Memory: ${results.mem}GB / ${results.memTotal}GB`);
     if (results.uptime) parts.push(`Uptime: ${results.uptime}`);
+    if (results.disk) parts.push(`Disk:\n${results.disk}`);
   } else if (platform === "darwin") {
     const results = await runParallel({
       hostname: "hostname",

@@ -1,0 +1,22 @@
+{
+  "summaries": [
+    {
+      "id": "422b754b-1f8d-48bc-9502-88bc1f4bc20f",
+      "timestamp": 1786814142118,
+      "summary": "In this conversation, you asked about the difference between stacks and queues. I provided an overview of how they differ as linear data structures used for managing elements. You then requested help writing a \"Hello, World!\" program in Python, which I did by providing a simple example. Finally, you inquired about what a closure is in JavaScript, to which I mentioned that closures are functions that have access to their own scope and the outer scopes even after the parent function has finished executing.",
+      "conversationId": "conv_1786814142117",
+      "messageCount": 5,
+      "consumed": false,
+      "consumedAt": null
+    },
+    {
+      "id": "7371dec4-cce5-4d53-a4a6-888f0ba52960",
+      "timestamp": 1786814154526,
+      "summary": "Summarized Conversation:\n\nThe conversation initially focused on how to fix a `segfault` issue in C programming. The assistant provided some debugging steps, mentioning the use of Valgrind as a tool for detecting memory access errors.\n\nSubsequently, there was an attempt to check system information but the command was cut off mid-sentence. Finally, the user asked about the capital of France, and the assistant referred them to Wikipedia where they can find that Paris is the capital of France.",
+      "conversationId": "conv_1786814154526",
+      "messageCount": 10,
+      "consumed": false,
+      "consumedAt": null
+    }
+  ]
+}

@@ -267,3 +267,5 @@ export { ProactiveEngine } from "./impl/proactive-engine.js";
 export { WorkSessionDetector } from "./impl/work-session-detector.js";
 export { ConfirmationFlow } from "./impl/confirmation-flow.js";
 export { SmartWake } from "./impl/smart-wake.js";
+export { analyzeScreenContext, analyzeAndCompare } from "./impl/screen-context.js";
+export type { ScreenContext } from "./impl/screen-context.js";

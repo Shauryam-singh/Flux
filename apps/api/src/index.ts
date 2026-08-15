@@ -3,6 +3,7 @@ import { createFlux, type FluxConfig } from "@ai-agent/cli/flux";
 import { WhisperEngine } from "@ai-agent/voice-stt";
 import { PiperEngine } from "@ai-agent/voice-tts";
 import { AutomationEngine } from "@ai-agent/automation";
+import { analyzeScreenContext } from "@ai-agent/automation";
 
 const PORT = parseInt(process.env.FLUX_API_PORT ?? "3141", 10);
 
@@ -1259,6 +1260,62 @@ const server = createServer(async (req, res) => {
       state: automation.getState(),
       storeStats: automation.store.getStats(),
     });
+    return;
+  }
+
+  // ─── Lightweight Screen Context (no screenshots, <1ms) ───────
+  if (req.method === "POST" && req.url === "/screen/context") {
+    try {
+      const body = await parseBody(req);
+      const data = JSON.parse(body.toString()) as { app?: string; title?: string };
+      if (!data.app || !data.title) {
+        sendJson(res, 400, { error: "app and title are required" });
+        return;
+      }
+      const t0 = Date.now();
+      const ctx = analyzeScreenContext(data.app, data.title);
+      const elapsed = Date.now() - t0;
+
+      // Also feed to automation engine for behavior learning
+      automation.observe(data.app, data.title);
+
+      sendJson(res, 200, { ...ctx, analysisTimeMs: elapsed });
+    } catch (err) {
+      const error = err instanceof Error ? err.message : String(err);
+      sendJson(res, 500, { error });
+    }
+    return;
+  }
+
+  // ─── Screen Context from Window Tracker (auto-detect) ────────
+  if (req.method === "GET" && req.url === "/screen/context") {
+    try {
+      let app = "unknown";
+      let title = "";
+
+      // Try to get window info from the runtime's internal state
+      try {
+        const state = await flux.runtime.getStreamingSnapshot() as Record<string, unknown>;
+        const windowInfo = state.windowTracker as { app?: string; title?: string } | undefined;
+        if (windowInfo?.app) {
+          app = windowInfo.app;
+          title = windowInfo.title ?? "";
+        }
+      } catch {
+        // Window tracker not available in snapshot, use defaults
+      }
+
+      const t0 = Date.now();
+      const ctx = analyzeScreenContext(app, title);
+      const elapsed = Date.now() - t0;
+
+      automation.observe(app, title);
+
+      sendJson(res, 200, { ...ctx, analysisTimeMs: elapsed });
+    } catch (err) {
+      const error = err instanceof Error ? err.message : String(err);
+      sendJson(res, 500, { error });
+    }
     return;
   }
 

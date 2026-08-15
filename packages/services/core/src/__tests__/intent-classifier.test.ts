@@ -40,9 +40,15 @@ describe("classifyIntent", () => {
   });
 
   it("should return null for ambiguous input", () => {
-    expect(classifyIntent("hello")).toBeNull();
-    expect(classifyIntent("hi")).toBeNull();
     expect(classifyIntent("okay")).toBeNull();
     expect(classifyIntent("yes")).toBeNull();
+    expect(classifyIntent("maybe")).toBeNull();
+  });
+
+  it("should classify greetings as chat", () => {
+    expect(classifyIntent("hello")).toBe("chat");
+    expect(classifyIntent("hi")).toBe("chat");
+    expect(classifyIntent("hey")).toBe("chat");
+    expect(classifyIntent("good morning")).toBe("chat");
   });
 });

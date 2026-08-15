@@ -250,8 +250,14 @@ export class DefaultFluxRuntime implements FluxRuntime {
   // window so consecutive chat turns don't re-run all sensors (~2-4s).
   private cachedSensorSnapshots: Record<string, unknown> = {};
   private cachedSensorAt = 0;
-  // Increased from 30s to 60s to reduce sensor overhead during active chat
+
   private readonly SENSOR_CACHE_TTL_MS = 60000;
+
+  // LLM response cache — avoids re-running the model for identical inputs
+  // (e.g. "hello" repeated, or the same question asked twice). Entries expire
+  // after 5 minutes so stale data never persists.
+  private llmCache = new Map<string, { text: string; at: number }>();
+  private readonly LLM_CACHE_TTL_MS = 300_000;
 
   constructor(config: FluxRuntimeConfig) {
     this.config = config;
@@ -547,6 +553,17 @@ export class DefaultFluxRuntime implements FluxRuntime {
     // Pre-warm the sensor snapshot cache so the first user /chat request doesn't
     // pay a 3-4s parallel sensor sweep while building its system context.
     void this.collectSensorSnapshots();
+
+    // Pre-warm the LLM model — the first Ollama request pays a ~10s cold-start
+    // penalty (model load + GPU allocation). Fire a dummy request at startup so
+    // the model is hot before the user sends their first message.
+    if (this.llmProvider) {
+      void this.llmProvider.complete({
+        model: "default",
+        prompt: "hi",
+        maxTokens: 1,
+      }).catch(() => { /* best-effort — don't block startup */ });
+    }
 
     // Start our observation gathering loop
     // Increased from 5s to 15s to reduce background LLM load and sensor overhead
@@ -2028,7 +2045,10 @@ export class DefaultFluxRuntime implements FluxRuntime {
 
     // Step 4: Process through service orchestrator (intent classification + routing)
     const getSystemContext = async () => {
-      const sensorSnapshots = await this.collectSensorSnapshots();
+      // Use cached sensor data during chat — running all sensors blocks the
+      // response by 2-4s (battery=3.8s, git=4.2s, docker=3.8s in parallel).
+      // The tick loop already keeps the cache fresh every 15-30s.
+      const sensorSnapshots = await this.collectSensorSnapshots(true);
 
       const batterySnap = sensorSnapshots.battery as
         | { level?: number; isCharging?: boolean; timeToEmpty?: number | null; timeToFull?: number | null; status?: string }
@@ -2125,6 +2145,22 @@ export class DefaultFluxRuntime implements FluxRuntime {
       return sysResult as unknown as SystemContext;
     };
 
+    // Check LLM cache for identical recent inputs (skip for complex/long queries)
+    const cacheKey = input.trim().toLowerCase();
+    const cached = this.llmCache.get(cacheKey);
+    if (cached && Date.now() - cached.at < this.LLM_CACHE_TTL_MS && input.length < 100) {
+      const duration = Date.now() - start;
+      this.history.push({ role: "assistant", content: cached.text, timestamp: Date.now() });
+      this.userRequestActive = false;
+      return {
+        text: cached.text,
+        confidence: 0.8,
+        toolsUsed: [],
+        duration,
+        metadata: { totalInteractions: this.totalInteractions, cached: true },
+      };
+    }
+
     const result = await this.orchestrator.process(input, {
       sessionId: this.session.id,
       memory: this.session.memory,
@@ -2138,6 +2174,18 @@ export class DefaultFluxRuntime implements FluxRuntime {
 
     const responseText = result.text;
     const duration = Date.now() - start;
+
+    // Store in LLM cache for identical future queries
+    if (responseText.length > 0 && input.length < 100) {
+      this.llmCache.set(cacheKey, { text: responseText, at: Date.now() });
+      // Evict old entries
+      if (this.llmCache.size > 100) {
+        const now = Date.now();
+        for (const [key, val] of this.llmCache) {
+          if (now - val.at > this.LLM_CACHE_TTL_MS) this.llmCache.delete(key);
+        }
+      }
+    }
 
     // Step 5: Record assistant response in memory — the routed service
     // (chat, search, files, etc.) already wrote it, so skip the duplicate.
@@ -2240,37 +2288,40 @@ export class DefaultFluxRuntime implements FluxRuntime {
       relatedEpisodeIds: [],
     });
 
-    // Step 13: Session summarisation — generate a summary every 5 user messages
+    // Step 13: Session summarisation — generate a summary every 5 user messages.
+    // Fire-and-forget: don't await the LLM call, it would block the user's
+    // response by 2-4s while the summary is generated in the background.
     this.userMessageCount++;
     if (this.userMessageCount % 5 === 0) {
-      try {
-        const recentHistory = this.history.slice(-10);
-        const transcript = recentHistory
-          .map((m) => `${m.role === "user" ? "User" : "Assistant"}: ${m.content.slice(0, 200)}`)
-          .join("\n");
+      void (async () => {
+        try {
+          const recentHistory = this.history.slice(-10);
+          const transcript = recentHistory
+            .map((m) => `${m.role === "user" ? "User" : "Assistant"}: ${m.content.slice(0, 200)}`)
+            .join("\n");
 
-        let summaryText: string;
-        if (this.llmProvider) {
-          const llmResult = await this.llmProvider.complete({
-            model: "default",
-            prompt: `Summarise this conversation in 2-3 sentences, focusing on what was accomplished and any open items. Be concise and natural.\n\n${transcript}`,
-            temperature: 0.3,
+          let summaryText: string;
+          if (this.llmProvider) {
+            const llmResult = await this.llmProvider.complete({
+              model: "default",
+              prompt: `Summarise this conversation in 2-3 sentences, focusing on what was accomplished and any open items. Be concise and natural.\n\n${transcript}`,
+              temperature: 0.3,
+            });
+            summaryText = llmResult.text.trim();
+          } else {
+            const userMsgs = recentHistory.filter((m) => m.role === "user").slice(-2);
+            summaryText = `Conversation covered: ${userMsgs.map((m) => m.content.slice(0, 80)).join("; ")}`;
+          }
+
+          this.sessionSummaries.add({
+            summary: summaryText,
+            conversationId: `conv_${Date.now()}`,
+            messageCount: this.userMessageCount,
           });
-          summaryText = llmResult.text.trim();
-        } else {
-          // Fallback: take the last 2 user messages
-          const userMsgs = recentHistory.filter((m) => m.role === "user").slice(-2);
-          summaryText = `Conversation covered: ${userMsgs.map((m) => m.content.slice(0, 80)).join("; ")}`;
+        } catch {
+          // Best effort — don't break the interaction
         }
-
-        this.sessionSummaries.add({
-          summary: summaryText,
-          conversationId: `conv_${Date.now()}`,
-          messageCount: this.userMessageCount,
-        });
-      } catch {
-        // Best effort — don't break the interaction
-      }
+      })();
     }
 
       return {

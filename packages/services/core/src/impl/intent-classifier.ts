@@ -111,11 +111,14 @@ const RULES: RuleEntry[] = [
     "system",
   ],
   [/\b(system\s+info|hostname|uptime|kernel)\b/i, "system"],
+  [/\b(check|show|get|what)\s+(my\s+)?(battery|volume|brightness|disk|cpu|memory)\b/i, "system"],
   [/\b(shutdown|restart|reboot|sleep|lock|suspend)\b/i, "system"],
   [/\b(screenshot|take\s+(a\s+)?screenshot)\b/i, "system"],
 
   // ── Chat/Casual (before search — greetings and personal questions) ──
   [/\b(how are you|how('re|\s+are)\s+(you|u|it|things|everything)|what('s| is)\s+up|hey flux|hi flux|hello flux|how('s|\s+is)\s+it\s+going)\b/i, "chat"],
+  // Bare greetings (no "flux" required)
+  [/\b(hi|hello|hey|yo|sup|greetings|good\s+(morning|afternoon|evening)|what('s| is)\s+up)\b/i, "chat"],
 
   // ── Search (factual questions — NOT identity/conversation) ──
   [/\b(search|look\s*up|find|google|research)\s+/i, "search"],
@@ -139,7 +142,7 @@ const RULES: RuleEntry[] = [
   ],
 
   // ── Reminders (task/note commands — general "create" after coding) ──
-  [/\b(add|create|new|save)\s+(a\s+)?(reminder|note|task|todo)\b/i, "reminders"],
+  [/\b(add|create|new|save|set)\s+(a\s+)?(reminder|note|task|todo)\b/i, "reminders"],
   [
     /\b(list|show)\s+(my\s+)?(open\s+)?(reminders?|notes?|tasks?|todos?)\b/i,
     "reminders",

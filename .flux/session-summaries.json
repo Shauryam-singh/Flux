@@ -17,6 +17,69 @@
       "messageCount": 10,
       "consumed": false,
       "consumedAt": null
+    },
+    {
+      "id": "c978d146-82af-46f7-bf2e-d03ba1711237",
+      "timestamp": 1786815532480,
+      "summary": "The conversation covered basic information about data structures (stack vs. queue), provided an example of \"Hello, World!\" in Python, and briefly explained what closures are in JavaScript without fully elaborating on closure concepts. Open items include providing a more detailed explanation of closures or additional examples related to the topics discussed.",
+      "conversationId": "conv_1786815532479",
+      "messageCount": 5,
+      "consumed": false,
+      "consumedAt": null
+    },
+    {
+      "id": "cdfa315d-ba47-4274-9b4e-40d2ef157de4",
+      "timestamp": 1786815609203,
+      "summary": "The conversation began with basic information about Paris. It then moved on to discussing differences between stack and queue data structures, followed by a simple \"Hello World\" program in Python. Finally, it explained what closures are in JavaScript, providing an overview of how they work within the context of function scopes. There are no open items from this conversation.",
+      "conversationId": "conv_1786815609202",
+      "messageCount": 5,
+      "consumed": false,
+      "consumedAt": null
+    },
+    {
+      "id": "b70e8cec-b01e-43f4-8d10-37678033edcb",
+      "timestamp": 1786815690627,
+      "summary": "The conversation initially discussed basic information about data structures (stacks vs. queues). It then moved on to provide a simple \"Hello World\" program in Python. Finally, it explained what closures are in JavaScript, though search results were displayed rather than fully elaborated upon.",
+      "conversationId": "conv_1786815690626",
+      "messageCount": 5,
+      "consumed": false,
+      "consumedAt": null
+    },
+    {
+      "id": "133b2c1d-29d4-4768-bdcc-14cc694faee5",
+      "timestamp": 1786815840981,
+      "summary": "The conversation covered basic information about stack vs. queue data structures and provided instructions for writing \"Hello, World!\" in Python. The user then asked for an explanation of closures in JavaScript, which was briefly introduced but not fully elaborated upon due to search results limitations. There are no open items from this interaction.",
+      "conversationId": "conv_1786815840980",
+      "messageCount": 5,
+      "consumed": false,
+      "consumedAt": null
+    },
+    {
+      "id": "58da7cf2-4b95-4a66-bdad-8e00ea30dede",
+      "timestamp": 1786815914619,
+      "summary": "The conversation covered basic information about data structures (stack vs. queue), provided a simple \"Hello World\" example in Python, and briefly explained what closures are in JavaScript without fully elaborating on the concept. There are no open items at this point.",
+      "conversationId": "conv_1786815914618",
+      "messageCount": 5,
+      "consumed": false,
+      "consumedAt": null
+    },
+    {
+      "id": "798e06f8-34fe-4e88-be12-f11284425871",
+      "timestamp": 1786816005370,
+      "summary": "The conversation was about defining basic concepts. The user asked for help with Python's `print(\"Hello World!\")`, which was provided succinctly. Then, the assistant explained what closures are in JavaScript, directing the user to a resource for further reading on this topic.",
+      "conversationId": "conv_1786816005369",
+      "messageCount": 5,
+      "consumed": false,
+      "consumedAt": null
+    },
+    {
+      "id": "47b73b9b-a44f-481f-a0d4-e9470b9a38dc",
+      "timestamp": 1786816079700,
+      "summary": "The conversation covered basic information about data structures (stack vs. queue) and provided a \"Hello World\" example in Python. The user then asked for an explanation of closures in JavaScript, which was briefly mentioned without further details. No specific action items were identified at the end of the conversation.",
+      "conversationId": "conv_1786816079699",
+      "messageCount": 5,
+      "consumed": false,
+      "consumedAt": null
     }
   ]
 }

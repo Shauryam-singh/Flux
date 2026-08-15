@@ -2,6 +2,7 @@ import { createServer } from "node:http";
 import { createFlux, type FluxConfig } from "@ai-agent/cli/flux";
 import { WhisperEngine } from "@ai-agent/voice-stt";
 import { PiperEngine } from "@ai-agent/voice-tts";
+import { AutomationEngine } from "@ai-agent/automation";
 
 const PORT = parseInt(process.env.FLUX_API_PORT ?? "3141", 10);
 
@@ -16,6 +17,16 @@ const fluxConfig: FluxConfig = {
 };
 
 const flux = createFlux(fluxConfig);
+
+// ─── Automation Engine (behavior learning, context profiles, proactive suggestions) ──
+const automation = new AutomationEngine(undefined, {
+  onModeChange: (mode, profile) => {
+    console.log(`[automation] Mode changed: ${mode}${profile ? ` (profile: ${profile.name})` : ""}`);
+  },
+  onSuggestion: (suggestion) => {
+    console.log(`[automation] Suggestion: ${suggestion.title} (confidence: ${suggestion.confidence})`);
+  },
+});
 
 process.on("unhandledRejection", (reason) => {
   console.error("[unhandledRejection]", reason);
@@ -1150,6 +1161,104 @@ const server = createServer(async (req, res) => {
       const error = err instanceof Error ? err.message : String(err);
       sendJson(res, 500, { error });
     }
+    return;
+  }
+
+  // ─── Behavior Learning & Activity Classification ────────────────
+  if (req.method === "POST" && req.url === "/automation/observe") {
+    try {
+      const body = await parseBody(req);
+      const data = JSON.parse(body.toString()) as {
+        app?: string;
+        title?: string;
+        idleSeconds?: number;
+        audioPlaying?: boolean;
+        gitDirty?: boolean;
+        dockerRunning?: number;
+      };
+      if (!data.app || !data.title) {
+        sendJson(res, 400, { error: "app and title are required" });
+        return;
+      }
+      const mode = automation.observe(data.app, data.title, {
+        idleSeconds: data.idleSeconds,
+        audioPlaying: data.audioPlaying,
+        gitDirty: data.gitDirty,
+        dockerRunning: data.dockerRunning,
+      });
+      sendJson(res, 200, { mode, state: automation.getState() });
+    } catch (err) {
+      const error = err instanceof Error ? err.message : String(err);
+      sendJson(res, 500, { error });
+    }
+    return;
+  }
+
+  if (req.method === "GET" && req.url === "/automation/state") {
+    sendJson(res, 200, automation.getState());
+    return;
+  }
+
+  if (req.method === "GET" && req.url === "/automation/patterns/learned") {
+    sendJson(res, 200, { patterns: automation.getPatterns() });
+    return;
+  }
+
+  if (req.method === "POST" && req.url === "/automation/discover-patterns") {
+    const patterns = automation.discoverPatterns();
+    sendJson(res, 200, { patterns });
+    return;
+  }
+
+  if (req.method === "GET" && req.url === "/automation/profiles") {
+    sendJson(res, 200, { profiles: automation.getProfiles() });
+    return;
+  }
+
+  if (req.method === "GET" && req.url === "/automation/suggestions") {
+    sendJson(res, 200, { suggestions: automation.getSuggestions() });
+    return;
+  }
+
+  if (req.method === "POST" && req.url?.startsWith("/automation/suggestions/") && req.url?.endsWith("/accept")) {
+    const id = req.url.split("/suggestions/")[1]?.split("/")[0];
+    if (id && automation.acceptSuggestion(id)) {
+      sendJson(res, 200, { accepted: true });
+    } else {
+      sendJson(res, 404, { error: "Suggestion not found" });
+    }
+    return;
+  }
+
+  if (req.method === "POST" && req.url?.startsWith("/automation/suggestions/") && req.url?.endsWith("/reject")) {
+    const id = req.url.split("/suggestions/")[1]?.split("/")[0];
+    if (id && automation.rejectSuggestion(id)) {
+      sendJson(res, 200, { rejected: true });
+    } else {
+      sendJson(res, 404, { error: "Suggestion not found" });
+    }
+    return;
+  }
+
+  if (req.method === "GET" && req.url === "/automation/session") {
+    const session = automation.getCurrentSession();
+    sendJson(res, 200, { session });
+    return;
+  }
+
+  if (req.method === "GET" && req.url === "/automation/smart-wake") {
+    sendJson(res, 200, {
+      suggestedApps: automation.getSmartWakeApps(),
+      suggestedMode: automation.getSmartWakeMode(),
+    });
+    return;
+  }
+
+  if (req.method === "GET" && req.url === "/automation/stats") {
+    sendJson(res, 200, {
+      state: automation.getState(),
+      storeStats: automation.store.getStats(),
+    });
     return;
   }
 

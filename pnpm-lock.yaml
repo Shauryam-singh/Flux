@@ -59,6 +59,9 @@ importers:
       '@ai-agent/attention':
         specifier: workspace:*
         version: link:../../packages/attention
+      '@ai-agent/automation':
+        specifier: workspace:*
+        version: link:../../packages/automation
       '@ai-agent/automation-builder':
         specifier: workspace:*
         version: link:../../packages/automation-builder
@@ -631,6 +634,12 @@ importers:
         version: link:../shared
 
   packages/attention:
+    dependencies:
+      '@ai-agent/shared':
+        specifier: workspace:*
+        version: link:../shared
+
+  packages/automation:
     dependencies:
       '@ai-agent/shared':
         specifier: workspace:*

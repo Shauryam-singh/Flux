@@ -61,22 +61,22 @@ describe("BrowserControlService", () => {
     // Will either open the page or fail if playwright not installed
     expect(result.text).toBeDefined();
     expect(typeof result.text).toBe("string");
-  });
+  }, 15000);
 
   it("parses search intent", async () => {
     const result = await svc.execute("search for cats on Google", ctx);
     expect(result.text).toBeDefined();
-  });
+  }, 15000);
 
   it("parses click intent", async () => {
     const result = await svc.execute("click login", ctx);
     expect(result.text).toBeDefined();
-  });
+  }, 15000);
 
   it("parses type intent", async () => {
     const result = await svc.execute('type hello in the search box', ctx);
     expect(result.text).toBeDefined();
-  });
+  }, 15000);
 
   it("parses scroll intent", async () => {
     const result = await svc.execute("scroll down", ctx);

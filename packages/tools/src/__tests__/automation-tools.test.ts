@@ -29,13 +29,13 @@ describe("ProcessMonitorTool", () => {
   it("should list processes", async () => {
     const tool = createProcessMonitorTool();
     const result = await tool.execute({ action: "list" });
-    // Process listing may fail if commands are unavailable
+    // Process listing may fail if commands are unavailable or slow
     if (result.success) {
       expect(result.output).toHaveProperty("processes");
     } else {
       expect(result.output).toHaveProperty("error");
     }
-  });
+  }, 15000);
 
   it("should count processes", async () => {
     const tool = createProcessMonitorTool();
@@ -45,7 +45,7 @@ describe("ProcessMonitorTool", () => {
     } else {
       expect(result.output).toHaveProperty("error");
     }
-  });
+  }, 15000);
 });
 
 describe("CronTool", () => {

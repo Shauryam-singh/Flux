@@ -77,6 +77,7 @@
     "@ai-agent/self-evaluation": "workspace:*",
     "@ai-agent/habit-discovery": "workspace:*",
     "@ai-agent/automation-builder": "workspace:*",
+    "@ai-agent/automation": "workspace:*",
     "@ai-agent/cognitive-health": "workspace:*",
     "@ai-agent/simulation-engine": "workspace:*",
     "@ai-agent/research-mode": "workspace:*",

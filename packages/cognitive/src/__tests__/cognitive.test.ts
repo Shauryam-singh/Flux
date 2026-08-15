@@ -1,4 +1,7 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { existsSync, unlinkSync, mkdirSync } from "node:fs";
+import { join } from "node:path";
+import { homedir } from "node:os";
 import { DefaultCognitiveOrchestrator } from "../cognitive-orchestrator.js";
 import { DefaultWorldModel } from "@ai-agent/world-model";
 import { DefaultWorkingMemory } from "@ai-agent/working-memory";
@@ -6,6 +9,8 @@ import { DefaultGoalManager } from "@ai-agent/goals";
 import { DefaultReasoningEngine } from "@ai-agent/reasoning";
 import { DefaultDecisionEngine, DefaultInterruptController } from "@ai-agent/decisions";
 import type { Observation } from "@ai-agent/attention";
+
+const GOALS_FILE = join(homedir(), ".flux", "goals.json");
 
 function makeObs(source: Observation["source"], title = "test"): Observation {
   return {
@@ -36,6 +41,18 @@ function createOrchestrator() {
 }
 
 describe("DefaultCognitiveOrchestrator", () => {
+  beforeEach(() => {
+    // Clean up persisted goals to isolate tests
+    try {
+      const dir = join(homedir(), ".flux");
+      if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+    } catch { /* ignore */ }
+    try { if (existsSync(GOALS_FILE)) unlinkSync(GOALS_FILE); } catch { /* ignore */ }
+  });
+
+  afterEach(() => {
+    try { if (existsSync(GOALS_FILE)) unlinkSync(GOALS_FILE); } catch { /* ignore */ }
+  });
   it("should create with default state", () => {
     const orch = createOrchestrator();
     const state = orch.getState();

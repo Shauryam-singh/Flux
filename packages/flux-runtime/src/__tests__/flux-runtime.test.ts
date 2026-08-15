@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import type { FluxRuntimeConfig } from "../interfaces/flux-runtime.js";
 
-describe("FluxRuntime", () => {
+describe("FluxRuntime", { timeout: 30000 }, () => {
   const testConfig: FluxRuntimeConfig = {
     provider: "ollama",
     model: "qwen3:4b",

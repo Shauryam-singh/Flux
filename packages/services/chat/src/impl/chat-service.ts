@@ -53,9 +53,11 @@ async function buildChatMessages(
     content: m.content.length > truncationLimit ? m.content.slice(0, truncationLimit) : m.content,
   }));
 
-  // Get system context for the prompt (abbreviated for small models)
+  // For simple queries (greetings, yes/no), skip the full system context
+  // to reduce prompt size and latency. The personality alone is enough.
+  const complexity = detectModelComplexity(input);
   let systemContextPrompt = "";
-  if (ctx.getSystemContext) {
+  if (complexity !== "simple" && ctx.getSystemContext) {
     try {
       const sysCtx = await ctx.getSystemContext();
       systemContextPrompt = buildSystemContextPrompt(sysCtx, model);
@@ -201,8 +203,12 @@ export function createChatService(options?: ChatServiceOptions): Service {
       const complexity = detectModelComplexity(input);
       const maxTokens = complexity === "simple" ? 80 : complexity === "medium" ? 200 : 500;
 
+      // Route simple queries to the smaller 0.5b model — greetings, yes/no,
+      // short acknowledgements don't need 3b. Saves 1-3s per simple query.
+      const model = complexity === "simple" ? "qwen2.5:0.5b" : "default";
+
       const response = await ctx.provider.complete({
-        model: "default",
+        model,
         prompt: input,
         messages: chatMessages,
         temperature: 0.8,
@@ -250,8 +256,9 @@ export function createChatService(options?: ChatServiceOptions): Service {
           // Include prompt for compatibility with CompletionRequest interface
           const complexity = detectModelComplexity(input);
           const maxTokens = complexity === "simple" ? 80 : complexity === "medium" ? 200 : 500;
+          const model = complexity === "simple" ? "qwen2.5:0.5b" : "default";
           const response = await ctx.provider.complete({
-            model: "default",
+            model,
             prompt: input,
             messages: chatMessages,
             temperature: 0.8,
@@ -283,9 +290,10 @@ export function createChatService(options?: ChatServiceOptions): Service {
       // Include prompt for compatibility with CompletionRequest interface
       const complexity = detectModelComplexity(input);
       const maxTokens = complexity === "simple" ? 80 : complexity === "medium" ? 200 : 500;
+      const streamModel = complexity === "simple" ? "qwen2.5:0.5b" : "default";
       await provider.completeStream(
         {
-          model: "default",
+          model: streamModel,
           prompt: input,
           messages: chatMessages,
           temperature: 0.8,

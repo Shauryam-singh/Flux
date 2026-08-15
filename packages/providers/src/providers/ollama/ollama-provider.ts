@@ -234,6 +234,15 @@ export class OllamaProvider extends BaseProvider {
     opts.top_k = 40;
     opts.top_p = 0.9;
 
+    // Batch size for prompt processing — larger batches process more tokens
+    // per forward pass, reducing latency for short prompts. Default 512 is
+    // conservative; 1024 is safe for 4GB+ VRAM.
+    if (this.config.num_batch !== undefined) {
+      opts.num_batch = this.config.num_batch;
+    } else if (capabilities.hasNvidiaGPU) {
+      opts.num_batch = 1024;
+    }
+
     return opts;
   }
 
@@ -267,6 +276,13 @@ export class OllamaProvider extends BaseProvider {
     opts.repeat_penalty = 1.1;
     opts.top_k = 40;
     opts.top_p = 0.9;
+
+    // Batch size for faster prompt processing
+    if (this.config.num_batch !== undefined) {
+      opts.num_batch = this.config.num_batch;
+    } else if (capabilities.hasNvidiaGPU) {
+      opts.num_batch = 1024;
+    }
 
     return opts;
   }

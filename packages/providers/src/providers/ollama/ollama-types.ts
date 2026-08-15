@@ -47,6 +47,7 @@ export interface OllamaProviderConfig {
   num_ctx?: number;
   num_gpu?: number;
   num_thread?: number;
+  num_batch?: number;     // Batch size for prompt processing (default 512, 1024 for GPU)
   keep_alive?: string;   // Model residency in memory (e.g., "5m", "10m", "-1" for infinite)
 }
 

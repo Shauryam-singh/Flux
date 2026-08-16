@@ -795,8 +795,11 @@ async function sendChatMessageDirect(message, speak = false) {
           console.warn("[Flux] streaming speakText failed:", e);
         }
       }
-      speechQueue.length = 0;
       speaking = false;
+      // If new sentences arrived while we were finishing, restart
+      if (speechQueue.length > 0 && !speechQueueStopped) {
+        void processQueue();
+      }
     };
 
     const queueSentence = (text) => {
@@ -835,12 +838,27 @@ async function sendChatMessageDirect(message, speak = false) {
           // Accumulate for speech — flush on sentence boundaries
           if (speak) {
             pendingSpeech += evt.token;
-            // Check for sentence boundary: punctuation at end (with optional trailing whitespace)
-            // or newline. Tokens often arrive as "." without trailing space, so \s* not \s+
-            if (/[.!?…]\s*$/.test(pendingSpeech) || /\n\s*$/.test(pendingSpeech)) {
-              const sentence = pendingSpeech.trim();
-              pendingSpeech = "";
-              if (sentence.length > 1) queueSentence(sentence);
+            // Split on ALL sentence boundaries within accumulated text, not just at the end.
+            // Tokens can span boundaries (e.g. "PM. Could" is one token).
+            let boundaryIdx = -1;
+            // Find the LAST sentence boundary in the accumulated text
+            const match = pendingSpeech.match(/[.!?…][\s]+(?=[A-Z\u0900-\u097F])/g);
+            if (match) {
+              // Find the position after the last boundary
+              let lastMatch;
+              const re = /[.!?…][\s]+(?=[A-Z\u0900-\u097F])/g;
+              while ((lastMatch = re.exec(pendingSpeech)) !== null) {
+                boundaryIdx = lastMatch.index + lastMatch[0].length;
+              }
+            }
+            if (boundaryIdx > 0) {
+              const sentences = pendingSpeech.slice(0, boundaryIdx);
+              pendingSpeech = pendingSpeech.slice(boundaryIdx);
+              // Queue each complete sentence
+              for (const s of sentences.split(/(?<=[.!?…])\s+/)) {
+                const trimmed = s.trim();
+                if (trimmed.length > 1) queueSentence(trimmed);
+              }
             }
           }
         } else if (evt.done) {

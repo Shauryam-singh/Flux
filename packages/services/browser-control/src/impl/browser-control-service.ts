@@ -2,6 +2,8 @@
  * Browser Control Service
  *
  * Full browser automation via Playwright:
+ *   - Connects to your real Brave/Chrome via CDP (Chrome DevTools Protocol)
+ *   - Falls back to headless Chromium if CDP is unavailable
  *   - Open any URL, navigate, back/forward/reload
  *   - Tab management (open, close, switch, list)
  *   - Click elements by text or CSS selector
@@ -9,6 +11,10 @@
  *   - Scroll, search on any site
  *   - Screenshots, page content extraction
  *   - JavaScript execution
+ *
+ * CDP Mode (real browser):
+ *   Launch Brave with: brave --remote-debugging-port=9222
+ *   Or run: scripts/start-brave-cdp.bat (Windows) / .sh (Linux)
  *
  * Voice commands:
  *   "open youtube.com"
@@ -60,9 +66,67 @@ class BrowserManager {
   private tabs: Tab[] = [];
   activeTabIndex = 0;
   private idCounter = 0;
+  private connectedViaCDP = false;
+  private cdpPort = 9222;
 
+  /**
+   * Connect to an existing browser via Chrome DevTools Protocol.
+   * Attaches to the user's real browser (Brave/Chrome) with all
+   * existing tabs, sessions, and cookies intact.
+   */
+  async connectCDP(port = 9222): Promise<boolean> {
+    if (this.browser) return true;
+    const chromium_ = await loadPlaywright();
+    try {
+      this.browser = await chromium_.connectOverCDP(`http://localhost:${port}`);
+      this.connectedViaCDP = true;
+      this.cdpPort = port;
+      const contexts = this.browser.contexts();
+      if (contexts.length > 0) {
+        this.context = contexts[0]!;
+        await this.discoverExistingTabs();
+      } else {
+        this.context = await this.browser.newContext();
+        const page = await this.context.newPage();
+        this.tabs.push({ id: this.nextId(), page, url: "about:blank", title: "New Tab" });
+      }
+      return true;
+    } catch {
+      this.browser = null;
+      this.context = null;
+      this.connectedViaCDP = false;
+      return false;
+    }
+  }
+
+  /**
+   * Discover all existing tabs from a CDP-connected browser.
+   */
+  private async discoverExistingTabs(): Promise<void> {
+    if (!this.context) return;
+    const pages = this.context.pages();
+    for (const page of pages) {
+      let url = "about:blank";
+      let title = "New Tab";
+      try {
+        url = page.url();
+        title = await page.title();
+      } catch {}
+      this.tabs.push({ id: this.nextId(), page, url, title });
+    }
+    if (this.tabs.length > 0) this.activeTabIndex = 0;
+  }
+
+  /**
+   * Launch browser. Tries CDP first (connects to user's real browser),
+   * falls back to headless Chromium if CDP is unavailable.
+   */
   async launch(): Promise<void> {
     if (this.browser) return;
+    // Try CDP first — connects to user's real Brave/Chrome
+    const cdpOk = await this.connectCDP(this.cdpPort);
+    if (cdpOk) return;
+    // Fallback: launch headless Chromium
     const chromium_ = await loadPlaywright();
     this.browser = await chromium_.launch({
       headless: true,
@@ -74,12 +138,17 @@ class BrowserManager {
         "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
     });
     const page = await this.context.newPage();
-    this.tabs.push({
-      id: this.nextId(),
-      page,
-      url: "about:blank",
-      title: "New Tab",
-    });
+    this.tabs.push({ id: this.nextId(), page, url: "about:blank", title: "New Tab" });
+  }
+
+  /** Whether we're connected to a real browser via CDP */
+  isCDPConnected(): boolean {
+    return this.connectedViaCDP;
+  }
+
+  /** Get the CDP port being used */
+  getCDPPort(): number {
+    return this.cdpPort;
   }
 
   private nextId(): string {
@@ -486,10 +555,16 @@ class BrowserManager {
       await tab.page.close().catch(() => {});
     }
     this.tabs = [];
-    await this.context?.close().catch(() => {});
-    await this.browser?.close().catch(() => {});
+    // Don't close context/browser if connected via CDP — we don't own them
+    if (!this.connectedViaCDP) {
+      await this.context?.close().catch(() => {});
+      await this.browser?.close().catch(() => {});
+    } else {
+      // Just detach — the browser keeps running
+    }
     this.browser = null;
     this.context = null;
+    this.connectedViaCDP = false;
   }
 }
 
@@ -713,7 +788,7 @@ export function createBrowserControlService(): Service {
   return {
     name: "browser-control",
     description:
-      "Full browser control via Playwright: open any URL, navigate, click, type, scroll, search any site, tabs, screenshots",
+      "Full browser control via Playwright: connects to your real Brave/Chrome via CDP, or launches headless. Open URLs, navigate, click, type, scroll, search any site, tabs, screenshots",
 
     canHandle(input: string): boolean {
       return MATCH.test(input);

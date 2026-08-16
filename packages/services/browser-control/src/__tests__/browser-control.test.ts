@@ -128,4 +128,9 @@ describe("BrowserControlService", () => {
     const result = await svc.execute("new tab", ctx);
     expect(result.text).toBeDefined();
   });
+
+  it("includes CDP info in description", () => {
+    expect(svc.description).toContain("CDP");
+    expect(svc.description).toContain("real");
+  });
 });

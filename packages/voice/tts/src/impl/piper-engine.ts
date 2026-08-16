@@ -529,7 +529,7 @@ export class PiperEngine implements TTSEngine {
       const rawPcm = await new Promise<Buffer>((resolve) => {
         const timer = setTimeout(() => {
           resolve(this.piperStdoutBuffer);
-        }, 5000); // 5 second timeout for persistent process
+        }, 10000); // 10 second timeout for persistent process
 
         const checkOutput = () => {
           if (this.piperStdoutBuffer.length > 0) {

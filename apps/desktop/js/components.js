@@ -12,9 +12,73 @@ export function updateTime(time) {
   if (el) el.textContent = time;
 }
 
+export function updateDate() {
+  const el = document.getElementById("hud-date");
+  if (!el) return;
+  const now = new Date();
+  const options = { weekday: "short", month: "short", day: "numeric" };
+  el.textContent = now.toLocaleDateString("en-US", options);
+}
+
 export function updateCpu(cpu) {
   const el = document.getElementById("hud-cpu");
   if (el) el.textContent = cpu + "%";
+  const bar = document.getElementById("stat-cpu-bar");
+  if (bar) bar.style.width = cpu + "%";
+  const pct = document.getElementById("stat-cpu-pct");
+  if (pct) pct.textContent = cpu + "%";
+  const main = document.getElementById("stat-cpu");
+  if (main) main.textContent = cpu + "%";
+}
+
+export function updateRam(ram) {
+  const bar = document.getElementById("stat-ram-bar");
+  if (bar) bar.style.width = ram + "%";
+  const pct = document.getElementById("stat-mem-pct");
+  if (pct) pct.textContent = ram + "%";
+  const main = document.getElementById("stat-ram");
+  if (main) main.textContent = ram + "%";
+}
+
+export function updateDisk(disk) {
+  const el = document.getElementById("stat-disk");
+  if (el) el.textContent = disk || "--";
+}
+
+export function updateWeather(weather) {
+  if (!weather) return;
+  const temp = document.getElementById("weather-temp");
+  const icon = document.getElementById("weather-icon");
+  const loc = document.getElementById("weather-location");
+  const humidity = document.getElementById("weather-humidity");
+  const wind = document.getElementById("weather-wind");
+  const feels = document.getElementById("weather-feels");
+
+  // API returns pre-formatted strings like "25°C", "65%", "12 km/h"
+  if (temp) temp.textContent = weather.temp || "--°C";
+  if (icon) icon.textContent = weather.conditionIcon || "☁️";
+  if (loc) loc.textContent = weather.city || "--";
+  if (humidity) humidity.textContent = weather.humidity || "--%";
+  if (wind) wind.textContent = weather.wind || "--";
+  if (feels) feels.textContent = weather.feelsLike || "--°C";
+}
+
+export function updateUptime(seconds) {
+  const el = document.getElementById("uptime-display");
+  const timer = document.getElementById("uptime-timer");
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = seconds % 60;
+  const str = `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+  if (el) el.textContent = str;
+  if (timer) timer.textContent = str;
+}
+
+export function updateSessionInfo(sessions, commands) {
+  const sEl = document.getElementById("session-count");
+  const cEl = document.getElementById("command-count");
+  if (sEl) sEl.textContent = sessions ?? "1";
+  if (cEl) cEl.textContent = commands ?? "0";
 }
 
 export function updateCognition(text) {
@@ -316,7 +380,7 @@ export async function renderMemoryPage() {
   let data;
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 10000);
+    const timeout = setTimeout(() => controller.abort(), 4000);
     try {
       const resp = await fetch(`${API}/memory/all`, {
         signal: controller.signal,
@@ -1030,17 +1094,15 @@ function getStoredSettings() {
 // ─── Voice Recording Indicator ───
 
 export function setVoiceRecording(recording) {
-  // Update voice button visual state
-  const voiceBtn = document.querySelector('.action-btn[data-action="voice"]');
-  if (voiceBtn) {
+  // Update voice button visual state (both old and new button styles)
+  const voiceBtns = document.querySelectorAll('[data-action="voice"]');
+  voiceBtns.forEach((voiceBtn) => {
     if (recording) {
       voiceBtn.classList.add("recording");
-      voiceBtn.textContent = "Stop";
     } else {
       voiceBtn.classList.remove("recording");
-      voiceBtn.textContent = "Voice";
     }
-  }
+  });
 
   // Update status indicator
   const statusDot = document.getElementById("status-dot");

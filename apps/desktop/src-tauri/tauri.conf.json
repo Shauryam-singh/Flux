@@ -14,12 +14,11 @@
     "windows": [
       {
         "title": "Flux",
-        "width": 120,
-        "height": 120,
+        "fullscreen": true,
         "resizable": true,
         "decorations": false,
         "transparent": true,
-        "alwaysOnTop": true
+        "alwaysOnTop": false
       }
     ],
     "security": {

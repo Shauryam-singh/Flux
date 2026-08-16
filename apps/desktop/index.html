@@ -15,129 +15,176 @@
   <canvas id="particles-canvas"></canvas>
 
   <!-- ═══════════════════════════════════════════
+       BOOT MODE — Initializing Screen
+       ═══════════════════════════════════════════ -->
+  <div id="mode-boot" class="mode">
+    <div class="boot-screen">
+      <div class="nucleus-orb boot-nucleus">
+        <div class="nucleus-core"></div>
+        <div class="nucleus-ring nucleus-ring-1"></div>
+        <div class="nucleus-ring nucleus-ring-2"></div>
+        <div class="nucleus-ring nucleus-ring-3"></div>
+        <div class="nucleus-glow"></div>
+      </div>
+      <div class="boot-title">FLUX</div>
+      <div class="boot-subtitle">Initializing systems...</div>
+      <div class="boot-progress-track">
+        <div class="boot-progress-fill" id="boot-progress"></div>
+      </div>
+      <div class="boot-steps" id="boot-steps">
+        <div class="boot-step" data-step="sensors">
+          <span class="boot-step-dot"></span>
+          <span>Loading sensors</span>
+        </div>
+        <div class="boot-step" data-step="model">
+          <span class="boot-step-dot"></span>
+          <span>Warming up model</span>
+        </div>
+        <div class="boot-step" data-step="cognitive">
+          <span class="boot-step-dot"></span>
+          <span>Starting cognitive engine</span>
+        </div>
+        <div class="boot-step" data-step="ready">
+          <span class="boot-step-dot"></span>
+          <span>Ready</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════
        DORMANT MODE — The Orb
        ═══════════════════════════════════════════ -->
-  <div id="mode-dormant" class="mode">
-    <div class="orb-container" id="orb">
-      <div class="orb-core"></div>
-      <div class="orb-ring orb-ring-1"></div>
-      <div class="orb-ring orb-ring-2"></div>
-      <div class="orb-ring orb-ring-3"></div>
-      <div class="orb-pulse"></div>
-      <div class="orb-particles">
-        <div class="orb-particle"></div>
-        <div class="orb-particle"></div>
-        <div class="orb-particle"></div>
-        <div class="orb-particle"></div>
-        <div class="orb-particle"></div>
-      </div>
+  <div id="mode-dormant" class="mode hidden">
+    <div class="nucleus-orb" id="orb">
+      <div class="nucleus-core"></div>
+      <div class="nucleus-ring nucleus-ring-1"></div>
+      <div class="nucleus-ring nucleus-ring-2"></div>
+      <div class="nucleus-ring nucleus-ring-3"></div>
+      <div class="nucleus-glow"></div>
     </div>
     <div id="orb-greeting" class="orb-greeting" hidden></div>
   </div>
 
-  <!-- ═══════════════════════════════════════════
-       HUD MODE — Compact Awareness Panel
-       ═══════════════════════════════════════════ -->
+  <!-- HUD MODE — JARVIS Layout -->
   <div id="mode-hud" class="mode hidden">
-    <div class="hud glass" id="hud">
+    <div class="jarvis">
 
-      <!-- Top Bar -->
-      <header class="hud-topbar">
-        <div class="topbar-brand">
-          <span class="flux-logo">FLUX</span>
-          <div class="status-indicator">
-            <span class="status-dot" id="status-dot"></span>
-            <span id="status-text"></span>
-          </div>
+      <!-- Header Bar -->
+      <header class="jarvis-header">
+        <div class="jarvis-header-left">
+          <span class="jarvis-logo">F.L.U.X</span>
+          <span class="jarvis-status-badge">
+            <span class="jarvis-status-dot"></span> Online
+          </span>
         </div>
-        <div class="topbar-stats">
-          <span class="topbar-time" id="hud-time"></span>
-          <span class="topbar-meta"><span id="hud-model"></span> &middot; CPU <span id="hud-cpu"></span></span>
+        <div class="jarvis-header-center">
+          <span id="hud-time" class="jarvis-time"></span>
+          <span class="jarvis-sep">|</span>
+          <span id="hud-date" class="jarvis-date"></span>
         </div>
-        <button class="hud-minimize" id="hud-minimize" title="Minimize to orb">&minus;</button>
+        <div class="jarvis-header-right">
+          <span id="hud-model" class="jarvis-meta"></span>
+          <span class="jarvis-sep">|</span>
+          <span id="hud-cpu" class="jarvis-meta"></span>
+          <button class="jarvis-win-btn" id="hud-minimize" title="Minimize">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          </button>
+          <button class="jarvis-win-btn" id="hud-close" title="Close">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
       </header>
 
-      <!-- Scrollable Content -->
-      <main class="hud-scroll">
+      <!-- 3-Column Body -->
+      <div class="jarvis-body">
 
-        <!-- Live Cognition -->
-        <section class="hud-card">
-          <div class="card-label">Cognition</div>
-          <div class="cognition-text" id="cognition-text"></div>
-        </section>
-
-        <!-- Current Goal -->
-        <section class="hud-card">
-          <div class="card-label">Current Goal</div>
-          <div class="goal-name" id="goal-name"></div>
-          <div class="progress-track">
-            <div class="progress-fill" id="goal-progress" style="width: 0%"></div>
-          </div>
-          <div class="goal-meta">
-            <span id="goal-percent"></span>
-            <span class="goal-blocker" id="goal-blocker"></span>
-          </div>
-        </section>
-
-        <!-- Current Focus -->
-        <section class="hud-card">
-          <div class="card-label">Focus</div>
-          <div class="focus-tags" id="focus-tags"></div>
-        </section>
-
-        <!-- Prediction -->
-        <section class="hud-card">
-          <div class="card-label">Prediction</div>
-          <div class="prediction-text" id="prediction-text"></div>
-          <div class="prediction-bar">
-            <div class="confidence-track">
-              <div class="confidence-fill" id="prediction-fill" style="width: 0%"></div>
+        <!-- Left Sidebar: System Stats -->
+        <aside class="jarvis-sidebar">
+          <div class="jarvis-card">
+            <div class="jarvis-card-head"><span>📊</span> System Stats</div>
+            <div class="jarvis-card-body">
+              <div class="jarvis-stat-row"><span>CPU Usage</span><span id="stat-cpu">--%</span></div>
+              <div class="jarvis-stat-bar"><div class="jarvis-stat-bar-fill" id="stat-cpu-bar"></div></div>
+              <div class="jarvis-stat-row"><span>RAM Usage</span><span id="stat-ram">--%</span></div>
+              <div class="jarvis-stat-bar"><div class="jarvis-stat-bar-fill jarvis-bar-ram" id="stat-ram-bar"></div></div>
+              <div class="jarvis-stat-grid">
+                <div class="jarvis-stat-cell"><span>CPU</span><span id="stat-cpu-pct">--%</span></div>
+                <div class="jarvis-stat-cell"><span>Memory</span><span id="stat-mem-pct">--%</span></div>
+                <div class="jarvis-stat-cell"><span>Disk</span><span id="stat-disk">--</span></div>
+              </div>
             </div>
-            <span class="confidence-value" id="prediction-confidence"></span>
           </div>
-        </section>
 
-        <!-- Background Tasks -->
-        <section class="hud-card">
-          <div class="card-label">Background Tasks</div>
-          <ul class="tasks-list" id="tasks-list"></ul>
-        </section>
+          <div class="jarvis-card">
+            <div class="jarvis-card-head"><span>☁️</span> Weather</div>
+            <div class="jarvis-card-body">
+              <div class="jarvis-weather-row">
+                <span class="jarvis-weather-temp" id="weather-temp">--°C</span>
+                <span id="weather-icon">☁️</span>
+              </div>
+              <div class="jarvis-weather-loc" id="weather-location">--</div>
+              <div class="jarvis-stat-grid">
+                <div class="jarvis-stat-cell"><span>Humidity</span><span id="weather-humidity">--%</span></div>
+                <div class="jarvis-stat-cell"><span>Wind</span><span id="weather-wind">--</span></div>
+                <div class="jarvis-stat-cell"><span>Feels Like</span><span id="weather-feels">--°C</span></div>
+              </div>
+            </div>
+          </div>
 
-        <!-- Memory Activity -->
-        <section class="hud-card">
-          <div class="card-label">Memory</div>
-          <ul class="memory-list" id="memory-list"></ul>
-        </section>
+          <div class="jarvis-card">
+            <div class="jarvis-card-head"><span>⏱️</span> System Uptime <span class="jarvis-badge" id="uptime-timer">00:00:00</span></div>
+            <div class="jarvis-card-body">
+              <div class="jarvis-stat-row"><span>Running For</span><span class="jarvis-big" id="uptime-display">00:00:00</span></div>
+              <div class="jarvis-stat-grid">
+                <div class="jarvis-stat-cell"><span>Session</span><span id="session-count">1</span></div>
+                <div class="jarvis-stat-cell"><span>Commands</span><span id="command-count">0</span></div>
+              </div>
+            </div>
+          </div>
+        </aside>
 
-        <!-- Live Sensors -->
-        <section class="hud-card">
-          <div class="card-label">Sensors</div>
-          <div class="sensors-grid" id="sensors-grid"></div>
-        </section>
+        <!-- Center: Orb -->
+        <main class="jarvis-center">
+          <div class="jarvis-orb-area">
+            <div class="nucleus-orb jarvis-nucleus" id="hud-orb">
+              <div class="nucleus-core"></div>
+              <div class="nucleus-ring nucleus-ring-1"></div>
+              <div class="nucleus-ring nucleus-ring-2"></div>
+              <div class="nucleus-ring nucleus-ring-3"></div>
+              <div class="nucleus-glow"></div>
+            </div>
+            <div class="jarvis-orb-title">F.L.U.X</div>
+            <div class="jarvis-orb-status" id="hud-orb-status">
+              <span class="jarvis-status-dot"></span> Listening for wake word...
+            </div>
+          </div>
+          <div class="jarvis-orb-actions">
+            <button class="jarvis-action-btn" data-action="voice" title="Push-to-talk">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+            </button>
+            <button class="jarvis-action-btn" data-action="dashboard" title="Dashboard">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+            </button>
+          </div>
+        </main>
 
-      </main>
+        <!-- Right Sidebar: Conversation -->
+        <aside class="jarvis-sidebar jarvis-chat-panel">
+          <div class="jarvis-chat-head">
+            <span>Conversation</span>
+            <button class="jarvis-chat-clear" id="chat-clear">🗑️ Clear</button>
+          </div>
+          <div class="jarvis-chat-messages" id="chat-stream-messages"></div>
+          <div class="jarvis-chat-input">
+            <input type="text" id="chat-input" placeholder="Type a message..." autocomplete="off" spellcheck="false">
+            <button id="chat-send" class="jarvis-send-btn">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+            </button>
+          </div>
+        </aside>
 
-      <!-- Chat Messages Thread -->
-      <div class="chat-thread" id="chat-messages"></div>
-
-      <!-- Chat Input -->
-      <div class="hud-chat">
-        <input type="text" id="chat-input" placeholder="Message Flux..." autocomplete="off" spellcheck="false">
-        <button id="chat-send" class="chat-send-btn" title="Send">&#9654;</button>
       </div>
-
-      <!-- Bottom Actions -->
-      <footer class="hud-actions">
-        <button class="action-btn primary" data-action="explain" title="Explain Current Thought">Explain</button>
-        <button class="action-btn" data-action="memory" title="Show Memory">Memory</button>
-        <button class="action-btn primary" data-action="dashboard" title="Open Dashboard">Dashboard</button>
-        <button class="action-btn" data-action="voice" title="Push-to-talk (Ctrl+Shift+V)">Voice</button>
-        <button class="action-btn" data-action="wake-word" id="wake-word-toggle" title="Wake word: OFF">\u{1F515}</button>
-        <button class="action-btn" data-action="auto-speak" id="auto-speak-toggle" title="Auto-speak: OFF">\u{1F507}</button>
-        <button class="action-btn" data-action="stop-speaking" id="speak-stop-btn" title="Stop speaking" style="display:none">\u{23F9}</button>
-        <button class="action-btn" data-action="settings" title="Settings">&#9881;</button>
-      </footer>
-
     </div>
   </div>
 

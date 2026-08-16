@@ -112,6 +112,12 @@ function handleStreamEvent(data) {
         state.cpu = Math.min(100, Math.max(0, Math.round(health.cpuUsagePercent)));
         emit("cpu", state.cpu);
       }
+      if (health.memoryUsagePercent != null) {
+        emit("ram", Math.min(100, Math.max(0, Math.round(health.memoryUsagePercent))));
+      }
+      if (health.diskUsagePercent != null) {
+        emit("disk", Math.round(health.diskUsagePercent) + "%");
+      }
     }
 
     // Update tasks from sensor running state
@@ -333,6 +339,83 @@ async function fetchChatHistory() {
     if (data.messages && data.messages.length > 0) {
       state.chatHistory = data.messages;
       emit("chatHistory", state.chatHistory);
+    }
+  } catch {}
+}
+
+// ─── Fetch weather data ───
+let weatherCache = null;
+let weatherTimer = null;
+
+export async function fetchWeather() {
+  try {
+    const resp = await fetch(`${API_BASE}/weather`);
+    if (!resp.ok) return;
+    const data = await resp.json();
+    weatherCache = data;
+    emit("weather", data);
+  } catch {}
+}
+
+export function startWeatherPolling() {
+  fetchWeather();
+  weatherTimer = setInterval(fetchWeather, 300000); // every 5 minutes
+}
+
+// ─── Fetch startup data (sensors, weather, uptime) ───
+export async function fetchStartupData() {
+  try {
+    const resp = await fetch(`${API_BASE}/state`);
+    if (!resp.ok) return;
+    const data = await resp.json();
+
+    if (data.sensorSnapshots) {
+      updateSensorsFromSnapshots(data.sensorSnapshots);
+    }
+
+    if (data.recentThoughts && data.recentThoughts.length > 0) {
+      updateThoughtsFromRuntime(data.recentThoughts);
+    }
+
+    if (data.worldState) {
+      updateWorldModelFromState(data.worldState);
+    }
+
+    if (data.state?.model) {
+      state.model = data.state.model;
+      emit("model", state.model);
+    }
+  } catch {}
+
+  fetchWeather();
+}
+
+// ─── Fetch initial state on dashboard open ───
+export async function fetchInitialState() {
+  try {
+    const resp = await fetch(`${API_BASE}/state`);
+    if (!resp.ok) return;
+    const data = await resp.json();
+
+    // Populate sensors from snapshot
+    if (data.sensorSnapshots) {
+      updateSensorsFromSnapshots(data.sensorSnapshots);
+    }
+
+    // Populate thoughts from recentThoughts
+    if (data.recentThoughts && data.recentThoughts.length > 0) {
+      updateThoughtsFromRuntime(data.recentThoughts);
+    }
+
+    // Populate world model
+    if (data.worldState) {
+      updateWorldModelFromState(data.worldState);
+    }
+
+    // Populate model info
+    if (data.state?.model) {
+      state.model = data.state.model;
+      emit("model", state.model);
     }
   } catch {}
 }

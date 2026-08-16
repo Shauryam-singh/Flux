@@ -163,8 +163,11 @@ export class SystemHealthSensor extends BaseSensor<SystemHealthState> {
 
     // Network — fast native ping (1 request, short timeout). Cached by the
     // snapshot cache window so it only runs occasionally.
-    const networkOnline =
-      this.execCommand("ping -n 1 -w 500 8.8.8.8 2>nul") !== null;
+    // On Windows, use powershell Test-Connection which is more reliable.
+    const isWin = process.platform === "win32";
+    const networkOnline = isWin
+      ? this.execCommand('powershell -NoProfile -Command "(Test-Connection -ComputerName 8.8.8.8 -Count 1 -Quiet)"', 3000) === "True"
+      : this.execCommand("ping -c 1 -W 1 8.8.8.8 >/dev/null 2>&1 && echo true || echo false", 3000) === "true";
 
     return {
       cpuUsagePercent,

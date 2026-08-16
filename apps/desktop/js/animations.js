@@ -224,8 +224,11 @@ function updateGraphFromData(thoughts, edges) {
 }
 
 function initGraphNodes() {
-  graphNodes = [];
-  graphEdges = [];
+  // Don't clear if data was already buffered from SSE before graph started
+  if (graphNodes.length === 0) {
+    graphNodes = [];
+    graphEdges = [];
+  }
 }
 
 const edgeColors = {
@@ -326,15 +329,39 @@ function animateGraph() {
 }
 
 export function startGraph() {
-  if (graphActive) return;
+  if (graphActive) {
+    // Already running — just force canvas resize in case tab just became visible
+    resizeGraphCanvas();
+    return;
+  }
   graphActive = true;
   initGraphNodes();
-  animateGraph();
+  // Delay first frame slightly so the panel has time to become visible
+  setTimeout(() => {
+    resizeGraphCanvas();
+    animateGraph();
+  }, 50);
+}
+
+function resizeGraphCanvas() {
+  const canvas = document.getElementById("graph-canvas");
+  if (!canvas) return;
+  const w = canvas.parentElement?.clientWidth || 800;
+  const h = canvas.parentElement?.clientHeight || 500;
+  if (canvas.width !== w) canvas.width = w;
+  if (canvas.height !== h) canvas.height = h;
+  lastCanvasWidth = w;
+  lastCanvasHeight = h;
 }
 
 // Export for SSE-based updates
 export function updateGraphFromThoughts(thoughts) {
-  if (!graphActive || !thoughts || thoughts.length === 0) return;
+  if (!thoughts || thoughts.length === 0) return;
+  if (!graphActive) {
+    // Buffer the data — will be rendered when graph starts
+    updateGraphFromData(thoughts, []);
+    return;
+  }
   const edges = [];
   updateGraphFromData(thoughts, edges);
 }

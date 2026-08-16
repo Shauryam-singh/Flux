@@ -69,10 +69,7 @@ async function processTTSQueue(): Promise<void> {
   ttsProcessing = true;
 
   while (ttsQueue.length > 0) {
-    // Cancel previous request if new one arrives (take latest)
-    const item = ttsQueue.pop()!;
-    // Clear queue of old requests
-    ttsQueue.length = 0;
+    const item = ttsQueue.shift()!;
 
     try {
       await tts.initialize();
@@ -836,10 +833,22 @@ const server = createServer(async (req, res) => {
       const data = await resp.json() as any;
       const current = data?.current_condition?.[0];
       if (current) {
+        const desc = (current.weatherDesc?.[0]?.value || "").toLowerCase();
+        let conditionIcon = "☁️";
+        if (desc.includes("sunny") || desc.includes("clear")) conditionIcon = "☀️";
+        else if (desc.includes("partly")) conditionIcon = "⛅";
+        else if (desc.includes("cloud") || desc.includes("overcast")) conditionIcon = "☁️";
+        else if (desc.includes("rain") || desc.includes("drizzle")) conditionIcon = "🌧️";
+        else if (desc.includes("thunder") || desc.includes("storm")) conditionIcon = "⛈️";
+        else if (desc.includes("snow")) conditionIcon = "❄️";
+        else if (desc.includes("fog") || desc.includes("mist")) conditionIcon = "🌫️";
+        else if (desc.includes("wind")) conditionIcon = "💨";
+
         sendJson(res, 200, {
           temp: current.temp_C ? `${current.temp_C}°C` : current.temp_F ? `${current.temp_F}°F` : null,
           feelsLike: current.FeelsLikeC ? `${current.FeelsLikeC}°C` : null,
           condition: current.weatherDesc?.[0]?.value || "Unknown",
+          conditionIcon,
           humidity: current.humidity ? `${current.humidity}%` : null,
           wind: current.windspeedKmph ? `${current.windspeedKmph} km/h` : null,
           city: data?.nearest_area?.[0]?.areaName?.[0]?.value || String(city),

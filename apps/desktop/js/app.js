@@ -463,8 +463,10 @@ let followUpTimer = null;
 
 let currentAudio = null;
 let currentUtterance = null;
+let speechQueueStopped = false;
 
 function stopSpeaking() {
+  speechQueueStopped = true;
   // Stop API/element audio
   if (currentAudio) {
     try {
@@ -562,15 +564,19 @@ async function speakTextSequential(text) {
         updateSpeakButton(true);
 
         await new Promise((resolve) => {
-          audio.addEventListener("ended", () => {
+          let resolved = false;
+          const done = () => {
+            if (resolved) return;
+            resolved = true;
+            clearTimeout(safetyTimer);
             URL.revokeObjectURL(url);
             resolve();
-          }, { once: true });
-          audio.addEventListener("error", () => {
-            URL.revokeObjectURL(url);
-            resolve();
-          }, { once: true });
-          audio.play().catch(() => resolve());
+          };
+          audio.addEventListener("ended", done, { once: true });
+          audio.addEventListener("error", done, { once: true });
+          // Safety timeout — if audio never fires ended/error, don't deadlock
+          const safetyTimer = setTimeout(done, 30000);
+          audio.play().catch(done);
         });
         return;
       }
@@ -776,20 +782,20 @@ async function sendChatMessageDirect(message, speak = false) {
     let pendingSpeech = "";
     let speechQueue = [];
     let speaking = false;
+    speechQueueStopped = false;
 
     const processQueue = async () => {
       if (speaking || speechQueue.length === 0) return;
       speaking = true;
-      while (speechQueue.length > 0) {
+      while (speechQueue.length > 0 && !speechQueueStopped) {
         const text = speechQueue.shift();
         try {
-          // Don't call stopSpeaking - just let current audio finish
-          // and play next sentence after
           await speakTextSequential(text);
         } catch (e) {
           console.warn("[Flux] streaming speakText failed:", e);
         }
       }
+      speechQueue.length = 0;
       speaking = false;
     };
 
@@ -829,11 +835,12 @@ async function sendChatMessageDirect(message, speak = false) {
           // Accumulate for speech — flush on sentence boundaries
           if (speak) {
             pendingSpeech += evt.token;
-            // Check for sentence boundary: . ! ? or newline after punctuation
-            if (/[.!?…]\s+$/.test(pendingSpeech) || /\n\s*$/.test(pendingSpeech)) {
+            // Check for sentence boundary: punctuation at end (with optional trailing whitespace)
+            // or newline. Tokens often arrive as "." without trailing space, so \s* not \s+
+            if (/[.!?…]\s*$/.test(pendingSpeech) || /\n\s*$/.test(pendingSpeech)) {
               const sentence = pendingSpeech.trim();
               pendingSpeech = "";
-              if (sentence.length > 3) queueSentence(sentence);
+              if (sentence.length > 1) queueSentence(sentence);
             }
           }
         } else if (evt.done) {

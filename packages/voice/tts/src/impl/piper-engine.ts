@@ -525,20 +525,33 @@ export class PiperEngine implements TTSEngine {
       this.piperProcess.stdin.write(this.stripEmoji(text));
       this.piperProcess.stdin.write("\n"); // newline signals end of input
 
-      // Wait for output with timeout
+      // Wait for output — use inactivity timer (no new data for 500ms = done)
       const rawPcm = await new Promise<Buffer>((resolve) => {
-        const timer = setTimeout(() => {
-          resolve(this.piperStdoutBuffer);
-        }, 10000); // 10 second timeout for persistent process
+        let inactivityTimer: ReturnType<typeof setTimeout>;
+        let hardTimer: ReturnType<typeof setTimeout>;
 
+        const finish = () => {
+          clearTimeout(inactivityTimer);
+          clearTimeout(hardTimer);
+          resolve(this.piperStdoutBuffer);
+        };
+
+        // Hard timeout — 10s max regardless
+        hardTimer = setTimeout(finish, 10000);
+
+        // Inactivity timer — if no new data for 500ms, piper is done
+        const resetInactivity = () => {
+          clearTimeout(inactivityTimer);
+          inactivityTimer = setTimeout(finish, 500);
+        };
+
+        // Start polling for first byte, then switch to inactivity-based detection
         const checkOutput = () => {
           if (this.piperStdoutBuffer.length > 0) {
-            // Small delay to ensure all data is received
-            setTimeout(() => {
-              clearTimeout(timer);
-              resolve(this.piperStdoutBuffer);
-            }, 100);
+            // Data arrived — switch to inactivity-based detection
+            resetInactivity();
           } else {
+            // Still waiting — check again in 10ms
             setTimeout(checkOutput, 10);
           }
         };
@@ -610,19 +623,49 @@ export class PiperEngine implements TTSEngine {
     const espeakSpeed = Math.round(175 * (speed || 1.0));
 
     try {
+      const cleanText = this.stripEmoji(text);
+      if (!cleanText) return Buffer.alloc(0);
+      const safeText = cleanText.replace(/"/g, '\\"').replace(/\$/g, "\\$");
+
       if (getPlatform() === "win32") {
-        const psScript = `Add-Type -AssemblyName System.Speech; $synth = New-Object System.Speech.Synthesis.SpeechSynthesizer; $synth.Speak(${JSON.stringify(text)})`;
-        execSync(`powershell -Command "${psScript}"`, {
-          stdio: "pipe",
-          timeout: 30000,
-        });
+        // Try espeak-ng/espeak on Windows first (writes WAV file)
+        for (const cmd of [
+          `espeak-ng -v ${espeakVoice} -s ${espeakSpeed} -p 35 -a 170 -w "${wavPath}" "${safeText}"`,
+          `espeak -v en-us -s ${espeakSpeed} -p 35 -a 170 -w "${wavPath}" "${safeText}"`,
+        ]) {
+          try {
+            execSync(`${cmd} 2>nul`, { stdio: "pipe", timeout: 30000 });
+            if (existsSync(wavPath)) {
+              const buf = readFileSync(wavPath);
+              if (buf.length > 44) {
+                try { unlinkSync(wavPath); } catch { /* ignore */ }
+                return buf;
+              }
+            }
+          } catch { /* try next */ }
+        }
+        // Fallback: Windows SAPI via PowerShell — save to temp file
+        const psScript = `
+          Add-Type -AssemblyName System.Speech
+          $synth = New-Object System.Speech.Synthesis.SpeechSynthesizer
+          $wavPath = "${wavPath.replace(/\\/g, "\\\\")}"
+          $synth.SetOutputToWaveFile($wavPath)
+          $synth.Speak(${JSON.stringify(cleanText)})
+          $synth.SetOutputToNull()
+        `;
+        try {
+          execSync(`powershell -NoProfile -Command "${psScript}"`, { stdio: "pipe", timeout: 30000 });
+          if (existsSync(wavPath)) {
+            const buf = readFileSync(wavPath);
+            if (buf.length > 44) {
+              try { unlinkSync(wavPath); } catch { /* ignore */ }
+              return buf;
+            }
+          }
+        } catch { /* fall through */ }
         return Buffer.alloc(0);
       }
 
-      const cleanText = this.stripEmoji(text);
-      if (!cleanText) return Buffer.alloc(0);
-
-      const safeText = cleanText.replace(/"/g, '\\"').replace(/\$/g, "\\$");
       for (const cmd of [
         `espeak-ng -v ${espeakVoice} -s ${espeakSpeed} -p 35 -a 170 -w ${wavPath} "${safeText}"`,
         `espeak-ng -v en-us -s ${espeakSpeed} -p 35 -a 170 -w ${wavPath} "${safeText}"`,

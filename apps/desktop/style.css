@@ -567,6 +567,66 @@ ul, ol {
   font-weight: 500;
 }
 
+/* System Status */
+.system-status-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 0;
+  font-size: 11px;
+  color: var(--muted);
+}
+.system-status-row span:nth-child(2) {
+  flex: 1;
+}
+.system-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  flex-shrink: 0;
+}
+.system-dot.online {
+  background: var(--accent);
+  box-shadow: 0 0 6px rgba(85, 214, 255, 0.5);
+}
+.system-dot.idle {
+  background: #F59E0B;
+  box-shadow: 0 0 6px rgba(245, 158, 11, 0.3);
+}
+.system-dot.offline {
+  background: #666;
+}
+.system-label {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 1px;
+  color: var(--text-muted);
+}
+
+/* Activity Log */
+.activity-log {
+  max-height: 120px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.activity-entry {
+  display: flex;
+  gap: 8px;
+  font-size: 10px;
+  color: var(--muted);
+  line-height: 1.4;
+}
+.activity-time {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+  min-width: 36px;
+}
+
 /* Weather */
 .jarvis-weather-row {
   display: flex;

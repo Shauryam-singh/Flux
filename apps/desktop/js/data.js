@@ -843,3 +843,36 @@ export function stopDataEngine() {
     reconnectTimer = null;
   }
 }
+
+// ─── Activity Log & System Status ───
+
+const activityLogEl = document.getElementById("activity-log");
+const MAX_ACTIVITY_ENTRIES = 8;
+
+export function logActivity(text) {
+  if (!activityLogEl) return;
+  const now = new Date();
+  const time = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+  const entry = document.createElement("div");
+  entry.className = "activity-entry";
+  entry.innerHTML = `<span class="activity-time">${time}</span><span>${escapeActivityHtml(text)}</span>`;
+  activityLogEl.prepend(entry);
+  // Trim old entries
+  while (activityLogEl.children.length > MAX_ACTIVITY_ENTRIES) {
+    activityLogEl.removeChild(activityLogEl.lastChild);
+  }
+}
+
+function escapeActivityHtml(str) {
+  return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+export function setSystemStatus(system, status) {
+  const dot = document.getElementById(`system-${system}-dot`);
+  const label = document.getElementById(`system-${system}-status`);
+  if (dot) {
+    dot.classList.remove("online", "idle", "offline");
+    dot.classList.add(status === "ONLINE" ? "online" : status === "IDLE" ? "idle" : "offline");
+  }
+  if (label) label.textContent = status;
+}

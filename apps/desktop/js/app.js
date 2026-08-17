@@ -4,7 +4,7 @@
 
 import { startGraph, startParticles, stopGraph, updateGraphFromThoughts } from "./animations.js";
 import * as UI from "./components.js";
-import { on, startDataEngine, state, fetchInitialState, fetchStartupData, startWeatherPolling } from "./data.js";
+import { on, startDataEngine, state, fetchInitialState, fetchStartupData, startWeatherPolling, logActivity, setSystemStatus } from "./data.js";
 
 const API = "http://localhost:3141";
 
@@ -241,6 +241,7 @@ async function toggleVoice() {
 async function startVoice() {
   isRecording = true;
   setOrbState("listening");
+  logActivity("Voice initialized");
   UI.setVoiceRecording(true);
   UI.showToast("Recording... speak now", "info", 2000);
 
@@ -880,6 +881,7 @@ async function sendChatMessageDirect(message, speak = false) {
   // Add user message to conversation thread
   addChatMessage("user", message);
   setOrbState("processing");
+  logActivity("Command received");
 
   let fullReply = "";
   let thinkingShown = true;
@@ -1011,6 +1013,7 @@ async function sendChatMessageDirect(message, speak = false) {
           }
         } else if (evt.status) {
           updateThinkingMessage(evt.status);
+          logActivity(evt.status);
         } else if (evt.done) {
           if (thinkingShown) {
             removeThinkingMessage();
@@ -1945,6 +1948,7 @@ async function init() {
   startDataEngine();
   startParticles();
   setMode("hud");
+  logActivity("System online");
 
   // Update toggle states
   updateAutoSpeakUI();

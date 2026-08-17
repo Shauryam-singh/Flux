@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { classifyIntent, detectModelComplexity } from "../impl/intent-classifier.js";
+import { classifyIntent, detectModelComplexity, classifyResponseType, getMaxTokensForResponseType } from "../impl/intent-classifier.js";
 
 describe("classifyIntent", () => {
   // ──────────────────────────────────────────────────────
@@ -522,19 +522,22 @@ describe("detectModelComplexity", () => {
     expect(detectModelComplexity("great")).toBe("simple");
   });
 
-  it("simple: short queries", () => {
+  it("simple: short queries and non-technical questions", () => {
     expect(detectModelComplexity("yes")).toBe("simple");
     expect(detectModelComplexity("no")).toBe("simple");
     expect(detectModelComplexity("maybe")).toBe("simple");
     expect(detectModelComplexity("sure")).toBe("simple");
     expect(detectModelComplexity("yep")).toBe("simple");
     expect(detectModelComplexity("nope")).toBe("simple");
+    expect(detectModelComplexity("what is the weather today")).toBe("simple");
+    expect(detectModelComplexity("how are you doing")).toBe("simple");
   });
 
-  it("medium: regular questions", () => {
-    expect(detectModelComplexity("what is the weather today")).toBe("medium");
-    expect(detectModelComplexity("how are you doing")).toBe("medium");
+  it("medium/complex: technical questions requiring explanation", () => {
     expect(detectModelComplexity("tell me about python programming")).toBe("medium");
+    expect(detectModelComplexity("what is Docker and why is it useful")).toBe("medium");
+    // "explain why..." triggers WORK_VERBS → complex, but both route to 3b
+    expect(["medium", "complex"]).toContain(detectModelComplexity("explain why a TypeScript application might have high CPU usage"));
   });
 
   it("complex: code generation", () => {
@@ -561,5 +564,51 @@ describe("detectModelComplexity", () => {
     expect(detectModelComplexity("")).toBe("simple");
     expect(detectModelComplexity("   ")).toBe("simple");
     expect(detectModelComplexity("a")).toBe("simple");
+  });
+});
+
+describe("classifyResponseType", () => {
+  it("factual: short questions", () => {
+    expect(classifyResponseType("What is Python?")).toBe("factual");
+    expect(classifyResponseType("Who is Elon Musk?")).toBe("factual");
+    expect(classifyResponseType("When was Docker released?")).toBe("factual");
+    expect(classifyResponseType("What time is it?")).toBe("factual");
+  });
+
+  it("explanation: why/how/explain/describe", () => {
+    expect(classifyResponseType("Explain Docker.")).toBe("explanation");
+    expect(classifyResponseType("Why is my app slow?")).toBe("explanation");
+    expect(classifyResponseType("How does garbage collection work?")).toBe("explanation");
+    expect(classifyResponseType("Describe the difference between threads and processes.")).toBe("explanation");
+    expect(classifyResponseType("Tell me about React hooks.")).toBe("explanation");
+  });
+
+  it("coding: work verbs + technical context", () => {
+    expect(classifyResponseType("Write a TypeScript debounce function.")).toBe("coding");
+    expect(classifyResponseType("Fix this TypeScript bug.")).toBe("coding");
+    expect(classifyResponseType("Refactor the authentication module.")).toBe("coding");
+    expect(classifyResponseType("Debug the failing test in CI.")).toBe("coding");
+    expect(classifyResponseType("Review this code.")).toBe("coding");
+  });
+
+  it("implementation: multi-step + technical", () => {
+    expect(classifyResponseType("Implement a new service in my monorepo and write tests for it.")).toBe("implementation");
+    expect(classifyResponseType("Design a caching architecture for a TypeScript monorepo and document the API.")).toBe("implementation");
+    expect(classifyResponseType("Create the database schema, build the API endpoints, and write the documentation.")).toBe("implementation");
+  });
+
+  it("factual: greetings", () => {
+    expect(classifyResponseType("Hello")).toBe("factual");
+    expect(classifyResponseType("Thanks")).toBe("factual");
+    expect(classifyResponseType("Hi there")).toBe("factual");
+  });
+});
+
+describe("getMaxTokensForResponseType", () => {
+  it("returns correct budgets", () => {
+    expect(getMaxTokensForResponseType("factual")).toBe(80);
+    expect(getMaxTokensForResponseType("explanation")).toBe(192);
+    expect(getMaxTokensForResponseType("coding")).toBe(512);
+    expect(getMaxTokensForResponseType("implementation")).toBe(1024);
   });
 });

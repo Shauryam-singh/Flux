@@ -4,7 +4,7 @@ import type {
   ServiceResponse,
   SystemContext,
 } from "@ai-agent/services-core";
-import { detectModelComplexity } from "@ai-agent/services-core";
+import { detectModelComplexity, classifyResponseType, getMaxTokensForResponseType } from "@ai-agent/services-core";
 
 export interface ChatServiceOptions {
   personality?: string;
@@ -199,13 +199,14 @@ export function createChatService(options?: ChatServiceOptions): Service {
 
       // Use only messages array (Ollama uses this, flat prompt is ignored)
       // Include prompt for compatibility with CompletionRequest interface
-      // Dynamic maxTokens based on query complexity
-      const complexity = detectModelComplexity(input);
-      const maxTokens = complexity === "simple" ? 80 : complexity === "medium" ? 200 : 500;
+      // Dynamic maxTokens based on what the response needs to contain,
+      // not just complexity. Factual questions get 80, coding gets 512, etc.
+      const responseType = classifyResponseType(input);
+      const maxTokens = getMaxTokensForResponseType(responseType);
 
       // Route simple queries to the smaller 0.5b model — greetings, yes/no,
       // short acknowledgements don't need 3b. Saves 1-3s per simple query.
-      const model = complexity === "simple" ? "qwen2.5:0.5b" : "default";
+      const model = detectModelComplexity(input) === "simple" ? "qwen2.5:0.5b" : "default";
 
       const response = await ctx.provider.complete({
         model,
@@ -254,9 +255,9 @@ export function createChatService(options?: ChatServiceOptions): Service {
         try {
           // Use only messages array (Ollama uses this, flat prompt is ignored)
           // Include prompt for compatibility with CompletionRequest interface
-          const complexity = detectModelComplexity(input);
-          const maxTokens = complexity === "simple" ? 80 : complexity === "medium" ? 200 : 500;
-          const model = complexity === "simple" ? "qwen2.5:0.5b" : "default";
+          const responseType = classifyResponseType(input);
+          const maxTokens = getMaxTokensForResponseType(responseType);
+          const model = detectModelComplexity(input) === "simple" ? "qwen2.5:0.5b" : "default";
           const response = await ctx.provider.complete({
             model,
             prompt: input,
@@ -288,9 +289,9 @@ export function createChatService(options?: ChatServiceOptions): Service {
       );
       // Use only messages array (Ollama uses this, flat prompt is ignored)
       // Include prompt for compatibility with CompletionRequest interface
-      const complexity = detectModelComplexity(input);
-      const maxTokens = complexity === "simple" ? 80 : complexity === "medium" ? 200 : 500;
-      const streamModel = complexity === "simple" ? "qwen2.5:0.5b" : "default";
+      const streamResponseType = classifyResponseType(input);
+      const maxTokens = getMaxTokensForResponseType(streamResponseType);
+      const streamModel = detectModelComplexity(input) === "simple" ? "qwen2.5:0.5b" : "default";
       await provider.completeStream(
         {
           model: streamModel,
@@ -320,8 +321,8 @@ export function createChatService(options?: ChatServiceOptions): Service {
               try {
                 // Use only messages array (Ollama uses this, flat prompt is ignored)
                 // Include prompt for compatibility with CompletionRequest interface
-                const fallbackComplexity = detectModelComplexity(input);
-                const fallbackMaxTokens = fallbackComplexity === "simple" ? 80 : fallbackComplexity === "medium" ? 200 : 500;
+                const fallbackResponseType = classifyResponseType(input);
+                const fallbackMaxTokens = getMaxTokensForResponseType(fallbackResponseType);
                 const response2 = await provider.complete({
                   model: "default",
                   prompt: input,

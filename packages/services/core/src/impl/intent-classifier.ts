@@ -440,63 +440,10 @@ const KEYWORDS: Record<string, [string, number][]> = {
   "you":            [["chat", 3]],
 };
 
-// ─── Complexity keywords for model routing ────────────────────────────────────
-const COMPLEXITY_KEYWORDS: [string, number][] = [
-  ["implement", 10], ["architect", 10],
-  ["refactor", 9], ["debug", 8],
-  ["write", 8], ["create", 7],
-  ["build", 7], ["develop", 8],
-  ["program", 7], ["programming", 7],
-  ["compile", 7], ["design", 7], ["plan", 7],
-  ["analyze", 8], ["review", 7],
-  ["optimize", 8], ["improve", 7],
-  ["compare", 7], ["evaluate", 7],
-  ["assess", 7], ["simplify", 7],
-  ["tradeoffs", 7], ["tradeoff", 7],
-  ["explain", 6], ["describe", 6],
-  ["function", 7], ["class", 7],
-  ["component", 6], ["module", 6],
-  ["script", 6], ["test", 6],
-  ["fix", 6], ["change", 5],
-  ["update", 5], ["modify", 5],
-  ["architecture", 10], ["microservices", 8],
-  ["algorithm", 8], ["database", 7],
-  ["schema", 7], ["api", 6],
-  ["endpoints", 7], ["documentation", 7],
-  ["performance", 7], ["bottleneck", 8],
-  ["caching", 7], ["strategies", 6],
-  ["sort", 6], ["array", 5],
-  ["login", 5], ["page", 4],
-  ["project", 5], ["system", 5],
-  ["binary", 5], ["search", 5],
-  ["authentication", 7], ["security", 6],
-  ["deployment", 7], ["infrastructure", 7],
-  ["docker", 7], ["kubernetes", 8],
-  ["pipeline", 6], ["workflow", 5],
-  ["integration", 6], ["testing", 6],
-  ["debugging", 7], ["scaling", 7],
-  ["migration", 7], ["configuration", 6],
-  ["setup", 5], ["scaffold", 6],
-  ["merge", 5], ["conflict", 6],
-  ["pattern", 5], ["abstraction", 6],
-  ["dependency", 6], ["middleware", 6],
-  ["asynchronous", 7], ["concurrent", 7],
-  ["distributed", 7], ["cluster", 6],
-  ["query", 5], ["optimization", 7],
-  ["validation", 6], ["serialization", 7],
-  ["parsing", 6], ["runtime", 5],
-  ["virtualization", 7], ["compression", 6],
-  ["encoding", 6], ["pagination", 6],
-  ["filtering", 5], ["sorting", 5],
-  ["aggregation", 6], ["transforming", 6],
-  ["processing", 5], ["analyzing", 6],
-  ["visualizing", 6], ["reporting", 5],
-  ["exporting", 5], ["importing", 5],
-  ["syncing", 5], ["replicating", 6],
-];
-
-const SCORING_THRESHOLD = 10;
-const COMPLEXITY_COMPLEX_THRESHOLD = 12;
+// ─── Model routing — structural complexity scoring ────────────────────────────
+// Policy: simple greetings/acknowledgments → 0.5b, everything else → 3b
+// Optimize for correctness first, then recover speed.
+// No giant keyword lists — use structural signals instead.
 
 export interface IntentContext {
   readonly isCoding?: boolean;
@@ -509,6 +456,132 @@ export interface IntentContext {
 }
 
 export type ModelComplexity = "simple" | "medium" | "complex";
+
+// Words that indicate the user is asking for work, not just a fact
+const WORK_VERBS = /\b(implement|refactor|debug|analyze|design|plan|optimize|compare|evaluate|write|create|build|develop|fix|explain|describe|review|assess|simplify|migrate|deploy|architect|configure|set\s*up|scaffold|diagnose|troubleshoot|rewrite|redesign|document|test|lint|format|compile)\b/i;
+
+// Words that indicate a technical/programming context
+const TECHNICAL_CONTEXT = /\b(function|class|component|module|service|api|endpoint|database|schema|algorithm|architecture|microservices|docker|kubernetes|typescript|javascript|react|node|python|rust|git|ci\/cd|pipeline|caching|authentication|middleware|dependency|concurrent|distributed|virtualization|serialization|pagination|regex|compiler|interpreter|runtime|type\s*system|interface|generic|async|promise|observable|websocket|graphql|rest|grpc|oauth|jwt|sql|nosql|redis|kafka|terraform|ansible|nginx|webpack|vite|turbo|pnpm|monorepo|workspace|test|tests|bug|error|issue|crash|debug|ci|cd|code|file|script|function|variable|class|method|bug|config|env|envs)\b/i;
+
+// Multi-sentence or multi-step signals
+const MULTI_STEP = /\b(and|then|after|before|also|plus|including|step|first|second|third|finally|additionally|moreover|furthermore)\b/i;
+
+// Question patterns that require explanation (not simple facts)
+const EXPLANATION_QUESTIONS = /\b(why|how|explain|describe|what\s+is\s+the\s+difference|what\s+are\s+the|can\s+you\s+(explain|describe|compare)|tell\s+me\s+(about|how|why)|walk\s+me\s+through|what\s+would\s+you)\b/i;
+
+export function detectModelComplexity(input: string): ModelComplexity {
+  const trimmed = input.trim();
+  const lower = trimmed.toLowerCase();
+
+  // ── SIMPLE: greetings, acknowledgments, very short factual lookups ──
+  if (trimmed.length < 12) return "simple";
+
+  if (/^(hi|hello|hey|thanks|thank you|ok|okay|yes|no|sure|cool|nice|great|good|bad|bye|goodbye|yo|sup|greetings|good\s*(morning|afternoon|evening|night))\s*[!?.]*$/i.test(lower)) {
+    return "simple";
+  }
+
+  // Very short questions with no technical context
+  if (trimmed.length < 30 && !TECHNICAL_CONTEXT.test(lower) && !WORK_VERBS.test(lower)) {
+    return "simple";
+  }
+
+  // ── MEDIUM: questions about concepts, definitions, simple explanations ──
+  // These get 3b because even "what is X" benefits from a smarter model
+  // when X is technical.
+
+  // ── COMPLEX: anything requiring reasoning, coding, analysis, planning ──
+  let score = 0;
+
+  // Work verbs are the strongest signal
+  if (WORK_VERBS.test(lower)) score += 10;
+
+  // Technical context adds weight
+  if (TECHNICAL_CONTEXT.test(lower)) score += 5;
+
+  // Multi-step/multi-part instructions
+  if (MULTI_STEP.test(lower) && trimmed.length > 50) score += 6;
+
+  // Explanation questions require reasoning
+  if (EXPLANATION_QUESTIONS.test(lower)) score += 4;
+
+  // Length signals complexity
+  if (trimmed.length > 200) score += 8;
+  else if (trimmed.length > 100) score += 4;
+  else if (trimmed.length > 60) score += 2;
+
+  // Multiple sentences suggest multi-part request
+  const sentenceCount = trimmed.split(/[.!?]+/).filter(s => s.trim().length > 5).length;
+  if (sentenceCount >= 3) score += 6;
+
+  // Code snippets in the prompt
+  if (/\b(function|class|const|let|var|def|import|export|return|=>|{\s*[\n\r])\b/.test(trimmed)) score += 8;
+
+  // Thresholds: 0-3 = simple, 4-9 = medium, 10+ = complex
+  // But medium and complex both go to 3b, so effectively: 0-3 = 0.5b, 4+ = 3b
+  if (score >= 10) return "complex";
+  if (score >= 4) return "medium";
+  return "simple";
+}
+
+export function getRecommendedModel(complexity: ModelComplexity): string {
+  switch (complexity) {
+    case "simple":
+      return "0.5b";
+    case "medium":
+    case "complex":
+      return "3b";
+  }
+}
+
+export type ResponseType = "factual" | "explanation" | "coding" | "implementation";
+
+/**
+ * Classify what kind of response the user needs, independent of model complexity.
+ * This drives dynamic maxTokens — factual answers don't need 200 tokens,
+ * but coding tasks may need 500+.
+ */
+export function classifyResponseType(input: string): ResponseType {
+  const trimmed = input.trim();
+  const lower = trimmed.toLowerCase();
+
+  // ── Explanation: "why", "how", "explain", "describe" ──
+  // Check first — "explain" appears in WORK_VERBS but explanation
+  // questions need shorter budgets than coding tasks.
+  if (EXPLANATION_QUESTIONS.test(lower)) return "explanation";
+
+  // ── Coding / debugging: work verbs + technical context or code snippets ──
+  const hasWorkVerb = WORK_VERBS.test(lower);
+  const hasTechContext = TECHNICAL_CONTEXT.test(lower);
+  const hasCodeSnippet = /\b(function|class|const|let|var|def|import|export|return|=>|{\s*[\n\r])\b/.test(trimmed);
+
+  // "Implement this service", "Refactor the auth module", "Fix this TS bug"
+  if (hasWorkVerb && (hasTechContext || hasCodeSnippet)) {
+    // Complex implementation: multi-step + work verb + technical
+    const hasMultiStep = MULTI_STEP.test(lower) && trimmed.length > 50;
+    if (hasMultiStep) return "implementation";
+    return "coding";
+  }
+
+  // ── Factual: short, no technical context, no work verbs ──
+  // "What is Python?", "Who is Elon Musk?", "When was Docker released?"
+  return "factual";
+}
+
+/**
+ * Get the maxTokens budget for a given response type.
+ * These are ceilings — the model will stop naturally before hitting them
+ * for shorter answers (see Test 4B: limit 512 → model stops at 371).
+ */
+export function getMaxTokensForResponseType(type: ResponseType): number {
+  switch (type) {
+    case "factual":       return 80;   // "What is X?" → ~25 tokens natural
+    case "explanation":   return 192;  // "Explain Docker" → ~60 tokens natural
+    case "coding":        return 512;  // "Write debounce" → ~150 tokens natural
+    case "implementation": return 1024; // "Implement service" → ~370+ tokens
+  }
+}
+
+const SCORING_THRESHOLD = 10;
 
 export function classifyIntent(
   input: string,
@@ -591,52 +664,6 @@ function scoreByKeywords(
     return bestIntent;
   }
   return null;
-}
-
-export function detectModelComplexity(input: string): ModelComplexity {
-  const trimmed = input.trim().toLowerCase();
-
-  if (trimmed.length < 15) return "simple";
-
-  if (/^(hi|hello|hey|thanks|thank you|ok|okay|yes|no|sure|cool|nice|great|good|bad|yeah|yep|nope|nah|bye|goodbye)\s*[!?.]*$/i.test(trimmed)) {
-    return "simple";
-  }
-
-  const tokens = trimmed.split(/[\s,;.!?]+/).filter(Boolean);
-  let score = 0;
-
-  for (const token of tokens) {
-    for (const [kw, weight] of COMPLEXITY_KEYWORDS) {
-      if (token === kw) {
-        score += weight;
-        break;
-      }
-    }
-  }
-
-  if (trimmed.length > 200) score += 8;
-  else if (trimmed.length > 100) score += 4;
-  else if (trimmed.length > 50) score += 2;
-
-  if (/\b(and|then|after|before|also|plus|including|step|first|second|third)\b/i.test(trimmed) && trimmed.length > 60) {
-    score += 5;
-  }
-
-  const sentenceCount = trimmed.split(/[.!?]+/).filter(s => s.trim().length > 5).length;
-  if (sentenceCount >= 3) score += 6;
-
-  if (score >= COMPLEXITY_COMPLEX_THRESHOLD) return "complex";
-  return "medium";
-}
-
-export function getRecommendedModel(complexity: ModelComplexity): string {
-  switch (complexity) {
-    case "simple":
-    case "medium":
-      return "0.5b";
-    case "complex":
-      return "7b";
-  }
 }
 
 function matchesContext(condition: string, context: IntentContext): boolean {

@@ -68,6 +68,7 @@ class BrowserManager {
   private idCounter = 0;
   private connectedViaCDP = false;
   private cdpPort = 9222;
+  private headlessBrowser: Browser | null = null;
 
   /**
    * Connect to an existing browser via Chrome DevTools Protocol.
@@ -75,28 +76,34 @@ class BrowserManager {
    * existing tabs, sessions, and cookies intact.
    */
   async connectCDP(port = 9222): Promise<boolean> {
-    if (this.browser) return true;
+    if (this.connectedViaCDP) return true;
     const chromium_ = await loadPlaywright();
-    try {
-      this.browser = await chromium_.connectOverCDP(`http://localhost:${port}`);
-      this.connectedViaCDP = true;
-      this.cdpPort = port;
-      const contexts = this.browser.contexts();
-      if (contexts.length > 0) {
-        this.context = contexts[0]!;
-        await this.discoverExistingTabs();
-      } else {
-        this.context = await this.browser.newContext();
-        const page = await this.context.newPage();
-        this.tabs.push({ id: this.nextId(), page, url: "about:blank", title: "New Tab" });
+    // Try both IPv4 and IPv6 — Brave may listen on either
+    const urls = [`http://127.0.0.1:${port}`, `http://localhost:${port}`];
+    for (const url of urls) {
+      try {
+        this.browser = await chromium_.connectOverCDP(url);
+        this.connectedViaCDP = true;
+        this.cdpPort = port;
+        const contexts = this.browser.contexts();
+        if (contexts.length > 0) {
+          this.context = contexts[0]!;
+          await this.discoverExistingTabs();
+        } else {
+          this.context = await this.browser.newContext();
+          const page = await this.context.newPage();
+          this.tabs.push({ id: this.nextId(), page, url: "about:blank", title: "New Tab" });
+        }
+        return true;
+      } catch {
+        // Try next URL
       }
-      return true;
-    } catch {
-      this.browser = null;
-      this.context = null;
-      this.connectedViaCDP = false;
-      return false;
     }
+    // All URLs failed
+    this.browser = null;
+    this.context = null;
+    this.connectedViaCDP = false;
+    return false;
   }
 
   /**
@@ -120,18 +127,32 @@ class BrowserManager {
   /**
    * Launch browser. Tries CDP first (connects to user's real browser),
    * falls back to headless Chromium if CDP is unavailable.
+   * If already running headless, checks if CDP became available and switches.
    */
   async launch(): Promise<void> {
-    if (this.browser) return;
+    if (this.browser) {
+      // Already running — check if CDP became available since last check
+      if (!this.connectedViaCDP) {
+        const cdpOk = await this.connectCDP(this.cdpPort);
+        if (cdpOk) {
+          // CDP now available — close headless, switch to real browser
+          await this.closeHeadless();
+          return;
+        }
+      }
+      return;
+    }
     // Try CDP first — connects to user's real Brave/Chrome
     const cdpOk = await this.connectCDP(this.cdpPort);
     if (cdpOk) return;
     // Fallback: launch headless Chromium
     const chromium_ = await loadPlaywright();
-    this.browser = await chromium_.launch({
+    const headless = await chromium_.launch({
       headless: true,
       args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
     });
+    this.headlessBrowser = headless;
+    this.browser = headless;
     this.context = await this.browser.newContext({
       viewport: { width: 1280, height: 720 },
       userAgent:
@@ -139,6 +160,19 @@ class BrowserManager {
     });
     const page = await this.context.newPage();
     this.tabs.push({ id: this.nextId(), page, url: "about:blank", title: "New Tab" });
+  }
+
+  /** Close only the headless browser (used when switching to CDP) */
+  private async closeHeadless(): Promise<void> {
+    // Close headless tabs only
+    for (const tab of this.tabs) {
+      await tab.page.close().catch(() => {});
+    }
+    this.tabs = [];
+    await this.context?.close().catch(() => {});
+    await this.headlessBrowser?.close().catch(() => {});
+    this.headlessBrowser = null;
+    // Don't null this.browser or this.context — they point to CDP now
   }
 
   /** Whether we're connected to a real browser via CDP */
@@ -149,6 +183,16 @@ class BrowserManager {
   /** Get the CDP port being used */
   getCDPPort(): number {
     return this.cdpPort;
+  }
+
+  /**
+   * Force reconnect to CDP. Closes any existing browser and
+   * connects fresh to the user's real browser.
+   */
+  async reconnectCDP(port?: number): Promise<boolean> {
+    await this.close();
+    if (port) this.cdpPort = port;
+    return this.connectCDP(this.cdpPort);
   }
 
   private nextId(): string {
@@ -591,6 +635,7 @@ interface BrowserIntent {
     | "select"
     | "press_key"
     | "wait_click"
+    | "reconnect"
     | "help";
   url?: string;
   searchQuery?: string;
@@ -606,6 +651,11 @@ interface BrowserIntent {
 
 function parseBrowserIntent(input: string): BrowserIntent {
   const lower = input.toLowerCase().trim();
+
+  // Reconnect to real browser via CDP
+  if (/^\s*(reconnect|connect|control brave|control chrome)\b/.test(lower)) {
+    return { action: "reconnect" };
+  }
 
   // Help
   if (/^(help|what can you do|commands|browser help)\b/.test(lower)) {
@@ -675,6 +725,8 @@ function parseBrowserIntent(input: string): BrowserIntent {
     const site = searchMatch[2]?.trim();
     // Clean query: remove trailing "on site"
     query = query.replace(/\s+(?:on|in|at)\s+\w[\w\s]*$/, "").trim();
+    // Strip instruction suffixes like "and explain in 2 lines", "in 50 words", "and summarize"
+    query = query.replace(/\s+(?:and|then|also)?\s*(?:explain|summarize|describe|tell me about|give me)\s*(?:in\s+\d+\s+\w+)?$/i, "").trim();
     return site
       ? { action: "search", searchQuery: query, searchSite: site }
       : { action: "search", searchQuery: query };
@@ -757,9 +809,21 @@ function parseBrowserIntent(input: string): BrowserIntent {
   );
   if (openMatch) {
     let url = openMatch[1]!.trim().replace(/^["']|["']$/g, "");
-    // If it doesn't look like a URL, treat as a search
-    if (!url.match(/[\w-]+\.\w{2,}/) && !url.startsWith("http")) {
+    // Known site names that don't have dots
+    const knownSites = ["youtube", "google", "github", "reddit", "wikipedia", "amazon", "twitter", "x", "stackoverflow", "medium", "linkedin", "ebay", "imdb", "npm", "pypi", "arxiv", "duckduckgo", "bing", "hackernews", "leetcode", "goodreads"];
+    const isKnownSite = knownSites.some(s => url === s || url.startsWith(s + " "));
+    // If it doesn't look like a URL and isn't a known site, treat as a search
+    if (!url.match(/[\w-]+\.\w{2,}/) && !url.startsWith("http") && !isKnownSite) {
       return { action: "search", searchQuery: url };
+    }
+    // Strip site name prefix if present (e.g. "youtube music" → search "music" on youtube)
+    if (isKnownSite && !url.match(/[\w-]+\.\w{2,}/) && !url.startsWith("http")) {
+      const parts = url.split(/\s+/);
+      const site = parts[0]!;
+      const rest = parts.slice(1).join(" ").trim();
+      if (rest) {
+        return { action: "search", searchQuery: rest, searchSite: site };
+      }
     }
     return { action: "open", url };
   }
@@ -800,6 +864,17 @@ export function createBrowserControlService(): Service {
 
       try {
         switch (intent.action) {
+          case "reconnect": {
+            const ok = await mgr.reconnectCDP();
+            if (ok) {
+              return {
+                text: `Reconnected to your real browser via CDP on port ${mgr.getCDPPort()}.`,
+              };
+            }
+            return {
+              text: "Could not connect to your browser. Make sure you launched Brave/Chrome with --remote-debugging-port=9222. Run the startup script: scripts\\start-brave-cdp.bat",
+            };
+          }
           case "help":
             return {
               text: [
@@ -814,6 +889,7 @@ export function createBrowserControlService(): Service {
                 "**Read:** \"what's on the page\", \"read the page\", \"show links\"",
                 "**Screenshot:** \"take a screenshot\", \"capture the page\"",
                 "**Other:** \"go back\", \"go forward\", \"press Enter\", \"hover over menu\"",
+                "**Connect:** \"reconnect\" — connect to your real Brave/Chrome browser",
                 "",
                 "Supported sites: Google, YouTube, GitHub, Reddit, Wikipedia, Amazon,",
                 "Twitter/X, StackOverflow, Medium, LinkedIn, eBay, IMDB, npm, PyPI,",

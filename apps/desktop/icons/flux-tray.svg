@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <defs>
+    <linearGradient id="miniGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#55D6FF;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#A78BFA;stop-opacity:1" />
+    </linearGradient>
+    <filter id="miniGlow">
+      <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  
+  <!-- Background -->
+  <rect width="64" height="64" rx="12" fill="#0A0E1A"/>
+  
+  <!-- Mini rings -->
+  <circle cx="32" cy="28" r="20" fill="none" stroke="rgba(85,214,255,0.15)" stroke-width="1.5"/>
+  <circle cx="32" cy="28" r="14" fill="none" stroke="rgba(167,139,250,0.25)" stroke-width="1.5"/>
+  <circle cx="32" cy="28" r="8" fill="none" stroke="rgba(85,214,255,0.4)" stroke-width="2"/>
+  
+  <!-- Core dot -->
+  <circle cx="32" cy="28" r="4" fill="url(#miniGrad)" filter="url(#miniGlow)"/>
+  
+  <!-- F text -->
+  <text x="32" y="54" text-anchor="middle" fill="#55D6FF" font-family="'Segoe UI', system-ui, sans-serif" font-size="14" font-weight="700" letter-spacing="2">F</text>
+</svg>

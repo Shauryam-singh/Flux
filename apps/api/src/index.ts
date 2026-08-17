@@ -198,6 +198,9 @@ const server = createServer(async (req, res) => {
             );
             res.end();
           },
+          onStatus: (status: string) => {
+            res.write(`data: ${JSON.stringify({ status })}\n\n`);
+          },
         });
       } else {
         // Legacy fallback path

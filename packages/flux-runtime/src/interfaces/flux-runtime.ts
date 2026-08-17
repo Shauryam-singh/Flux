@@ -83,6 +83,7 @@ export interface FluxRuntime {
       onToken?: (token: string) => void;
       onDone?: (text: string) => void;
       onError?: (error: Error) => void;
+      onStatus?: (status: string) => void;
     },
   ): Promise<void>;
   processEvent(event: {

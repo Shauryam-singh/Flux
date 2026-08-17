@@ -192,6 +192,7 @@ export class Orchestrator {
       onToken?: (token: string) => void;
       onDone?: (text: string) => void;
       onError?: (error: Error) => void;
+      onStatus?: (status: string) => void;
     },
   ): Promise<void> {
     const serviceCtx: ServiceContext = {
@@ -204,8 +205,10 @@ export class Orchestrator {
       getSystemContext: ctx.getSystemContext,
     };
 
+    callbacks.onStatus?.("Classifying intent...");
     const service = await this.resolveService(input, ctx);
     if (!service || !service.executeStream) {
+      callbacks.onStatus?.("Generating response...");
       // Fall back to non-streaming execution
       try {
         const result = await this.process(input, ctx);
@@ -216,6 +219,19 @@ export class Orchestrator {
       }
       return;
     }
+
+    const serviceName = service.name || "chat";
+    const statusMap: Record<string, string> = {
+      "browser-control": "Opening in browser...",
+      "screen-understanding": "Analyzing screen...",
+      "desktop-control": "Controlling desktop...",
+      "memory": "Accessing memory...",
+      "goals": "Managing goals...",
+      "chat": "Generating response...",
+      "search": "Searching the web...",
+      "reminders": "Setting reminder...",
+    };
+    callbacks.onStatus?.(statusMap[serviceName] || `Running ${serviceName}...`);
 
     await service.executeStream(input, serviceCtx, callbacks);
   }

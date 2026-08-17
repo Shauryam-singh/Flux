@@ -2347,6 +2347,7 @@ export class DefaultFluxRuntime implements FluxRuntime {
       onToken?: (token: string) => void;
       onDone?: (text: string) => void;
       onError?: (error: Error) => void;
+      onStatus?: (status: string) => void;
     },
   ): Promise<void> {
     const start = Date.now();
@@ -2419,6 +2420,9 @@ export class DefaultFluxRuntime implements FluxRuntime {
           onToken: (token: string) => {
             fullText += token;
             callbacks.onToken?.(token);
+          },
+          onStatus: (status: string) => {
+            callbacks.onStatus?.(status);
           },
           onDone: async (text: string) => {
             fullText = text;

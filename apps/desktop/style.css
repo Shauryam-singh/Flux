@@ -139,31 +139,7 @@ ul, ol {
   to { opacity: 1; transform: translateX(0); }
 }
 
-@keyframes nucleus-pulse {
-  0%, 100% { transform: translate(-50%, -50%) scale(1); filter: brightness(1); }
-  50% { transform: translate(-50%, -50%) scale(1.15); filter: brightness(1.3); }
-}
-
-@keyframes nucleus-orbit-1 {
-  0% { transform: rotateX(70deg) rotateZ(0deg); }
-  100% { transform: rotateX(70deg) rotateZ(360deg); }
-}
-
-@keyframes nucleus-orbit-2 {
-  0% { transform: rotateX(45deg) rotateY(30deg) rotateZ(0deg); }
-  100% { transform: rotateX(45deg) rotateY(30deg) rotateZ(-360deg); }
-}
-
-@keyframes nucleus-orbit-3 {
-  0% { transform: rotateY(60deg) rotateZ(0deg); }
-  100% { transform: rotateY(60deg) rotateZ(360deg); }
-}
-
-@keyframes nucleus-glow-pulse {
-  0%, 100% { opacity: 0.6; transform: translate(-50%, -50%) scale(1); }
-  50% { opacity: 1; transform: translate(-50%, -50%) scale(1.1); }
-}
-
+/* ─── Core Animations ─── */
 @keyframes typing-cursor {
   0%, 100% { opacity: 1; }
   50% { opacity: 0; }
@@ -251,6 +227,15 @@ ul, ol {
   letter-spacing: 8px;
   color: var(--accent);
   text-shadow: 0 0 20px rgba(85, 214, 255, 0.4);
+}
+
+.boot-tagline {
+  font-size: 9px;
+  font-weight: 400;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: rgba(85, 214, 255, 0.45);
+  margin-top: 2px;
 }
 
 .boot-subtitle {
@@ -625,25 +610,9 @@ ul, ol {
   height: 160px;
   perspective: 800px;
 }
-.jarvis-nucleus .nucleus-core {
-  width: 48px;
-  height: 48px;
-}
-.jarvis-nucleus .nucleus-ring-1 {
-  width: 96px; height: 96px;
-  margin: -48px 0 0 -48px;
-}
-.jarvis-nucleus .nucleus-ring-2 {
-  width: 128px; height: 128px;
-  margin: -64px 0 0 -64px;
-}
-.jarvis-nucleus .nucleus-ring-3 {
-  width: 152px; height: 152px;
-  margin: -76px 0 0 -76px;
-}
-.jarvis-nucleus .nucleus-glow {
-  width: 220px;
-  height: 220px;
+.jarvis-nucleus {
+  width: 120px;
+  height: 120px;
 }
 
 .jarvis-orb-title {
@@ -652,6 +621,15 @@ ul, ol {
   letter-spacing: 8px;
   color: var(--text);
   text-shadow: 0 0 20px rgba(85, 214, 255, 0.3);
+}
+
+.jarvis-orb-tagline {
+  font-size: 8px;
+  font-weight: 400;
+  letter-spacing: 2.5px;
+  text-transform: uppercase;
+  color: rgba(85, 214, 255, 0.35);
+  margin-top: 1px;
 }
 
 .jarvis-orb-status {
@@ -663,8 +641,10 @@ ul, ol {
   letter-spacing: 1px;
 }
 
-.nucleus-orb.listening ~ .jarvis-orb-status { color: #A78BFA; }
-.nucleus-orb.processing ~ .jarvis-orb-status { color: #F59E0B; }
+.flux-core.listening ~ .jarvis-orb-status { color: var(--accent); }
+.flux-core.processing ~ .jarvis-orb-status { color: #F59E0B; }
+.flux-core.speaking ~ .jarvis-orb-status { color: var(--accent); }
+.flux-core.error ~ .jarvis-orb-status { color: #F59E0B; }
 
 .jarvis-orb-actions {
   display: flex;
@@ -787,6 +767,104 @@ ul, ol {
   animation: typing-cursor 0.8s step-end infinite;
 }
 
+/* Thinking indicator */
+.thinking-msg .chat-msg-bubble.thinking-bubble {
+  background: rgba(20, 26, 36, 0.85);
+  border: 1px solid rgba(85, 214, 255, 0.15);
+  color: var(--muted);
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  padding: 8px 14px;
+  font-size: 12px;
+}
+.thinking-text {
+  opacity: 0.7;
+}
+.thinking-dots span {
+  animation: thinking-dot 1.4s infinite;
+  opacity: 0;
+  font-size: 16px;
+  line-height: 1;
+}
+.thinking-dots span:nth-child(2) { animation-delay: 0.2s; }
+.thinking-dots span:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes thinking-dot {
+  0%, 20% { opacity: 0; }
+  50% { opacity: 0.8; }
+  100% { opacity: 0; }
+}
+
+/* Markdown rendering in chat */
+.jarvis-chat-messages .chat-msg-bubble h1,
+.jarvis-chat-messages .chat-msg-bubble h2,
+.jarvis-chat-messages .chat-msg-bubble h3 {
+  color: var(--accent);
+  margin: 6px 0 4px 0;
+  font-weight: 600;
+}
+.jarvis-chat-messages .chat-msg-bubble h1 { font-size: 14px; }
+.jarvis-chat-messages .chat-msg-bubble h2 { font-size: 13px; }
+.jarvis-chat-messages .chat-msg-bubble h3 { font-size: 12px; }
+.jarvis-chat-messages .chat-msg-bubble pre {
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 6px 8px;
+  margin: 4px 0;
+  overflow-x: auto;
+  font-size: 11px;
+  font-family: 'Cascadia Code', 'Fira Code', monospace;
+}
+.jarvis-chat-messages .chat-msg-bubble code.inline-code {
+  background: rgba(85, 214, 255, 0.1);
+  border: 1px solid rgba(85, 214, 255, 0.2);
+  border-radius: 3px;
+  padding: 1px 4px;
+  font-size: 11px;
+  font-family: 'Cascadia Code', 'Fira Code', monospace;
+  color: var(--accent);
+}
+.jarvis-chat-messages .chat-msg-bubble strong {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+.jarvis-chat-messages .chat-msg-bubble em {
+  color: var(--text-secondary);
+  font-style: italic;
+}
+.jarvis-chat-messages .chat-msg-bubble blockquote {
+  border-left: 2px solid var(--accent);
+  margin: 4px 0;
+  padding: 2px 8px;
+  color: var(--text-secondary);
+  opacity: 0.85;
+}
+.jarvis-chat-messages .chat-msg-bubble ul {
+  margin: 4px 0;
+  padding-left: 16px;
+  list-style: disc;
+}
+.jarvis-chat-messages .chat-msg-bubble li {
+  margin: 2px 0;
+}
+.jarvis-chat-messages .chat-msg-bubble a {
+  color: var(--accent);
+  text-decoration: none;
+}
+.jarvis-chat-messages .chat-msg-bubble a:hover {
+  text-decoration: underline;
+}
+.jarvis-chat-messages .chat-msg-bubble hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 6px 0;
+}
+.jarvis-chat-messages .chat-msg-bubble p {
+  margin: 4px 0;
+}
+
 /* Chat Input */
 .jarvis-chat-input {
   display: flex;
@@ -831,6 +909,14 @@ ul, ol {
   background: #7AE3FF;
   transform: scale(1.05);
 }
+.jarvis-send-btn.speak-stop {
+  background: rgba(255, 100, 100, 0.3);
+  border: 1px solid rgba(255, 100, 100, 0.5);
+  color: #ff6464;
+}
+.jarvis-send-btn.speak-stop:hover {
+  background: rgba(255, 100, 100, 0.5);
+}
 
 /* ─── DORMANT MODE — The Orb ─── */
 #mode-dormant {
@@ -842,123 +928,349 @@ ul, ol {
   pointer-events: auto;
 }
 
-/* ─── JARVIS-Style Nucleus Orb ─── */
-.nucleus-orb {
+/* ═══════════════════════════════════════════════════════════
+   FLUX INTELLIGENCE CORE — Premium JARVIS-Style AI Core
+   ═══════════════════════════════════════════════════════════ */
+
+/* ─── Core Container ─── */
+.flux-core {
   position: relative;
-  width: 80px;
-  height: 80px;
-  perspective: 400px;
+  width: 120px;
+  height: 120px;
+  perspective: 600px;
   cursor: pointer;
-  transition: transform 0.3s ease;
+  transition: transform 0.4s cubic-bezier(0.23, 1, 0.32, 1);
 }
-.nucleus-orb:hover {
-  transform: scale(1.06);
-}
-
-.nucleus-core {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  background: radial-gradient(circle,
-    rgba(255, 255, 255, 0.95) 0%,
-    var(--accent) 30%,
-    rgba(85, 214, 255, 0.5) 55%,
-    rgba(85, 214, 255, 0.1) 75%,
-    transparent 100%
-  );
-  box-shadow:
-    0 0 12px rgba(255, 255, 255, 0.6),
-    0 0 30px var(--accent),
-    0 0 60px rgba(85, 214, 255, 0.3);
-  animation: nucleus-pulse 3s ease-in-out infinite;
+.flux-core:hover {
+  transform: scale(1.04);
 }
 
-.nucleus-ring {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  border-radius: 50%;
-  border: 1.5px solid rgba(85, 214, 255, 0.2);
-  pointer-events: none;
-}
-.nucleus-ring-1 {
-  width: 48px; height: 48px;
-  margin: -24px 0 0 -24px;
-  border-color: rgba(85, 214, 255, 0.35);
-  border-top-color: var(--accent);
-  animation: nucleus-orbit-1 4s linear infinite;
-}
-.nucleus-ring-2 {
-  width: 64px; height: 64px;
-  margin: -32px 0 0 -32px;
-  border-color: rgba(124, 139, 255, 0.25);
-  border-right-color: var(--secondary);
-  animation: nucleus-orbit-2 6s linear infinite;
-}
-.nucleus-ring-3 {
-  width: 78px; height: 78px;
-  margin: -39px 0 0 -39px;
-  border-color: rgba(85, 214, 255, 0.12);
-  border-bottom-color: var(--accent);
-  animation: nucleus-orbit-3 8s linear infinite;
-}
-
-.nucleus-glow {
+/* ─── Volumetric Glow (outer atmosphere) ─── */
+.flux-volumetric-glow {
   position: absolute;
   top: 50%; left: 50%;
   transform: translate(-50%, -50%);
-  width: 100px; height: 100px;
+  width: 140px; height: 140px;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(85, 214, 255, 0.08) 0%, transparent 70%);
+  background: radial-gradient(circle,
+    rgba(85, 214, 255, 0.06) 0%,
+    rgba(85, 214, 255, 0.03) 40%,
+    rgba(85, 214, 255, 0.01) 60%,
+    transparent 75%
+  );
+  filter: blur(8px);
   pointer-events: none;
-  animation: nucleus-glow-pulse 3s ease-in-out infinite;
+  animation: flux-glow-breathe 4s ease-in-out infinite;
 }
 
-/* Boot nucleus scaled */
+/* ─── Energy Field (inner atmosphere) ─── */
+.flux-energy-field {
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  width: 80px; height: 80px;
+  border-radius: 50%;
+  background: radial-gradient(circle,
+    rgba(85, 214, 255, 0.12) 0%,
+    rgba(120, 230, 255, 0.06) 40%,
+    transparent 70%
+  );
+  pointer-events: none;
+  animation: flux-field-pulse 3s ease-in-out infinite;
+}
+
+/* ─── Central Nucleus ─── */
+.flux-nucleus {
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  background: radial-gradient(circle,
+    rgba(255, 255, 255, 1) 0%,
+    rgba(200, 245, 255, 0.95) 15%,
+    var(--accent) 40%,
+    rgba(85, 214, 255, 0.4) 65%,
+    transparent 100%
+  );
+  box-shadow:
+    0 0 6px rgba(255, 255, 255, 0.9),
+    0 0 15px rgba(255, 255, 255, 0.5),
+    0 0 30px var(--accent),
+    0 0 60px rgba(85, 214, 255, 0.25),
+    inset 0 0 8px rgba(255, 255, 255, 0.3);
+  animation: flux-nucleus-pulse 4s ease-in-out infinite;
+  z-index: 5;
+}
+.flux-nucleus-inner {
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: white;
+  box-shadow: 0 0 4px white, 0 0 10px rgba(200, 245, 255, 0.8);
+}
+.flux-nucleus-hot {
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  width: 4px; height: 4px;
+  border-radius: 50%;
+  background: white;
+  box-shadow: 0 0 2px white, 0 0 6px white;
+}
+
+/* ─── Orbital Rings ─── */
+.flux-ring {
+  position: absolute;
+  top: 50%; left: 50%;
+  border-radius: 50%;
+  pointer-events: none;
+  transform-style: preserve-3d;
+}
+
+/* Ring 5 — outermost, faint */
+.flux-ring-5 {
+  width: 110px; height: 110px;
+  margin: -55px 0 0 -55px;
+  border: 1px solid rgba(85, 214, 255, 0.06);
+  transform: rotateX(75deg) rotateZ(0deg);
+  animation: flux-orbit-5 25s linear infinite;
+}
+
+/* Ring 4 */
+.flux-ring-4 {
+  width: 96px; height: 96px;
+  margin: -48px 0 0 -48px;
+  border: 1.2px solid rgba(85, 214, 255, 0.1);
+  border-top-color: rgba(85, 214, 255, 0.3);
+  transform: rotateX(60deg) rotateY(15deg) rotateZ(0deg);
+  animation: flux-orbit-4 18s linear infinite;
+}
+
+/* Ring 3 — mid, with energy break */
+.flux-ring-3 {
+  width: 82px; height: 82px;
+  margin: -41px 0 0 -41px;
+  border: 1.5px solid rgba(85, 214, 255, 0.12);
+  border-right-color: rgba(120, 230, 255, 0.35);
+  border-left-color: transparent;
+  transform: rotateX(50deg) rotateY(-20deg) rotateZ(0deg);
+  animation: flux-orbit-3 14s linear infinite;
+}
+
+/* Ring 2 — prominent */
+.flux-ring-2 {
+  width: 66px; height: 66px;
+  margin: -33px 0 0 -33px;
+  border: 1.8px solid rgba(85, 214, 255, 0.18);
+  border-bottom-color: rgba(85, 214, 255, 0.45);
+  transform: rotateX(70deg) rotateY(35deg) rotateZ(0deg);
+  animation: flux-orbit-2 10s linear infinite;
+}
+
+/* Ring 1 — innermost, brightest */
+.flux-ring-1 {
+  width: 50px; height: 50px;
+  margin: -25px 0 0 -25px;
+  border: 2px solid rgba(85, 214, 255, 0.2);
+  border-top-color: rgba(200, 245, 255, 0.6);
+  border-right-color: rgba(85, 214, 255, 0.1);
+  transform: rotateX(65deg) rotateZ(0deg);
+  animation: flux-orbit-1 7s linear infinite;
+}
+
+/* ─── Particle Nodes ─── */
+.flux-particle {
+  position: absolute;
+  top: 50%; left: 50%;
+  width: 3px; height: 3px;
+  border-radius: 50%;
+  background: white;
+  box-shadow: 0 0 4px rgba(200, 245, 255, 0.9), 0 0 8px var(--accent);
+  pointer-events: none;
+  z-index: 6;
+}
+.flux-particle[data-ring="1"] {
+  animation: flux-particle-orbit-1 7s linear infinite;
+}
+.flux-particle[data-ring="2"] {
+  animation: flux-particle-orbit-2 10s linear infinite;
+  width: 2px; height: 2px;
+  opacity: 0.7;
+}
+.flux-particle[data-ring="3"] {
+  animation: flux-particle-orbit-3 14s linear infinite;
+  width: 2px; height: 2px;
+  opacity: 0.5;
+}
+
+/* ─── Scanning Arc ─── */
+.flux-scan-arc {
+  position: absolute;
+  top: 50%; left: 50%;
+  width: 90px; height: 90px;
+  margin: -45px 0 0 -45px;
+  border-radius: 50%;
+  border: 1.5px solid transparent;
+  border-top-color: rgba(85, 214, 255, 0.3);
+  border-right-color: rgba(85, 214, 255, 0.1);
+  transform: rotateX(55deg) rotateY(10deg);
+  animation: flux-scan 6s linear infinite;
+  pointer-events: none;
+  opacity: 0.6;
+}
+
+/* ─── Orb Label ─── */
+.orb-label {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: white;
+  font-size: 7px;
+  font-weight: 600;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  white-space: nowrap;
+  pointer-events: none;
+  text-shadow: 0 0 6px rgba(200, 245, 255, 0.8), 0 0 12px rgba(85, 214, 255, 0.4);
+  z-index: 10;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+/* ─── Core Animations ─── */
+@keyframes flux-nucleus-pulse {
+  0%, 100% { transform: translate(-50%, -50%) scale(1); filter: brightness(1); }
+  50% { transform: translate(-50%, -50%) scale(1.08); filter: brightness(1.15); }
+}
+
+@keyframes flux-glow-breathe {
+  0%, 100% { opacity: 0.6; transform: translate(-50%, -50%) scale(1); }
+  50% { opacity: 1; transform: translate(-50%, -50%) scale(1.06); }
+}
+
+@keyframes flux-field-pulse {
+  0%, 100% { opacity: 0.5; transform: translate(-50%, -50%) scale(1); }
+  50% { opacity: 0.8; transform: translate(-50%, -50%) scale(1.04); }
+}
+
+@keyframes flux-orbit-1 {
+  0% { transform: rotateX(65deg) rotateZ(0deg); }
+  100% { transform: rotateX(65deg) rotateZ(360deg); }
+}
+@keyframes flux-orbit-2 {
+  0% { transform: rotateX(70deg) rotateY(35deg) rotateZ(0deg); }
+  100% { transform: rotateX(70deg) rotateY(35deg) rotateZ(-360deg); }
+}
+@keyframes flux-orbit-3 {
+  0% { transform: rotateX(50deg) rotateY(-20deg) rotateZ(0deg); }
+  100% { transform: rotateX(50deg) rotateY(-20deg) rotateZ(360deg); }
+}
+@keyframes flux-orbit-4 {
+  0% { transform: rotateX(60deg) rotateY(15deg) rotateZ(0deg); }
+  100% { transform: rotateX(60deg) rotateY(15deg) rotateZ(-360deg); }
+}
+@keyframes flux-orbit-5 {
+  0% { transform: rotateX(75deg) rotateZ(0deg); }
+  100% { transform: rotateX(75deg) rotateZ(360deg); }
+}
+
+@keyframes flux-particle-orbit-1 {
+  0% { transform: rotateX(65deg) rotateZ(0deg) translateX(25px) rotateZ(0deg); }
+  100% { transform: rotateX(65deg) rotateZ(360deg) translateX(25px) rotateZ(-360deg); }
+}
+@keyframes flux-particle-orbit-2 {
+  0% { transform: rotateX(70deg) rotateY(35deg) rotateZ(0deg) translateX(33px) rotateZ(0deg); }
+  100% { transform: rotateX(70deg) rotateY(35deg) rotateZ(-360deg) translateX(33px) rotateZ(360deg); }
+}
+@keyframes flux-particle-orbit-3 {
+  0% { transform: rotateX(50deg) rotateY(-20deg) rotateZ(0deg) translateX(41px) rotateZ(0deg); }
+  100% { transform: rotateX(50deg) rotateY(-20deg) rotateZ(360deg) translateX(41px) rotateZ(-360deg); }
+}
+
+@keyframes flux-scan {
+  0% { transform: rotateX(55deg) rotateY(10deg) rotateZ(0deg); }
+  100% { transform: rotateX(55deg) rotateY(10deg) rotateZ(360deg); }
+}
+
+/* ─── State: Listening (brighter cyan, faster orbits) ─── */
+.flux-core.listening .flux-nucleus {
+  box-shadow:
+    0 0 8px rgba(255, 255, 255, 1),
+    0 0 20px rgba(255, 255, 255, 0.6),
+    0 0 40px var(--accent),
+    0 0 80px rgba(85, 214, 255, 0.35);
+  animation: flux-nucleus-pulse 2s ease-in-out infinite;
+}
+.flux-core.listening .flux-ring-1 { animation-duration: 4s; border-top-color: rgba(200, 245, 255, 0.8); }
+.flux-core.listening .flux-ring-2 { animation-duration: 6s; }
+.flux-core.listening .flux-ring-3 { animation-duration: 8s; }
+.flux-core.listening .flux-volumetric-glow { animation-duration: 2.5s; opacity: 0.9; }
+.flux-core.listening .orb-label { opacity: 0.9; }
+
+/* ─── State: Processing (increased activity, subtle amber accents) ─── */
+.flux-core.processing .flux-nucleus {
+  box-shadow:
+    0 0 8px rgba(255, 255, 255, 1),
+    0 0 20px rgba(255, 255, 255, 0.6),
+    0 0 35px rgba(255, 200, 50, 0.4),
+    0 0 70px rgba(255, 180, 30, 0.2);
+  animation: flux-nucleus-pulse 1.5s ease-in-out infinite;
+}
+.flux-core.processing .flux-ring-1 { animation-duration: 3s; border-top-color: rgba(255, 220, 100, 0.6); }
+.flux-core.processing .flux-ring-2 { animation-duration: 4.5s; border-bottom-color: rgba(255, 200, 50, 0.4); }
+.flux-core.processing .flux-ring-3 { animation-duration: 6s; border-right-color: rgba(255, 180, 30, 0.4); }
+.flux-core.processing .flux-ring-4 { animation-duration: 9s; }
+.flux-core.processing .flux-energy-field {
+  background: radial-gradient(circle, rgba(255, 200, 50, 0.1) 0%, rgba(85, 214, 255, 0.04) 50%, transparent 70%);
+}
+.flux-core.processing .flux-scan-arc { opacity: 1; animation-duration: 3s; }
+.flux-core.processing .orb-label { opacity: 0.9; color: rgba(255, 220, 130, 0.95); }
+
+/* ─── State: Speaking (rhythmic pulses) ─── */
+.flux-core.speaking .flux-nucleus {
+  animation: flux-speak-pulse 0.6s ease-in-out infinite;
+}
+.flux-core.speaking .flux-volumetric-glow {
+  animation: flux-glow-breathe 0.8s ease-in-out infinite;
+}
+.flux-core.speaking .flux-energy-field {
+  animation: flux-field-pulse 0.7s ease-in-out infinite;
+}
+
+/* ─── State: Error (restrained amber) ─── */
+.flux-core.error .flux-nucleus {
+  background: radial-gradient(circle,
+    rgba(255, 255, 255, 1) 0%,
+    rgba(255, 200, 150, 0.9) 20%,
+    #F59E0B 50%,
+    rgba(245, 158, 11, 0.3) 70%,
+    transparent 100%
+  );
+  box-shadow:
+    0 0 6px rgba(255, 255, 255, 0.8),
+    0 0 20px rgba(245, 158, 11, 0.5),
+    0 0 40px rgba(245, 158, 11, 0.2);
+}
+.flux-core.error .flux-ring-1 { border-top-color: rgba(245, 158, 11, 0.5); }
+.flux-core.error .flux-ring-2 { border-bottom-color: rgba(245, 158, 11, 0.3); }
+
+@keyframes flux-speak-pulse {
+  0%, 100% { transform: translate(-50%, -50%) scale(1); filter: brightness(1); }
+  30% { transform: translate(-50%, -50%) scale(1.12); filter: brightness(1.3); }
+  60% { transform: translate(-50%, -50%) scale(0.97); filter: brightness(0.95); }
+}
+
+/* ─── Boot Nucleus ─── */
 .boot-nucleus {
-  transform: scale(0.85);
+  transform: scale(0.9);
   margin-bottom: 8px;
 }
 
-/* Nucleus state: listening (violet) */
-.nucleus-orb.listening .nucleus-core {
-  background: radial-gradient(circle,
-    rgba(255, 255, 255, 0.95) 0%,
-    #A78BFA 30%,
-    rgba(167, 139, 250, 0.5) 55%,
-    rgba(167, 139, 250, 0.1) 75%,
-    transparent 100%
-  );
-  box-shadow: 0 0 12px rgba(255, 255, 255, 0.6), 0 0 30px #A78BFA, 0 0 60px rgba(167, 139, 250, 0.3);
-  animation: nucleus-pulse 1.5s ease-in-out infinite;
-}
-.nucleus-orb.listening .nucleus-ring-1 { border-color: rgba(167, 139, 250, 0.4); border-top-color: #A78BFA; }
-.nucleus-orb.listening .nucleus-ring-2 { border-color: rgba(167, 139, 250, 0.3); border-right-color: #A78BFA; }
-.nucleus-orb.listening .nucleus-ring-3 { border-color: rgba(167, 139, 250, 0.15); border-bottom-color: #A78BFA; }
-.nucleus-orb.listening .nucleus-glow { background: radial-gradient(circle, rgba(167, 139, 250, 0.1) 0%, transparent 70%); }
-
-/* Nucleus state: processing (amber) */
-.nucleus-orb.processing .nucleus-core {
-  background: radial-gradient(circle,
-    rgba(255, 255, 255, 0.95) 0%,
-    #F59E0B 30%,
-    rgba(245, 158, 11, 0.5) 55%,
-    rgba(245, 158, 11, 0.1) 75%,
-    transparent 100%
-  );
-  box-shadow: 0 0 12px rgba(255, 255, 255, 0.6), 0 0 30px #F59E0B, 0 0 60px rgba(245, 158, 11, 0.3);
-  animation: nucleus-pulse 0.8s ease-in-out infinite;
-}
-.nucleus-orb.processing .nucleus-ring-1 { border-color: rgba(245, 158, 11, 0.4); border-top-color: #F59E0B; animation-duration: 2s; }
-.nucleus-orb.processing .nucleus-ring-2 { border-color: rgba(245, 158, 11, 0.3); border-right-color: #F59E0B; animation-duration: 3s; }
-.nucleus-orb.processing .nucleus-ring-3 { border-color: rgba(245, 158, 11, 0.15); border-bottom-color: #F59E0B; animation-duration: 4s; }
-.nucleus-orb.processing .nucleus-glow { background: radial-gradient(circle, rgba(245, 158, 11, 0.1) 0%, transparent 70%); }
-
-/* Startup greeting bubble on the orb */
+/* ─── Startup greeting bubble on the orb ─── */
 .orb-greeting {
   position: fixed;
   bottom: 12px;
@@ -987,24 +1299,12 @@ ul, ol {
   display: none;
 }
 @keyframes greeting-in {
-  from {
-    opacity: 0;
-    transform: translateX(-50%) translateY(6px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(-50%) translateY(0);
-  }
+  from { opacity: 0; transform: translateX(-50%) translateY(6px); }
+  to { opacity: 1; transform: translateX(-50%) translateY(0); }
 }
 @keyframes greeting-out {
-  from {
-    opacity: 1;
-    transform: translateX(-50%) translateY(0);
-  }
-  to {
-    opacity: 0;
-    transform: translateX(-50%) translateY(-6px);
-  }
+  from { opacity: 1; transform: translateX(-50%) translateY(0); }
+  to { opacity: 0; transform: translateX(-50%) translateY(-6px); }
 }
 .orb-greeting.leaving {
   animation: greeting-out 0.8s ease-in forwards;

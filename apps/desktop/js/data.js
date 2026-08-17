@@ -357,6 +357,25 @@ export async function fetchWeather() {
   } catch {}
 }
 
+// ─── Periodic system stats refresh (every 30s) ───
+let statsRefreshTimer = null;
+
+async function refreshSystemStats() {
+  try {
+    const resp = await fetch(`${API_BASE}/state`);
+    if (!resp.ok) return;
+    const data = await resp.json();
+    if (data.sensorSnapshots) {
+      updateSensorsFromSnapshots(data.sensorSnapshots);
+    }
+  } catch {}
+}
+
+function startStatsRefresh() {
+  if (statsRefreshTimer) return;
+  statsRefreshTimer = setInterval(refreshSystemStats, 30000);
+}
+
 export function startWeatherPolling() {
   fetchWeather();
   weatherTimer = setInterval(fetchWeather, 300000); // every 5 minutes
@@ -761,6 +780,9 @@ export function startDataEngine() {
 
   // Start staleness detection
   startStalenessCheck();
+
+  // Refresh system stats every 30s
+  startStatsRefresh();
 
   // If no connection after 2s, populate with minimal defaults
   setTimeout(() => {

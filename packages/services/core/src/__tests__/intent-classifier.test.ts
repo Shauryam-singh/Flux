@@ -297,8 +297,6 @@ describe("classifyIntent", () => {
     });
 
     it("factual questions", () => {
-      expect(classifyIntent("what is TypeScript")).toBe("search");
-      expect(classifyIntent("what is the capital of france")).toBe("search");
       expect(classifyIntent("who is the president")).toBe("search");
       expect(classifyIntent("where is tokyo")).toBe("search");
       expect(classifyIntent("when was python created")).toBe("search");
@@ -306,9 +304,15 @@ describe("classifyIntent", () => {
       expect(classifyIntent("how does photosynthesis work")).toBe("search");
     });
 
+    it("general knowledge (answered by LLM, not search)", () => {
+      expect(classifyIntent("what is python")).toBeNull();
+      expect(classifyIntent("what is TypeScript")).toBeNull();
+      expect(classifyIntent("what is life")).toBeNull();
+      expect(classifyIntent("explain python")).toBeNull();
+      expect(classifyIntent("describe the architecture")).toBeNull();
+    });
+
     it("explain/describe", () => {
-      expect(classifyIntent("explain this concept")).toBe("search");
-      expect(classifyIntent("describe the architecture")).toBe("search");
       expect(classifyIntent("tell me about python")).toBe("search");
     });
 
@@ -319,7 +323,7 @@ describe("classifyIntent", () => {
     });
 
     it("weather", () => {
-      expect(classifyIntent("what is the weather")).toBe("search");
+      expect(classifyIntent("what is the weather")).toBeNull();
       expect(classifyIntent("how hot is it today")).toBe("search");
     });
   });
@@ -353,8 +357,8 @@ describe("classifyIntent", () => {
       expect(classifyIntent("how's your day going")).toBeNull();
     });
 
-    it("factual questions (search)", () => {
-      expect(classifyIntent("what is life")).toBe("search");
+    it("factual questions (general knowledge)", () => {
+      expect(classifyIntent("what is life")).toBeNull();
       expect(classifyIntent("what do you think about this")).toBe("chat");
       expect(classifyIntent("thank you")).toBe("chat");
     });
@@ -375,7 +379,7 @@ describe("classifyIntent", () => {
       expect(classifyIntent("what's on my schedule today")).toBe("reminders");
       expect(classifyIntent("check system health")).toBe("monitor");
       expect(classifyIntent("show my notifications")).toBe("notifications");
-      expect(classifyIntent("what is the weather today")).toBe("search");
+      expect(classifyIntent("what is the weather today")).toBeNull();
     });
 
     it("coding session", () => {
@@ -390,8 +394,6 @@ describe("classifyIntent", () => {
 
     it("research / learning", () => {
       expect(classifyIntent("search for react hooks")).toBe("search");
-      expect(classifyIntent("explain useCallback")).toBe("search");
-      expect(classifyIntent("what is the difference between let and const")).toBe("search");
       expect(classifyIntent("how does useEffect work")).toBe("search");
     });
 

@@ -19,15 +19,26 @@
        ═══════════════════════════════════════════ -->
   <div id="mode-boot" class="mode">
     <div class="boot-screen">
-      <div class="nucleus-orb boot-nucleus">
-        <div class="nucleus-core"></div>
-        <div class="nucleus-ring nucleus-ring-1"></div>
-        <div class="nucleus-ring nucleus-ring-2"></div>
-        <div class="nucleus-ring nucleus-ring-3"></div>
-        <div class="nucleus-glow"></div>
+      <div class="flux-core boot-nucleus" id="boot-orb">
+        <div class="flux-volumetric-glow"></div>
+        <div class="flux-ring flux-ring-5"></div>
+        <div class="flux-ring flux-ring-4"></div>
+        <div class="flux-ring flux-ring-3"></div>
+        <div class="flux-ring flux-ring-2"></div>
+        <div class="flux-ring flux-ring-1"></div>
+        <div class="flux-energy-field"></div>
+        <div class="flux-nucleus">
+          <div class="flux-nucleus-inner"></div>
+          <div class="flux-nucleus-hot"></div>
+        </div>
+        <div class="flux-particle" data-ring="1"></div>
+        <div class="flux-particle" data-ring="2"></div>
+        <div class="flux-particle" data-ring="3"></div>
+        <div class="flux-scan-arc"></div>
       </div>
-      <div class="boot-title">FLUX</div>
-      <div class="boot-subtitle">Initializing systems...</div>
+      <div class="boot-title">F.L.U.X</div>
+      <div class="boot-tagline">Fully Loaded Universal Expert</div>
+      <div class="boot-subtitle" id="boot-status-text">INITIALIZING</div>
       <div class="boot-progress-track">
         <div class="boot-progress-fill" id="boot-progress"></div>
       </div>
@@ -46,7 +57,7 @@
         </div>
         <div class="boot-step" data-step="ready">
           <span class="boot-step-dot"></span>
-          <span>Ready</span>
+          <span>CORE ONLINE</span>
         </div>
       </div>
     </div>
@@ -56,12 +67,22 @@
        DORMANT MODE — The Orb
        ═══════════════════════════════════════════ -->
   <div id="mode-dormant" class="mode hidden">
-    <div class="nucleus-orb" id="orb">
-      <div class="nucleus-core"></div>
-      <div class="nucleus-ring nucleus-ring-1"></div>
-      <div class="nucleus-ring nucleus-ring-2"></div>
-      <div class="nucleus-ring nucleus-ring-3"></div>
-      <div class="nucleus-glow"></div>
+    <div class="flux-core" id="orb">
+      <div class="flux-volumetric-glow"></div>
+      <div class="flux-ring flux-ring-5"></div>
+      <div class="flux-ring flux-ring-4"></div>
+      <div class="flux-ring flux-ring-3"></div>
+      <div class="flux-ring flux-ring-2"></div>
+      <div class="flux-ring flux-ring-1"></div>
+      <div class="flux-energy-field"></div>
+      <div class="flux-nucleus">
+        <div class="flux-nucleus-inner"></div>
+        <div class="flux-nucleus-hot"></div>
+      </div>
+      <div class="flux-particle" data-ring="1"></div>
+      <div class="flux-particle" data-ring="2"></div>
+      <div class="flux-particle" data-ring="3"></div>
+      <div class="flux-scan-arc"></div>
     </div>
     <div id="orb-greeting" class="orb-greeting" hidden></div>
   </div>
@@ -89,9 +110,6 @@
           <span id="hud-cpu" class="jarvis-meta"></span>
           <button class="jarvis-win-btn" id="hud-minimize" title="Minimize">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/></svg>
-          </button>
-          <button class="jarvis-win-btn" id="hud-close" title="Close">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
           </button>
         </div>
       </header>
@@ -147,14 +165,26 @@
         <!-- Center: Orb -->
         <main class="jarvis-center">
           <div class="jarvis-orb-area">
-            <div class="nucleus-orb jarvis-nucleus" id="hud-orb">
-              <div class="nucleus-core"></div>
-              <div class="nucleus-ring nucleus-ring-1"></div>
-              <div class="nucleus-ring nucleus-ring-2"></div>
-              <div class="nucleus-ring nucleus-ring-3"></div>
-              <div class="nucleus-glow"></div>
+            <div class="flux-core jarvis-nucleus" id="hud-orb">
+              <div class="flux-volumetric-glow"></div>
+              <div class="flux-ring flux-ring-5"></div>
+              <div class="flux-ring flux-ring-4"></div>
+              <div class="flux-ring flux-ring-3"></div>
+              <div class="flux-ring flux-ring-2"></div>
+              <div class="flux-ring flux-ring-1"></div>
+              <div class="flux-energy-field"></div>
+              <div class="flux-nucleus">
+                <div class="flux-nucleus-inner"></div>
+                <div class="flux-nucleus-hot"></div>
+              </div>
+              <div class="flux-particle" data-ring="1"></div>
+              <div class="flux-particle" data-ring="2"></div>
+              <div class="flux-particle" data-ring="3"></div>
+              <div class="flux-scan-arc"></div>
+              <span class="orb-label" id="orb-label"></span>
             </div>
             <div class="jarvis-orb-title">F.L.U.X</div>
+            <div class="jarvis-orb-tagline">Fully Loaded Universal Expert</div>
             <div class="jarvis-orb-status" id="hud-orb-status">
               <span class="jarvis-status-dot"></span> Listening for wake word...
             </div>
@@ -178,6 +208,9 @@
           <div class="jarvis-chat-messages" id="chat-stream-messages"></div>
           <div class="jarvis-chat-input">
             <input type="text" id="chat-input" placeholder="Type a message..." autocomplete="off" spellcheck="false">
+            <button id="speak-stop-btn" class="jarvis-send-btn speak-stop" style="display:none" title="Stop speaking">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+            </button>
             <button id="chat-send" class="jarvis-send-btn">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
             </button>

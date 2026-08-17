@@ -230,7 +230,7 @@ describe('Full Architecture Feature Test', () => {
   });
 
   it('intent: search', () => {
-    const intent = timed('Intent: search', () => classifyIntent('what is the capital of france', {}));
+    const intent = timed('Intent: search', () => classifyIntent('search for python tutorials', {}));
     expect(intent).toBe('search');
   });
 

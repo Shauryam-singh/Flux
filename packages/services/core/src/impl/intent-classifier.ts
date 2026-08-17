@@ -107,6 +107,14 @@ const RULES: RuleEntry[] = [
     "screen-understanding",
   ],
 
+  // ── Browser Control (website navigation — BEFORE system "open") ──
+  [
+    /\b(open|launch|go\s+to|visit|navigate)\s+(youtube|google|github|reddit|wikipedia|amazon|twitter|x\.com|stackoverflow|medium|linkedin|ebay|imdb|npm|pypi|arxiv|duckduckgo|bing|hacker\s*news|leetcode|goodreads|[\w-]+\.(com|org|net|io|dev|gg|co))\b/i,
+    "browser-control",
+  ],
+  [/\b(search|google|look\s*up)\s+(.+?)\s+(on|in|at)\s+(youtube|google|github|reddit|wikipedia|amazon|stackoverflow|bing|duckduckgo)\b/i, "browser-control"],
+  [/\b(youtube|google|github|reddit|wikipedia|amazon|stackoverflow|bing|duckduckgo)\s+(search|find|look)\s+/i, "browser-control"],
+
   // ── System (action commands — after coding) ──
   [/\b(open|launch|start|run)\s+\S+/i, "system"],
   [/\b(close|quit|kill)\s+\S+/i, "system"],
@@ -133,16 +141,12 @@ const RULES: RuleEntry[] = [
 
   // ── Search (factual questions — NOT identity/conversation) ──
   [/\b(search|look\s*up|find|google|research)\s+/i, "search"],
-  [/\b(tell\s+me\s+about|explain|describe)\s+(?!you\b|your\b|yourself\b)/i, "search"],
-  [
-    /\b(what|where|when|why|how)\s+(is|are|was|were|do|does|did|can|could|should|would)\s+(?!you\b|your\b|about you)/i,
-    "search",
-  ],
+  [/\b(tell\s+me\s+about)\s+(?!you\b|your\b|yourself\b)/i, "search"],
   [/\bwho\s+(is|are|was|were)\s+(?!you\b|your\b)/i, "search"],
-  [
-    /\b(what('s| is| are))\s+(?!you\b|your\b|up\b|going on\b|happening\b)/i,
-    "search",
-  ],
+  [/\bwhere\s+(is|are|was|were)\s+/i, "search"],
+  [/\bwhen\s+(is|are|was|were|did|does|do)\s+/i, "search"],
+  [/\bwhy\s+(is|are|was|were|do|does|did)\s+/i, "search"],
+  [/\bhow\s+(does|do|did|is|are|was|were|can|could|should|would)\s+/i, "search"],
   [/\b(latest|current|recent|news)\s+/i, "search"],
   // "how hot is it today", "how far is the moon" — flexible "how X is" pattern
   [/\bhow\s+\w+\s+(is|are|was|were)\s+/i, "search"],

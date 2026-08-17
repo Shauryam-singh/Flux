@@ -55,17 +55,65 @@ function setMode(mode) {
   resizeWindow(mode);
 }
 
+const processingTexts = [
+  "Thinking", "Processing", "Analyzing", "Computing", "Reasoning",
+  "Synthesizing", "Connecting", "Exploring", "Evaluating", "Calculating",
+  "Mapping", "Linking", "Inferring", "Detecting", "Resolving"
+];
+let processingTextTimer = null;
+let currentProcessingText = "";
+
 function setOrbState(orbState) {
   currentOrbState = orbState;
   const hudOrb = document.getElementById("hud-orb");
   const statusLabel = document.getElementById("hud-orb-status");
-  if (!hudOrb || !statusLabel) return;
+  const orbLabel = document.getElementById("orb-label");
+  if (!hudOrb) return;
 
-  hudOrb.classList.remove("idle", "listening", "processing");
+  hudOrb.classList.remove("idle", "listening", "processing", "speaking", "error");
   hudOrb.classList.add(orbState);
 
-  const labels = { idle: "Idle", listening: "Listening...", processing: "Thinking..." };
-  statusLabel.textContent = labels[orbState] || "Idle";
+  if (statusLabel) {
+    const labels = {
+      idle: "Idle",
+      listening: "Listening...",
+      processing: "Thinking...",
+      speaking: "Speaking...",
+      error: "Error"
+    };
+    statusLabel.textContent = labels[orbState] || "Idle";
+  }
+
+  if (orbLabel) {
+    if (orbState === "listening") {
+      orbLabel.textContent = "Hi";
+      orbLabel.style.fontSize = "8px";
+      orbLabel.style.opacity = "0.9";
+    } else if (orbState === "processing") {
+      currentProcessingText = processingTexts[Math.floor(Math.random() * processingTexts.length)];
+      orbLabel.textContent = currentProcessingText;
+      orbLabel.style.fontSize = "7px";
+      orbLabel.style.opacity = "0.85";
+      // Cycle through random texts
+      if (processingTextTimer) clearInterval(processingTextTimer);
+      processingTextTimer = setInterval(() => {
+        let next;
+        do { next = processingTexts[Math.floor(Math.random() * processingTexts.length)]; }
+        while (next === currentProcessingText && processingTexts.length > 1);
+        currentProcessingText = next;
+        orbLabel.textContent = currentProcessingText;
+      }, 2500);
+    } else if (orbState === "speaking") {
+      orbLabel.textContent = "Speaking";
+      orbLabel.style.fontSize = "7px";
+      orbLabel.style.opacity = "0.85";
+      if (processingTextTimer) { clearInterval(processingTextTimer); processingTextTimer = null; }
+    } else {
+      orbLabel.textContent = "";
+      orbLabel.style.opacity = "0";
+      if (processingTextTimer) { clearInterval(processingTextTimer); processingTextTimer = null; }
+    }
+  }
 }
 
 async function resizeWindow(mode) {
@@ -192,6 +240,7 @@ async function toggleVoice() {
 
 async function startVoice() {
   isRecording = true;
+  setOrbState("listening");
   UI.setVoiceRecording(true);
   UI.showToast("Recording... speak now", "info", 2000);
 
@@ -481,6 +530,10 @@ function stopSpeaking() {
   }
   currentUtterance = null;
   updateSpeakButton(false);
+  // Reset orb from speaking state
+  if (currentOrbState === "speaking") {
+    setOrbState("idle");
+  }
 }
 
 function isSpeaking() {
@@ -497,8 +550,66 @@ function updateSpeakButton(speaking) {
 }
 
 // Sequential TTS - doesn't stop existing audio, waits for it to finish
+// Uses preloaded audio cache to eliminate gaps between sentences
+const preloadedAudio = new Map(); // text -> blob url
+
+// Preload TTS audio for a sentence in background (no blocking)
+function preloadSentenceAudio(text) {
+  const clean = text
+    .replace(/```[\s\S]*?```/g, "code block")
+    .replace(/`[^`]+`/g, "code")
+    .replace(/^#{1,6}\s+/gm, "")
+    .replace(/\*{1,3}([^*]+)\*{1,3}/g, "$1")
+    .replace(/_{1,3}([^_]+)_{1,3}/g, "$1")
+    .replace(/~~([^~]+)~~/g, "$1")
+    .replace(/^>\s+/gm, "")
+    .replace(/^[-*_]{3,}\s*$/gm, "")
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+    .replace(/!\[([^\]]*)\]\([^)]+\)/g, "$1")
+    .replace(/^[\s]*[-*+]\s+/gm, "")
+    .replace(/^[\s]*\d+\.\s+/gm, "")
+    .replace(/[#*_~>`|\\{}[\]()]/g, "")
+    .replace(/[\u{1F600}-\u{1F64F}]/gu, "")
+    .replace(/[\u{1F300}-\u{1F5FF}]/gu, "")
+    .replace(/[\u{1F680}-\u{1F6FF}]/gu, "")
+    .replace(/[\u{1F1E0}-\u{1F1FF}]/gu, "")
+    .replace(/[\u{2600}-\u{26FF}]/gu, "")
+    .replace(/[\u{2700}-\u{27BF}]/gu, "")
+    .replace(/[\u{FE00}-\u{FE0F}]/gu, "")
+    .replace(/[\u{200D}]/gu, "")
+    .replace(/[\u{1F900}-\u{1F9FF}]/gu, "")
+    .replace(/[\u{1FA00}-\u{1FA6F}]/gu, "")
+    .replace(/[\u{1FA70}-\u{1FAFF}]/gu, "")
+    .replace(/[\u{2300}-\u{23FF}]/gu, "")
+    .replace(/[\u{2B50}-\u{2B55}]/gu, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+  if (!clean) return;
+  if (preloadedAudio.has(clean)) return;
+
+  const settings = getVoiceSettings();
+  fetch(`${API}/voice/speak`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      text: clean,
+      voice: settings.voice,
+      speed: settings.speed,
+      pitch: settings.pitch,
+    }),
+  })
+    .then((resp) => (resp.ok ? resp.blob() : null))
+    .then((blob) => {
+      if (blob && blob.size > 100) {
+        preloadedAudio.set(clean, URL.createObjectURL(blob));
+      }
+    })
+    .catch(() => {});
+}
+
 async function speakTextSequential(text) {
   if (!text) return;
+  setOrbState("speaking");
 
   const clean = text
     .replace(/```[\s\S]*?```/g, "code block")
@@ -537,9 +648,33 @@ async function speakTextSequential(text) {
   if (currentAudio && !currentAudio.paused) {
     await new Promise((resolve) => {
       currentAudio.addEventListener("ended", () => resolve(), { once: true });
-      // Timeout in case audio never ends
       setTimeout(resolve, 15000);
     });
+  }
+
+  // Check preloaded cache first
+  const cachedUrl = preloadedAudio.get(clean);
+  if (cachedUrl) {
+    preloadedAudio.delete(clean);
+    const audio = new Audio(cachedUrl);
+    audio.volume = settings.volume;
+    currentAudio = audio;
+    updateSpeakButton(true);
+    await new Promise((resolve) => {
+      let resolved = false;
+      const done = () => {
+        if (resolved) return;
+        resolved = true;
+        clearTimeout(safetyTimer);
+        URL.revokeObjectURL(cachedUrl);
+        resolve();
+      };
+      audio.addEventListener("ended", done, { once: true });
+      audio.addEventListener("error", done, { once: true });
+      const safetyTimer = setTimeout(done, 30000);
+      audio.play().catch(done);
+    });
+    return;
   }
 
   // Try API TTS
@@ -574,7 +709,6 @@ async function speakTextSequential(text) {
           };
           audio.addEventListener("ended", done, { once: true });
           audio.addEventListener("error", done, { once: true });
-          // Safety timeout — if audio never fires ended/error, don't deadlock
           const safetyTimer = setTimeout(done, 30000);
           audio.play().catch(done);
         });
@@ -745,9 +879,11 @@ async function sendChatMessage() {
 async function sendChatMessageDirect(message, speak = false) {
   // Add user message to conversation thread
   addChatMessage("user", message);
-  setOrbState("listening");
+  setOrbState("processing");
 
   let fullReply = "";
+  let thinkingShown = true;
+  addThinkingMessage();
 
   try {
     // Use streaming chat so tokens appear as they're generated and the
@@ -763,6 +899,7 @@ async function sendChatMessageDirect(message, speak = false) {
     clearTimeout(timeout);
 
     if (!resp.ok) {
+      removeThinkingMessage();
       const errData = await resp.json().catch(() => ({}));
       const errMsg = errData.error || `Server error (${resp.status})`;
       UI.showToast(`Error: ${errMsg}`, "error", 5000);
@@ -796,6 +933,11 @@ async function sendChatMessageDirect(message, speak = false) {
         }
       }
       speaking = false;
+      updateSpeakButton(false);
+      // Reset orb from speaking state
+      if (currentOrbState === "speaking") {
+        setOrbState("idle");
+      }
       // If new sentences arrived while we were finishing, restart
       if (speechQueue.length > 0 && !speechQueueStopped) {
         void processQueue();
@@ -806,7 +948,8 @@ async function sendChatMessageDirect(message, speak = false) {
       const trimmed = text.trim();
       if (!trimmed) return;
       speechQueue.push(trimmed);
-      // Don't await - let it process in background
+      // Preload audio for this sentence in background (eliminates gap)
+      preloadSentenceAudio(trimmed);
       void processQueue();
     };
 
@@ -832,6 +975,11 @@ async function sendChatMessageDirect(message, speak = false) {
         }
 
         if (evt.token) {
+          // Remove thinking indicator on first token
+          if (thinkingShown) {
+            removeThinkingMessage();
+            thinkingShown = false;
+          }
           fullReply += evt.token;
           updateChatMessageStreaming(bubble, fullReply);
 
@@ -861,16 +1009,26 @@ async function sendChatMessageDirect(message, speak = false) {
               }
             }
           }
+        } else if (evt.status) {
+          updateThinkingMessage(evt.status);
         } else if (evt.done) {
+          if (thinkingShown) {
+            removeThinkingMessage();
+            thinkingShown = false;
+          }
           fullReply = evt.text || fullReply;
           updateChatMessageStreaming(bubble, fullReply);
         } else if (evt.error) {
+          if (thinkingShown) {
+            removeThinkingMessage();
+            thinkingShown = false;
+          }
           addChatMessage("system", `Error: ${evt.error}`);
         }
       }
     }
 
-    finalizeChatMessageStreaming(bubble);
+    finalizeChatMessageStreaming(bubble, fullReply);
     setOrbState("idle");
 
     // Speak any remaining partial sentence after streaming finishes
@@ -890,6 +1048,7 @@ async function sendChatMessageDirect(message, speak = false) {
       });
     }
   } catch (e) {
+    removeThinkingMessage();
     const msg = e?.name === "AbortError" ? "Request timed out (120s)" : "API not reachable";
     UI.showToast(`Error: ${msg}`, "error", 5000);
     addChatMessage("system", `Error: ${msg}`);
@@ -955,7 +1114,8 @@ function addChatMessage(role, content, proactiveMsg) {
   }
 
   const roleLabel = role === "user" ? "You" : role === "assistant" ? "Flux" : role === "proactive" ? "Suggestion" : "System";
-  div.innerHTML = `<div class="chat-msg-role">${roleLabel}</div><div class="chat-msg-bubble">${escapeHtmlSimple(text)}</div>${actionHtml}`;
+  const rendered = role === "assistant" ? renderMarkdown(text) : escapeHtmlSimple(text);
+  div.innerHTML = `<div class="chat-msg-role">${roleLabel}</div><div class="chat-msg-bubble">${rendered}</div>${actionHtml}`;
 
   container.appendChild(div);
   container.scrollTop = container.scrollHeight;
@@ -991,17 +1151,47 @@ function updateChatMessageStreaming(bubble, text) {
   const el = bubble.querySelector(".chat-msg-bubble");
   if (!el) return;
   const truncated = text.length > 2000 ? text.slice(0, 2000) + "..." : text;
-  el.innerHTML = escapeHtmlSimple(truncated);
+  el.innerHTML = renderMarkdown(truncated);
   const container = document.getElementById("chat-stream-messages") || document.getElementById("chat-messages");
   if (container) container.scrollTop = container.scrollHeight;
 }
 
-function finalizeChatMessageStreaming(bubble) {
+function finalizeChatMessageStreaming(bubble, rawText) {
   if (!bubble) return;
   const el = bubble.querySelector(".chat-msg-bubble");
   if (!el) return;
   el.classList.remove("streaming");
-  el.innerHTML = escapeHtmlSimple(el.textContent || "");
+  el.innerHTML = renderMarkdown(rawText || el.textContent || "");
+}
+
+// ─── Thinking Indicator ───
+
+let thinkingBubble = null;
+
+function addThinkingMessage() {
+  const container = document.getElementById("chat-stream-messages") || document.getElementById("chat-messages");
+  if (!container) return;
+
+  const div = document.createElement("div");
+  div.className = "chat-msg assistant thinking-msg";
+  div.innerHTML = `<div class="chat-msg-role">Flux</div><div class="chat-msg-bubble thinking-bubble"><span class="thinking-text">Processing</span><span class="thinking-dots"><span>.</span><span>.</span><span>.</span></span></div>`;
+
+  container.appendChild(div);
+  container.scrollTop = container.scrollHeight;
+  thinkingBubble = div;
+}
+
+function updateThinkingMessage(status) {
+  if (!thinkingBubble) return;
+  const textEl = thinkingBubble.querySelector(".thinking-text");
+  if (textEl) textEl.textContent = status;
+}
+
+function removeThinkingMessage() {
+  if (thinkingBubble) {
+    thinkingBubble.remove();
+    thinkingBubble = null;
+  }
 }
 
 // Handle proactive suggestion actions
@@ -1031,6 +1221,55 @@ async function handleProactiveAction(suggestionId, action) {
 function escapeHtmlSimple(str) {
   if (!str) return "";
   return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+function cleanResponseText(text) {
+  if (!text) return "";
+  // Strip role prefixes that tiny models sometimes generate
+  let clean = text.replace(/^\s*(user|assistant|human|ai|bot)\s*:\s*/gim, "");
+  // Remove trailing role prefixes
+  clean = clean.replace(/\s*(user|assistant|human|ai|bot)\s*:\s*$/gim, "");
+  return clean.trim();
+}
+
+function renderMarkdown(text) {
+  if (!text) return "";
+  const cleaned = cleanResponseText(text);
+  let html = escapeHtmlSimple(cleaned);
+  // Code blocks (fenced)
+  html = html.replace(/```(\w*)\n([\s\S]*?)```/g, '<pre><code>$2</code></pre>');
+  // Inline code
+  html = html.replace(/`([^`]+)`/g, '<code class="inline-code">$1</code>');
+  // Bold
+  html = html.replace(/\*{1,3}([^*]+)\*{1,3}/g, '<strong>$1</strong>');
+  // Italic
+  html = html.replace(/_{1,3}([^_]+)_{1,3}/g, '<em>$1</em>');
+  // Strikethrough
+  html = html.replace(/~~([^~]+)~~/g, '<del>$1</del>');
+  // Headers (must be on own line)
+  html = html.replace(/^### (.+)$/gm, '<h3>$1</h3>');
+  html = html.replace(/^## (.+)$/gm, '<h2>$1</h2>');
+  html = html.replace(/^# (.+)$/gm, '<h1>$1</h1>');
+  // Blockquote
+  html = html.replace(/^&gt; (.+)$/gm, '<blockquote>$1</blockquote>');
+  // Unordered list items
+  html = html.replace(/^[\s]*[-*+] (.+)$/gm, '<li>$1</li>');
+  html = html.replace(/((?:<li>.*<\/li>\n?)+)/g, '<ul>$1</ul>');
+  // Ordered list items
+  html = html.replace(/^[\s]*\d+\. (.+)$/gm, '<li>$1</li>');
+  // Links
+  html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>');
+  // Horizontal rule
+  html = html.replace(/^[-*_]{3,}\s*$/gm, '<hr>');
+  // Line breaks (double newline = paragraph, single = br)
+  html = html.replace(/\n\n+/g, '</p><p>');
+  html = html.replace(/\n/g, '<br>');
+  html = '<p>' + html + '</p>';
+  // Clean up empty paragraphs
+  html = html.replace(/<p>\s*<\/p>/g, '');
+  // Clean up br inside pre
+  html = html.replace(/<pre>([\s\S]*?)<br>([\s\S]*?)<\/pre>/g, '<pre>$1\n$2</pre>');
+  return html;
 }
 
 function startFollowUpListen() {
@@ -1084,20 +1323,12 @@ function initEventListeners() {
     hudMinimize.addEventListener("click", () => setMode("dormant"));
   }
 
-  // HUD close → quit app
-  const hudClose = document.getElementById("hud-close");
-  if (hudClose) {
-    hudClose.addEventListener("click", async () => {
-      try {
-        if (window.__TAURI_INTERNALS__) {
-          const { getCurrentWindow } = await import("@tauri-apps/api/window");
-          const win = getCurrentWindow();
-          await win.destroy();
-        } else {
-          window.close();
-        }
-      } catch {
-        try { window.close(); } catch {}
+  // Pause/Stop speech button
+  const speakStopBtn = document.getElementById("speak-stop-btn");
+  if (speakStopBtn) {
+    speakStopBtn.addEventListener("click", () => {
+      if (isSpeaking()) {
+        stopSpeaking();
       }
     });
   }
@@ -1761,6 +1992,8 @@ export function incrementCommandCount() {
 async function runBootSequence() {
   const progress = document.getElementById("boot-progress");
   const steps = document.querySelectorAll(".boot-step");
+  const statusText = document.getElementById("boot-status-text");
+  const bootOrb = document.getElementById("boot-orb");
   if (!progress || steps.length === 0) return;
 
   const stepKeys = ["sensors", "model", "cognitive", "ready"];
@@ -1774,12 +2007,23 @@ async function runBootSequence() {
     progress.style.width = `${((index + 1) / stepKeys.length) * 100}%`;
   }
 
-  // Step 1: Loading sensors
-  activateStep(0);
-  await fetch(`${API}/health`, { signal: AbortSignal.timeout(3000) }).catch(() => null);
-  await sleep(300);
+  // Phase 1: Power detection — faint cyan point
+  if (bootOrb) bootOrb.style.opacity = "0.3";
+  if (statusText) statusText.textContent = "INITIALIZING";
+  await sleep(600);
 
-  // Step 2: Warming up model
+  // Phase 2: Core formation — expand and brighten
+  if (bootOrb) {
+    bootOrb.style.transition = "opacity 1.2s ease";
+    bootOrb.style.opacity = "0.7";
+  }
+  activateStep(0);
+  if (statusText) statusText.textContent = "SYNCHRONIZING";
+  await fetch(`${API}/health`, { signal: AbortSignal.timeout(3000) }).catch(() => null);
+  await sleep(400);
+
+  // Phase 3: System synchronization — full visibility
+  if (bootOrb) bootOrb.style.opacity = "1";
   activateStep(1);
   await fetch(`${API}/chat`, {
     method: "POST",
@@ -1789,11 +2033,12 @@ async function runBootSequence() {
   }).catch(() => null);
   await sleep(300);
 
-  // Step 3: Starting cognitive engine
+  // Phase 4: Intelligence online
   activateStep(2);
+  if (statusText) statusText.textContent = "CORE ONLINE";
   await sleep(400);
 
-  // Step 4: Ready
+  // Phase 5: Ready
   activateStep(3);
   await sleep(300);
 }

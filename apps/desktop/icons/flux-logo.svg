@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="coreGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#55D6FF;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#A78BFA;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#55D6FF;stop-opacity:1" />
+    </linearGradient>
+    <radialGradient id="glowGrad" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" style="stop-color:#55D6FF;stop-opacity:0.4" />
+      <stop offset="100%" style="stop-color:#55D6FF;stop-opacity:0" />
+    </radialGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="8" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  
+  <!-- Background circle -->
+  <circle cx="256" cy="256" r="240" fill="#0A0E1A" stroke="rgba(85,214,255,0.15)" stroke-width="2"/>
+  
+  <!-- Outer glow -->
+  <circle cx="256" cy="256" r="200" fill="url(#glowGrad)"/>
+  
+  <!-- Ring 3 (outermost) -->
+  <circle cx="256" cy="256" r="160" fill="none" stroke="rgba(85,214,255,0.12)" stroke-width="2" stroke-dasharray="8 12"/>
+  
+  <!-- Ring 2 -->
+  <circle cx="256" cy="256" r="120" fill="none" stroke="rgba(167,139,250,0.2)" stroke-width="2.5" stroke-dasharray="16 8"/>
+  
+  <!-- Ring 1 (innermost) -->
+  <circle cx="256" cy="256" r="80" fill="none" stroke="rgba(85,214,255,0.35)" stroke-width="3" stroke-dasharray="24 6"/>
+  
+  <!-- Core orb -->
+  <circle cx="256" cy="256" r="36" fill="url(#coreGrad)" filter="url(#glow)" opacity="0.95"/>
+  
+  <!-- Core highlight -->
+  <circle cx="248" cy="248" r="12" fill="rgba(255,255,255,0.6)"/>
+  
+  <!-- Flux text -->
+  <text x="256" y="380" text-anchor="middle" fill="#55D6FF" font-family="'Segoe UI', system-ui, sans-serif" font-size="48" font-weight="700" letter-spacing="8" filter="url(#glow)">FLUX</text>
+  
+  <!-- Subtle accent lines -->
+  <line x1="120" y1="256" x2="180" y2="256" stroke="rgba(85,214,255,0.2)" stroke-width="1"/>
+  <line x1="332" y1="256" x2="392" y2="256" stroke="rgba(85,214,255,0.2)" stroke-width="1"/>
+  <line x1="256" y1="120" x2="256" y2="180" stroke="rgba(167,139,250,0.2)" stroke-width="1"/>
+  <line x1="256" y1="332" x2="256" y2="392" stroke="rgba(167,139,250,0.2)" stroke-width="1"/>
+</svg>

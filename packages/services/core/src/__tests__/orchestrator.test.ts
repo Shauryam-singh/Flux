@@ -62,8 +62,8 @@ describe("Orchestrator", () => {
     expect(searchService.execute).toHaveBeenCalled();
   });
 
-  it("should route 'what is X' to the search service", async () => {
-    await orchestrator.process("what is TypeScript", ctx);
+  it("should route 'who is X' to the search service", async () => {
+    await orchestrator.process("who is the president", ctx);
     expect(searchService.execute).toHaveBeenCalled();
   });
 

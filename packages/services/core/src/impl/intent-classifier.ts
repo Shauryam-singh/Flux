@@ -23,15 +23,51 @@ const RULES: RuleEntry[] = [
   ],
   [/\bnotify\s+(me|us)\b/i, "notifications"],
 
+  // ── Screen Understanding (BEFORE spotify — "what's on my screen" must not match spotify) ──
+  [
+    /\b(what('s|s| is) on (my |the )?screen|read (my|the|this) screen|describe (my|the|this) screen|screen\s*(understand|analy[zs]e|read|describe)|what\s+am\s+i\s+doing|what('s|s| is)\s+open|click\s+(the\s+)?|find\s+(the\s+)?button|read\s+text|extract\s+text|ui\s*elements?|detect\s*elements?)\b/i,
+    "screen-understanding",
+  ],
+
+  // ── Desktop Control (explicit window/workspace commands — BEFORE system/spotify) ──
+  [/\b(list|show)\s+(all\s+)?(my\s+)?(open\s+)?windows?\b/i, "desktop-control"],
+  [/\b(list|show)\s+(me\s+)?(all\s+)?(my\s+)?(open\s+)?windows?\b/i, "desktop-control"],
+  [/\b(minimize|maximize|tile|snap)\s+(this|the|current|active)?\s*window\b/i, "desktop-control"],
+  [/\b(close|kill)\s+(this|the|current|active|the\s+current|the\s+active)?\s*window\b/i, "desktop-control"],
+  [/\b(switch|change)\s+(to\s+)?(workspace|desktop|space)\s*(\d+|left|right|next|prev)?\b/i, "desktop-control"],
+  [/\b(toggle|switch)\s+(floating|fullscreen|maximized|minimized)\b/i, "desktop-control"],
+  // "turn volume up", "make it louder" — explicit direction verbs → desktop-control
+  [/\b(turn|make|set|crank|boost)\s+(the\s+)?(volume|brightness)\s+(up|down|higher|lower|louder|quieter|dimmer)\b/i, "desktop-control"],
+  [/\b(volume|brightness)\s+(up|down|higher|lower|louder|quieter|dimmer)\b/i, "desktop-control"],
+  [/\b(lock|suspend|sleep)\s+(screen|computer|pc|system)\b/i, "desktop-control"],
+  [/\b(take\s+a?\s*screenshot|screenshot)\b/i, "desktop-control"],
+
+  // ── Spotify (music commands — AFTER desktop-control for volume disambig) ──
+  [/\b(play|pause|stop|resume|skip|next|previous|prev)\s+(music|song|track|playlist|album|artist|something|that)\b/i, "spotify"],
+  [/\b(play|pause|stop|resume|skip|next|previous|prev)\s+(the\s+)?(song|track|music|playlist|album)\b/i, "spotify"],
+  [/\bwhat('s|\s+is|\s+are)\s+(currently\s+)?(playing|the\s+song|the\s+track|the\s+music)\b/i, "spotify"],
+  [/\bwhat\s+(song|track|music|artist|album)\s+(is\s+)?(playing|on|goes|came on)\b/i, "spotify"],
+  [/\b(currently\s+)?playing\b/i, "spotify"],
+  [/\b(put on|play|queue)\s+(some\s+)?(music|songs?|a\s+song|a\s+track|something)\b/i, "spotify"],
+  [/\b(play|queue)\s+(the\s+)?song\s+["']/i, "spotify"],
+  [/\b(shuffle|repeat)\s+(on|off|toggle)\b/i, "spotify"],
+  [/\b(create|make)\s+(a\s+)?playlist\b/i, "spotify"],
+  [/\b(i('m|\s+am)\s+done\s+(listening|playing|with))\b/i, "spotify"],
+
   // ── Reminders: goal creation (BEFORE coding — "i want to finish the api" → reminders) ──
   [
-    /\b(i want to|i'd like to|i need to\s+(finish|complete|work on|start|set up|organize|plan)|my goal is|i('m|\s+am)\s+going\s+to|plan\s+to|aim\s+to)\s+/i,
+    /\b(i want to|i need to\s+(finish|complete|work on|start|set up|organize|plan)|my goal is|i('m|\s+am)\s+going\s+to|plan\s+to|aim\s+to)\s+(?!learn|understand|know|see|watch|know|read|check|visit)\S+/i,
     "reminders",
+  ],
+  // "I'd like to watch/see/open/go" → NOT reminders (action verbs override goal pattern)
+  [
+    /\b(i'd like to)\s+(watch|see|open|go|look|visit|check|try|play)\b/i,
+    "browser-control",
   ],
 
   // ── Reminders: schedule/activity queries (BEFORE search — "what's on my schedule" → reminders) ──
   [
-    /\b(what('s|s|\s+is)\s+on\s+(my\s+)?schedule|what\s+(did|was)\s+(i|we)\s+(do|doing))\b/i,
+    /\b(what('s|s|\s+is)\s+on\s+(my\s+)?schedule(\s+today|\s+tomorrow|\s+this\s+week)?|what\s+(did|was)\s+(i|we)\s+(do|doing))\b/i,
     "reminders",
   ],
 
@@ -53,6 +89,8 @@ const RULES: RuleEntry[] = [
     "coding",
   ],
   [/\b(read|show|cat)\s+(the\s+)?file\b/i, "coding"],
+  // "run npm test", "run the tests", "run pnpm build" — specific dev commands
+  [/\b(run|execute)\s+(npm|pnpm|yarn|bun|npx|cargo|pip|mvn|gradle)\s+\S+/i, "coding"],
 
   // ── Monitor (system health commands — AFTER coding) ──
   [
@@ -101,12 +139,6 @@ const RULES: RuleEntry[] = [
   ],
   [/\b(open|show|list)\s+(my\s+)?(open\s+)?(reminders?|notes?|tasks?|todos?)\b/i, "reminders"],
 
-  // ── Screen Understanding ──
-  [
-    /\b(what('s|s| is) on (my |the )?screen|read (my|the|this) screen|describe (my|the|this) screen|screen\s*(understand|analy[zs]e|read|describe)|what\s+am\s+i\s+doing|what('s|s| is)\s+open|click\s+(the\s+)?|find\s+(the\s+)?button|read\s+text|extract\s+text|ui\s*elements?|detect\s*elements?)\b/i,
-    "screen-understanding",
-  ],
-
   // ── Browser Control (website navigation — BEFORE system "open") ──
   [
     /\b(open|launch|go\s+to|visit|navigate)\s+(youtube|google|github|reddit|wikipedia|amazon|twitter|x\.com|stackoverflow|medium|linkedin|ebay|imdb|npm|pypi|arxiv|duckduckgo|bing|hacker\s*news|leetcode|goodreads|[\w-]+\.(com|org|net|io|dev|gg|co))\b/i,
@@ -114,10 +146,12 @@ const RULES: RuleEntry[] = [
   ],
   [/\b(search|google|look\s*up)\s+(.+?)\s+(on|in|at)\s+(youtube|google|github|reddit|wikipedia|amazon|stackoverflow|bing|duckduckgo)\b/i, "browser-control"],
   [/\b(youtube|google|github|reddit|wikipedia|amazon|stackoverflow|bing|duckduckgo)\s+(search|find|look)\s+/i, "browser-control"],
+  // "take me to YouTube", "navigate to YouTube", "can you open YouTube"
+  [/\b(take\s+me\s+to|go\s+to|navigate\s+to|open)\s+(youtube|google|github|reddit|wikipedia|amazon)\b/i, "browser-control"],
 
-  // ── System (action commands — after coding) ──
-  [/\b(open|launch|start|run)\s+\S+/i, "system"],
-  [/\b(close|quit|kill)\s+\S+/i, "system"],
+  // ── System (action commands — ONLY with recognized targets) ──
+  [/\b(open|launch|start|run)\s+(my\s+)?(terminal|vs\s*code|vscode|chrome|brave|firefox|browser|explorer|finder|settings|calculator|notepad|file\s*manager|discord|slack|teams)\b/i, "system"],
+  [/\b(close|quit|kill)\s+(this|the|current|all)?\s*(window|app|application|browser|tab)s?\b/i, "system"],
   [/\b(set|change|adjust)\s+(volume|brightness)\b/i, "system"],
   [/\b(get|show|what)\s+(volume|brightness)\b/i, "system"],
   [/\b(what|how)\s+(is|about)\s+(the\s+)?(volume|brightness)\b/i, "system"],
@@ -131,25 +165,20 @@ const RULES: RuleEntry[] = [
   ],
   [/\b(system\s+info|hostname|uptime|kernel)\b/i, "system"],
   [/\b(check|show|get|what)\s+(my\s+)?(battery|volume|brightness|disk|cpu|memory)\b/i, "system"],
-  [/\b(shutdown|restart|reboot|sleep|lock|suspend)\b/i, "system"],
-  [/\b(screenshot|take\s+(a\s+)?screenshot)\b/i, "system"],
+  [/\b(shutdown|restart|reboot)\s+(the\s+)?(computer|pc|system|machine|server)?\b/i, "system"],
+  [/\b(shutdown|restart|reboot|suspend|sleep)\b/i, "system"],
 
   // ── Chat/Casual (before search — greetings and personal questions) ──
   [/\b(how are you|how('re|\s+are)\s+(you|u|it|things|everything)|what('s| is)\s+up|hey flux|hi flux|hello flux|how('s|\s+is)\s+it\s+going)\b/i, "chat"],
   [/\b(hi|hello|hey|yo|sup|greetings|good\s+(morning|afternoon|evening|night)|what('s| is)\s+up|bye|goodbye|see\s+you)\b/i, "chat"],
   [/\b(what('s| is)\s+your\s+name|who\s+are\s+you|tell\s+me\s+about\s+yourself|what\s+do\s+you\s+think|how\s+old\s+are\s+you)\b/i, "chat"],
 
-  // ── Search (factual questions — NOT identity/conversation) ──
-  [/\b(search|look\s*up|find|google|research)\s+/i, "search"],
-  [/\b(tell\s+me\s+about)\s+(?!you\b|your\b|yourself\b)/i, "search"],
-  [/\bwho\s+(is|are|was|were)\s+(?!you\b|your\b)/i, "search"],
-  [/\bwhere\s+(is|are|was|were)\s+/i, "search"],
-  [/\bwhen\s+(is|are|was|were|did|does|do)\s+/i, "search"],
-  [/\bwhy\s+(is|are|was|were|do|does|did)\s+/i, "search"],
-  [/\bhow\s+(does|do|did|is|are|was|were|can|could|should|would)\s+/i, "search"],
-  [/\b(latest|current|recent|news)\s+/i, "search"],
-  // "how hot is it today", "how far is the moon" — flexible "how X is" pattern
-  [/\bhow\s+\w+\s+(is|are|was|were)\s+/i, "search"],
+  // ── Search (EXPLICIT search signals only — no generic questions) ──
+  // "search the web for X", "google X", "look up X", "research X"
+  // Exclude "search this/that/it" — these are context-dependent (null → LLM)
+  [/\b(search|look\s*up|find|google|research)\s+(the\s+)?(web|internet|online)\s+(for|about|on)\s+/i, "search"],
+  [/\b(search|look\s*up|find|google|research)\s+(?!this\b|that\b|it\b|the\s+(web|internet|online)\s+(for|about|on))\S+/i, "search"],
+  [/\b(who|what|where|when|why|how)\s+(is|are|was|were)\s+(the\s+)?(current|latest|newest|biggest|smallest|fastest|most|least)\s+/i, "search"],
 
   // ── Reminders (task/note commands — after search so "fix bug" → coding, not reminders) ──
   [/\b(add|create|new|save|set)\s+(a\s+)?(reminder|note|task|todo)\b/i, "reminders"],
@@ -157,9 +186,8 @@ const RULES: RuleEntry[] = [
     /\b(list|show)\s+(my\s+)?(open\s+)?(reminders?|notes?|tasks?|todos?)\b/i,
     "reminders",
   ],
-  [/\b(remind\s+me|remember)\s+/i, "reminders"],
+  [/\b(remind\s+me|remember)\s+(that\s+|to\s+|about\s+)?\S+/i, "reminders"],
   [/\b(complete|done|finish|mark)\s+(a\s+)?(task|reminder|todo)\b/i, "reminders"],
-  [/\b(complete|done|finish|mark)\s+\w+/i, "reminders"],
   [/\b(delete|remove|clear)\s+(a\s+)?(task|reminder|note|todo)\b/i, "reminders"],
   [/^(my\s+)?(open\s+)?(reminders?|notes?|tasks?|todos?)\s*$/i, "reminders"],
 ];
@@ -248,7 +276,7 @@ const KEYWORDS: Record<string, [string, number][]> = {
   "brave":      [["system", 7]],
   "firefox":    [["system", 7]],
   "vs":         [["system", 3], ["coding", 3]],
-  "search":     [["search", 10]],
+  "search":     [["search", 8]],
   "google":     [["search", 10]],
   "lookup":     [["search", 9]],
   "look":       [["search", 4]],
@@ -264,11 +292,11 @@ const KEYWORDS: Record<string, [string, number][]> = {
   "science":    [["search", 7]],
   "meaning":    [["search", 8]],
   "definition": [["search", 8]],
-  "weather":    [["search", 8]],
+  "weather":    [],
   "temperature":[["search", 7]],
   "forecast":   [["search", 8]],
-  "latest":     [["search", 8]],
-  "news":       [["search", 8]],
+  "latest":     [],
+  "news":       [],
   "recent":     [["search", 6]],
   "current":    [["search", 5]],
   "evaluate":   [["search", 8]],
@@ -348,6 +376,36 @@ const KEYWORDS: Record<string, [string, number][]> = {
   "workflow":       [["automations", 8]],
   "pipeline":       [["automations", 8]],
   "routine":        [["automations", 7]],
+  // ── Spotify ──
+  "play":           [["spotify", 8], ["system", 3]],
+  "pause":          [["spotify", 10]],
+  "resume":         [["spotify", 9]],
+  "skip":           [["spotify", 8]],
+  "music":          [["spotify", 10]],
+  "song":           [["spotify", 9]],
+  "songs":          [["spotify", 9]],
+  "track":          [["spotify", 8]],
+  "tracks":         [["spotify", 8]],
+  "playlist":       [["spotify", 9]],
+  "artist":         [["spotify", 8]],
+  "album":          [["spotify", 8]],
+  "shuffle":        [["spotify", 9]],
+  "repeat":         [["spotify", 9]],
+  "spotify":        [["spotify", 10]],
+  // ── Desktop Control ──
+  "window":         [["desktop-control", 8], ["system", 3]],
+  "windows":        [["desktop-control", 8], ["system", 3]],
+  "workspace":      [["desktop-control", 9]],
+  "desktop":        [["desktop-control", 7], ["system", 3]],
+  "minimize":       [["desktop-control", 10]],
+  "maximize":       [["desktop-control", 10]],
+  "tile":           [["desktop-control", 9]],
+  "snap":           [["desktop-control", 8]],
+  "floating":       [["desktop-control", 8]],
+  "fullscreen":     [["desktop-control", 8]],
+  "louder":         [["desktop-control", 8], ["system", 3]],
+  "quieter":        [["desktop-control", 8], ["system", 3]],
+  "dimmer":         [["desktop-control", 8]],
   "hello":          [["chat", 10]],
   "hey":            [["chat", 10]],
   "hi":             [["chat", 10]],
@@ -497,11 +555,17 @@ function scoreByKeywords(
   const tokens = input.toLowerCase().split(/[\s,;.!?]+/).filter(Boolean);
   const scores: Record<string, number> = {};
 
+  // Detect question patterns and past-tense statements — suppress action intent keywords
+  const isQuestion = /\b(tell\s+me\s+about|what\s+(is|are|was|were|does|do|did)|how\s+(is|are|was|were|does|do|did|can|could|should|would)|who\s+(is|are|was|were)|where\s+(is|are|was|were)|when\s+(is|are|was|were|did|does|do)|why\s+(is|are|was|were|do|does|did)|can\s+you\s+explain|what\s+is\s+the)\b/i.test(input);
+  const isPastTense = /\b(was|were|did|had|used\s+to)\s+\w+/i.test(input);
+  const questionPenalty = (isQuestion || isPastTense) ? 0.4 : 1.0; // 60% reduction for questions/past
+
   for (const token of tokens) {
     const mappings = KEYWORDS[token];
     if (mappings) {
       for (const [intent, weight] of mappings) {
-        scores[intent] = (scores[intent] ?? 0) + weight;
+        const adjusted = intent === "chat" ? weight : Math.round(weight * questionPenalty);
+        scores[intent] = (scores[intent] ?? 0) + adjusted;
       }
     }
   }

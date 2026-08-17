@@ -236,12 +236,12 @@ describe("classifyIntent", () => {
       expect(classifyIntent("restart computer")).toBe("system");
       expect(classifyIntent("reboot")).toBe("system");
       expect(classifyIntent("sleep mode")).toBe("system");
-      expect(classifyIntent("lock screen")).toBe("system");
+      expect(classifyIntent("lock screen")).toBe("desktop-control");
     });
 
     it("screenshot", () => {
-      expect(classifyIntent("take a screenshot")).toBe("system");
-      expect(classifyIntent("screenshot")).toBe("system");
+      expect(classifyIntent("take a screenshot")).toBe("desktop-control");
+      expect(classifyIntent("screenshot")).toBe("desktop-control");
     });
   });
 
@@ -297,11 +297,11 @@ describe("classifyIntent", () => {
     });
 
     it("factual questions", () => {
-      expect(classifyIntent("who is the president")).toBe("search");
-      expect(classifyIntent("where is tokyo")).toBe("search");
-      expect(classifyIntent("when was python created")).toBe("search");
-      expect(classifyIntent("why is the sky blue")).toBe("search");
-      expect(classifyIntent("how does photosynthesis work")).toBe("search");
+      expect(classifyIntent("who is the president")).toBeNull();
+      expect(classifyIntent("where is tokyo")).toBeNull();
+      expect(classifyIntent("when was python created")).toBeNull();
+      expect(classifyIntent("why is the sky blue")).toBeNull();
+      expect(classifyIntent("how does photosynthesis work")).toBeNull();
     });
 
     it("general knowledge (answered by LLM, not search)", () => {
@@ -313,18 +313,18 @@ describe("classifyIntent", () => {
     });
 
     it("explain/describe", () => {
-      expect(classifyIntent("tell me about python")).toBe("search");
+      expect(classifyIntent("tell me about python")).toBeNull();
     });
 
     it("latest/current", () => {
-      expect(classifyIntent("latest news")).toBe("search");
-      expect(classifyIntent("current weather")).toBe("search");
-      expect(classifyIntent("recent updates")).toBe("search");
+      expect(classifyIntent("latest news")).toBeNull();
+      expect(classifyIntent("current weather")).toBeNull();
+      expect(classifyIntent("recent updates")).toBeNull();
     });
 
     it("weather", () => {
       expect(classifyIntent("what is the weather")).toBeNull();
-      expect(classifyIntent("how hot is it today")).toBe("search");
+      expect(classifyIntent("how hot is it today")).toBeNull();
     });
   });
 
@@ -394,14 +394,14 @@ describe("classifyIntent", () => {
 
     it("research / learning", () => {
       expect(classifyIntent("search for react hooks")).toBe("search");
-      expect(classifyIntent("how does useEffect work")).toBe("search");
+      expect(classifyIntent("how does useEffect work")).toBeNull();
     });
 
     it("system management", () => {
       expect(classifyIntent("open brave browser")).toBe("system");
       expect(classifyIntent("close all tabs")).toBe("system");
       expect(classifyIntent("set volume to 30")).toBe("system");
-      expect(classifyIntent("take a screenshot")).toBe("system");
+      expect(classifyIntent("take a screenshot")).toBe("desktop-control");
       expect(classifyIntent("what is my battery level")).toBe("system");
       expect(classifyIntent("shutdown")).toBe("system");
     });

@@ -62,9 +62,9 @@ describe("Orchestrator", () => {
     expect(searchService.execute).toHaveBeenCalled();
   });
 
-  it("should route 'who is X' to the search service", async () => {
+  it("should route 'who is X' to the LLM (null intent = fallback)", async () => {
     await orchestrator.process("who is the president", ctx);
-    expect(searchService.execute).toHaveBeenCalled();
+    expect(chatService.execute).toHaveBeenCalled();
   });
 
   it("should route code-related input to the coding service", async () => {
@@ -126,8 +126,8 @@ describe("Orchestrator", () => {
       ctxWithMultiAgent,
     );
 
-    // Should fall through to normal routing (chat as fallback)
-    expect(chatService.execute).toHaveBeenCalled();
+    // Should fall through to normal routing (coding via regex)
+    expect(codingService.execute).toHaveBeenCalled();
   });
 
   it("should not use multi-agent for simple tasks", async () => {

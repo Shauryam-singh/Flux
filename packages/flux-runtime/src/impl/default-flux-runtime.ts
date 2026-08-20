@@ -716,9 +716,9 @@ export class DefaultFluxRuntime implements FluxRuntime {
           const parts = title.split(" — ");
           const projectName = parts.length > 1 && parts[parts.length - 1] != null ? parts[parts.length - 1]!.trim() : null;
           if (projectName) {
-            this.addSuggestion("ide_project", "info", `Working on "${projectName}" — need help with code, debugging, or git?`, "low");
+            this.addSuggestion("ide_project", "info", `I see you're in ${projectName} — hmu if you need a hand with code or git`, "medium");
           } else {
-            this.addSuggestion("ide_help", "info", "IDE is open — need help with code, debugging, or git?", "low");
+            this.addSuggestion("ide_help", "info", "You're coding — let me know if you want me to run tests, check git, or debug something", "medium");
           }
         }
 
@@ -726,12 +726,12 @@ export class DefaultFluxRuntime implements FluxRuntime {
         if (browserCtx && this.lastScreenAppForSuggestions !== app) {
           if (browserCtx.isGitHub) {
             const subtype = browserCtx.isPRPage ? "PR" : browserCtx.isIssuePage ? "issue" : browserCtx.isCodeReview ? "code review" : "repo";
-            this.addSuggestion("github", "info", `Browsing GitHub ${subtype} — need help?`, "low");
+            this.addSuggestion("github", "info", `Saw you on a GitHub ${subtype} — want me to review it or explain what's going on?`, "medium");
           }
-          if (browserCtx.isStackOverflow) this.addSuggestion("stackoverflow", "info", "Looking at Stack Overflow — want me to help solve this?", "low");
-          if (browserCtx.isDocs) this.addSuggestion("docs", "info", "Reading documentation — want me to summarize or explain this?", "low");
-          if (browserCtx.isAIChat) this.addSuggestion("ai_chat", "info", "Using AI chat — want me to help with something else?", "low");
-          if (browserCtx.isSearchEngine) this.addSuggestion("search", "info", "Searching the web — want me to look that up for you?", "low");
+          if (browserCtx.isStackOverflow) this.addSuggestion("stackoverflow", "info", "Stack Overflow huh? Paste the error and I'll take a look", "medium");
+          if (browserCtx.isDocs) this.addSuggestion("docs", "info", "Reading docs — want me to summarize the key parts or explain a concept?", "medium");
+          if (browserCtx.isAIChat) this.addSuggestion("ai_chat", "info", "ChatGPT/Claude open — need me to handle something while you're there?", "low");
+          if (browserCtx.isSearchEngine) this.addSuggestion("search", "info", "Googling something? I might be able to save you a click", "medium");
         }
 
         const isTerminal = app.includes("kitty") || app.includes("alacritty") || app.includes("wezterm") ||
@@ -740,7 +740,7 @@ export class DefaultFluxRuntime implements FluxRuntime {
           app.includes("powershell") || app.includes("wt");
 
         if (isTerminal && this.lastScreenAppForSuggestions !== app) {
-          this.addSuggestion("terminal_help", "info", "Terminal open — need help running commands or monitoring processes?", "low");
+          this.addSuggestion("terminal_help", "info", "Terminal's up — need me to run something or check on a process?", "medium");
         }
 
         if (count === 10) {
@@ -758,7 +758,7 @@ export class DefaultFluxRuntime implements FluxRuntime {
       }
       const codingState = this.codingSession.tick();
       if (codingState.shouldSuggestBreak && codingState.breakReason && now - this.lastCodingSessionSuggestion > 600_000) {
-        this.addSuggestion("coding_break", "info", codingState.breakReason, "medium");
+        this.addSuggestion("coding_break", "info", `You've been at it for a while — ${codingState.breakReason.includes("90") ? "maybe stretch for a sec?" : "good time for a longer break"}`, "medium");
         this.lastCodingSessionSuggestion = now;
       }
 
@@ -768,16 +768,16 @@ export class DefaultFluxRuntime implements FluxRuntime {
         ahead?: number; behind?: number; merging?: boolean; rebasing?: boolean;
       } | null;
       if (gitSnap) {
-        if (gitSnap.isDirty && gitSnap.branch) this.addSuggestion("git_dirty", "info", `Git branch "${gitSnap.branch}" has uncommitted changes`, "medium");
-        if (gitSnap.merging) this.addSuggestion("git_merge", "info", "You're in a merge — need help resolving conflicts?", "high");
-        if (gitSnap.rebasing) this.addSuggestion("git_rebase", "info", "You're in a rebase — need help resolving conflicts?", "high");
-        if (gitSnap.ahead != null && gitSnap.ahead > 3) this.addSuggestion("git_ahead", "info", `You're ${gitSnap.ahead} commits ahead of remote — consider pushing`, "low");
-        if (gitSnap.behind != null && gitSnap.behind > 3) this.addSuggestion("git_behind", "info", `You're ${gitSnap.behind} commits behind remote — consider pulling`, "low");
+        if (gitSnap.isDirty && gitSnap.branch) this.addSuggestion("git_dirty", "info", `Got some uncommitted changes on ${gitSnap.branch} — want me to commit?`, "medium");
+        if (gitSnap.merging) this.addSuggestion("git_merge", "info", "You're in a merge — want me to help resolve conflicts?", "high");
+        if (gitSnap.rebasing) this.addSuggestion("git_rebase", "info", "Rebase in progress — need a hand resolving conflicts?", "high");
+        if (gitSnap.ahead != null && gitSnap.ahead > 3) this.addSuggestion("git_ahead", "info", `You're ${gitSnap.ahead} commits ahead — want me to push?`, "low");
+        if (gitSnap.behind != null && gitSnap.behind > 3) this.addSuggestion("git_behind", "info", `You're ${gitSnap.behind} commits behind — might want to pull`, "low");
       }
 
       // ── 6. Filesystem Changes ───────────────────────────────────
       if (fsSnap?.recentChanges && fsSnap.recentChanges.length > 15) {
-        this.addSuggestion("fs_many_changes", "info", `${fsSnap.recentChanges.length} recent file changes — consider committing`, "medium");
+        this.addSuggestion("fs_many_changes", "info", `${fsSnap.recentChanges.length} files touched recently — should we commit these?`, "medium");
       }
 
       // ══════════════════════════════════════════════════════════════
@@ -792,15 +792,15 @@ export class DefaultFluxRuntime implements FluxRuntime {
         } | null;
         if (audioSnap) {
           if (audioSnap.isMuted) {
-            this.addSuggestion("audio_muted", "info", "Audio is muted — might miss notifications or calls", "low");
+            this.addSuggestion("audio_muted", "info", "Your audio's muted — just in case you're expecting a call or something", "low");
             this.lastAudioSuggestion = now;
           }
           if (audioSnap.outputVolume != null && audioSnap.outputVolume > 85) {
-            this.addSuggestion("volume_high", "info", `Volume is at ${audioSnap.outputVolume}% — hearing damage risk at sustained levels`, "low");
+            this.addSuggestion("volume_high", "info", `Volume's at ${audioSnap.outputVolume}% — careful with those ears`, "low");
             this.lastAudioSuggestion = now;
           }
           if (audioSnap.inputVolume != null && audioSnap.inputVolume > 80) {
-            this.addSuggestion("mic_sensitivity", "info", `Mic input at ${audioSnap.inputVolume}% — might pick up background noise`, "low");
+            this.addSuggestion("mic_sensitivity", "info", `Mic's sensitivity is high (${audioSnap.inputVolume}%) — might pick up background noise`, "low");
             this.lastAudioSuggestion = now;
           }
         }
@@ -814,7 +814,7 @@ export class DefaultFluxRuntime implements FluxRuntime {
         if (spotifySnap?.isPlaying && spotifySnap.track) {
           const windowState = this.windowTracker.getState();
           if (windowState.isCoding) {
-            this.addSuggestion("flow_state", "info", `Music playing (${spotifySnap.track} by ${spotifySnap.artist}) + coding = flow state — I'll stay quiet`, "low");
+            this.addSuggestion("flow_state", "info", `${spotifySnap.track} by ${spotifySnap.artist} + coding — nice combo, I'll leave you to it`, "low");
             this.lastSpotifySuggestion = now;
           }
         }
@@ -829,11 +829,11 @@ export class DefaultFluxRuntime implements FluxRuntime {
         if (dockerSnap?.recentEvents) {
           const dieEvents = dockerSnap.recentEvents.filter((e) => e.type === "die" || e.type === "restart");
           for (const evt of dieEvents.slice(0, 2)) {
-            this.addSuggestion("docker_die", "warning", `Docker container "${evt.containerName}" (${evt.image}) ${evt.type === "die" ? "died" : "restarted"} — want me to check logs?`, "high");
+            this.addSuggestion("docker_die", "warning", `${evt.containerName} ${evt.type === "die" ? "crashed" : "restarted"} — want me to pull the logs?`, "high");
             this.lastDockerSuggestion = now;
           }
           if (dockerSnap.stoppedCount != null && dockerSnap.stoppedCount > 3) {
-            this.addSuggestion("docker_stopped", "info", `${dockerSnap.stoppedCount} containers stopped — want me to investigate?`, "medium");
+            this.addSuggestion("docker_stopped", "info", `${dockerSnap.stoppedCount} containers stopped — want me to figure out why?`, "medium");
             this.lastDockerSuggestion = now;
           }
         }
@@ -848,11 +848,11 @@ export class DefaultFluxRuntime implements FluxRuntime {
         } | null;
         if (k8sSnap) {
           if (k8sSnap.failedCount != null && k8sSnap.failedCount > 0) {
-            this.addSuggestion("k8s_failed", "warning", `${k8sSnap.failedCount} pod(s) in Failed state — want me to investigate?`, "high");
+            this.addSuggestion("k8s_failed", "warning", `${k8sSnap.failedCount} pod(s) crashed — want me to check what's going on?`, "high");
             this.lastK8sSuggestion = now;
           }
           if (k8sSnap.pendingCount != null && k8sSnap.pendingCount > 0) {
-            this.addSuggestion("k8s_pending", "info", `${k8sSnap.pendingCount} pod(s) pending — might be resource pressure`, "medium");
+            this.addSuggestion("k8s_pending", "info", `${k8sSnap.pendingCount} pod(s) stuck pending — might be resource pressure`, "medium");
             this.lastK8sSuggestion = now;
           }
           // Detect crash-looping pods (restarts > 5)
@@ -876,10 +876,10 @@ export class DefaultFluxRuntime implements FluxRuntime {
           const staleSessions = sshSnap.activeSessions.filter((s) => s.connectedAt < staleThreshold);
           if (staleSessions.length > 0) {
             const hosts = staleSessions.map((s) => s.host).join(", ");
-            this.addSuggestion("ssh_stale", "info", `SSH session(s) to ${hosts} open for >1 hour — want me to check status?`, "low");
+            this.addSuggestion("ssh_stale", "info", `SSH to ${hosts} has been open for over an hour — want me to check on it?`, "low");
             this.lastSSHSessionSuggestion = now;
           } else if (sshSnap.sessionCount != null && sshSnap.sessionCount > 0) {
-            this.addSuggestion("ssh_active", "info", `${sshSnap.sessionCount} active SSH session(s) — need help with remote work?`, "low");
+            this.addSuggestion("ssh_active", "info", `${sshSnap.sessionCount} SSH session(s) running — need anything remote?`, "low");
             this.lastSSHSessionSuggestion = now;
           }
         }
@@ -893,22 +893,22 @@ export class DefaultFluxRuntime implements FluxRuntime {
 
           // Detect error messages
           if (/(error|exception|traceback|panic|fatal|segfault)/i.test(text)) {
-            this.addSuggestion("clip_error", "info", "Clipboard contains an error message — want me to help debug?", "medium");
+            this.addSuggestion("clip_error", "info", "Looks like you copied an error — want me to help debug it?", "medium");
             this.lastClipboardAnalysisSuggestion = now;
           }
           // Detect URLs
           else if (/^https?:\/\//.test(text.trim())) {
-            this.addSuggestion("clip_url", "info", "Clipboard contains a URL — want me to open or analyze it?", "low");
+            this.addSuggestion("clip_url", "info", "Got a URL in your clipboard — want me to fetch it?", "low");
             this.lastClipboardAnalysisSuggestion = now;
           }
           // Detect JSON/config
           else if ((text.trim().startsWith("{") && text.trim().endsWith("}")) || (text.trim().startsWith("[") && text.trim().endsWith("]"))) {
-            this.addSuggestion("clip_json", "info", "Clipboard contains JSON — want me to validate or format it?", "low");
+            this.addSuggestion("clip_json", "info", "JSON in clipboard — want me to validate or format it?", "low");
             this.lastClipboardAnalysisSuggestion = now;
           }
           // Detect IP addresses or connection strings
           else if (/\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}/.test(text) || /@.*:\d+/.test(text)) {
-            this.addSuggestion("clip_connection", "info", "Clipboard contains a connection string or IP — need help with networking?", "low");
+            this.addSuggestion("clip_connection", "info", "Is that a connection string? Want me to help with networking?", "low");
             this.lastClipboardAnalysisSuggestion = now;
           }
         }
@@ -923,14 +923,14 @@ export class DefaultFluxRuntime implements FluxRuntime {
           for (const notif of notifSnap.recentNotifications.slice(0, 3)) {
             // Critical urgency
             if (notif.urgency === "critical") {
-              this.addSuggestion("notif_critical", "warning", `Critical notification from ${notif.app}: "${notif.summary}"`, "high");
+              this.addSuggestion("notif_critical", "warning", `Heads up — ${notif.app}: "${notif.summary}"`, "high");
               this.lastNotificationSuggestion = now;
             }
             // Error/failure keywords (regardless of urgency)
             else {
               const text = `${notif.summary} ${notif.body}`.toLowerCase();
               if (/(error|fail|crash|timeout|denied|unauthorized)/i.test(text)) {
-                this.addSuggestion("notif_error", "warning", `Notification from ${notif.app}: "${notif.summary}" — want me to help?`, "medium");
+                this.addSuggestion("notif_error", "warning", `Something from ${notif.app} looks off: "${notif.summary}" — want me to look into it?`, "medium");
                 this.lastNotificationSuggestion = now;
               }
             }
@@ -1041,31 +1041,69 @@ export class DefaultFluxRuntime implements FluxRuntime {
     }
   }
 
+  private lastMediumProactiveSpeak = 0;
+  private readonly MEDIUM_PROACTIVE_SPEAK_INTERVAL = 30_000;
+
   private addSuggestion(id: string, type: string, message: string, priority: string): void {
     // Check dismissal suppression (Tier 3)
     if (this.dismissalTracker.shouldSuppress(id)) return;
 
-    // Deduplicate — don't add the same suggestion within 5 minutes
+    // Deduplicate — different cooldowns by priority:
+    //   high/warning: 5 min (original behavior)
+    //   medium: 2 min (conversational alerts)
+    //   low: 3 min (contextual nudges — window switches, browsing, etc.)
+    const dedupMs = priority === "high" || type === "warning"
+      ? 300_000
+      : priority === "medium"
+        ? 120_000
+        : 180_000;
     const recent = this.proactiveSuggestions.find(
-      (s) => s.id === id && Date.now() - s.timestamp < 300000,
+      (s) => s.id === id && Date.now() - s.timestamp < dedupMs,
     );
     if (recent) return;
 
     this.proactiveSuggestions.push({ id, type, message, timestamp: Date.now(), priority });
-    // Keep only last 20 suggestions
-    if (this.proactiveSuggestions.length > 20) {
-      this.proactiveSuggestions = this.proactiveSuggestions.slice(-20);
+    // Keep only last 30 suggestions
+    if (this.proactiveSuggestions.length > 30) {
+      this.proactiveSuggestions = this.proactiveSuggestions.slice(-30);
     }
 
-    // For high-priority suggestions, also emit a proactive message
-    // that can be spoken and shown in the conversation thread
+    // Emit proactive message for high, medium, AND low priority.
+    // Only high/alert get auto-spoken immediately.
+    // Medium gets spoken every 30s. Low gets stored but not spoken.
     if (priority === "high" || type === "warning") {
       this.emitProactiveMessage({
         content: message,
         type: type === "warning" ? "alert" : "suggestion",
-        priority: priority as "low" | "medium" | "high",
+        priority: "high",
         actionLabel: "Help me with this",
         actionPayload: message,
+      });
+    } else if (priority === "medium") {
+      const now = Date.now();
+      if (now - this.lastMediumProactiveSpeak > this.MEDIUM_PROACTIVE_SPEAK_INTERVAL) {
+        this.lastMediumProactiveSpeak = now;
+        this.emitProactiveMessage({
+          content: message,
+          type: "suggestion",
+          priority: "medium",
+          actionLabel: "Sure, help me",
+          actionPayload: message,
+        });
+      } else {
+        // Still emit for UI display, just don't speak
+        this.emitProactiveMessage({
+          content: message,
+          type: "info",
+          priority: "medium",
+        });
+      }
+    } else {
+      // Low priority: emit for UI only, no speech
+      this.emitProactiveMessage({
+        content: message,
+        type: "info",
+        priority: "low",
       });
     }
   }

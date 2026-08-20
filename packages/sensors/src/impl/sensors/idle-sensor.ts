@@ -17,10 +17,10 @@ export interface IdleState {
 const METADATA: SensorMetadata = {
   id: "idle",
   name: "Idle Sensor",
-  description: "Detects user inactivity via X11/screensaver APIs",
-  category: "linux",
-  platform: "linux",
-  version: "1.0.0",
+  description: "Detects user inactivity via Win32 API / X11/screensaver APIs",
+  category: "hardware",
+  platform: "all",
+  version: "1.1.0",
 };
 
 export class IdleSensor extends BaseSensor<IdleState> {
@@ -42,7 +42,6 @@ export class IdleSensor extends BaseSensor<IdleState> {
   }
 
   protected async onSnapshot(): Promise<IdleState | null> {
-    if (process.platform !== "linux") return null;
     const idleSeconds = await this.getIdleSeconds();
     const activeWindow = this.getActiveWindow();
 
@@ -57,7 +56,6 @@ export class IdleSensor extends BaseSensor<IdleState> {
   }
 
   protected async onRefresh(): Promise<IdleState | null> {
-    if (process.platform !== "linux") return null;
     const idleSeconds = await this.getIdleSeconds();
     const activeWindow = this.getActiveWindow();
 
@@ -110,6 +108,24 @@ export class IdleSensor extends BaseSensor<IdleState> {
   }
 
   private async getIdleSeconds(): Promise<number> {
+    // Windows: call user32.dll GetLastInputInfo via PowerShell
+    if (process.platform === "win32") {
+      const ps = `$code = @'
+using System;
+using System.Runtime.InteropServices;
+public class IdleTime {
+  [DllImport("user32.dll")] public static extern bool GetLastInputInfo(ref LASTINPUTINFO plii);
+  [StructLayout(LayoutKind.Sequential)] public struct LASTINPUTINFO { public int cbSize; public int dwTime; }
+}
+'@; Add-Type -TypeDefinition $code -Language CSharp; $lii = New-Object IdleTime+LASTINPUTINFO; $lii.cbSize = [System.Runtime.InteropServices.Marshal]::SizeOf($lii); [IdleTime]::GetLastInputInfo([ref]$lii) | Out-Null; $ticks = [System.Environment]::TickCount - $lii.dwTime; [math]::Max(0, [math]::Floor($ticks / 1000))`;
+      const output = this.execCommand(`powershell -NoProfile -Command "${ps.replace(/"/g, '\\"')}"`);
+      if (output) {
+        const parsed = parseInt(output.trim(), 10);
+        if (!isNaN(parsed) && parsed >= 0) return parsed;
+      }
+      return 0;
+    }
+
     // Try Hyprland first (Wayland)
     const hyprIdle = this.execCommand("hyprctl activewindow -j 2>/dev/null");
     if (hyprIdle) {
@@ -148,6 +164,14 @@ export class IdleSensor extends BaseSensor<IdleState> {
   }
 
   private getActiveWindow(): string | null {
+    // Windows: use PowerShell GetForegroundWindow
+    if (process.platform === "win32") {
+      const output = this.execCommand(
+        `powershell -NoProfile -Command "Add-Type @' using System; using System.Runtime.InteropServices; public class Win { [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow(); [DllImport("user32.dll")] public static extern int GetWindowText(IntPtr hWnd, System.Text.StringBuilder text, int count); }'@; $hwnd = [Win]::GetForegroundWindow(); $sb = New-Object System.Text.StringBuilder 256; [Win]::GetWindowText($hwnd, $sb, 256) | Out-Null; $sb.ToString()"`,
+      );
+      if (output?.trim()) return output.trim();
+    }
+
     // Try Hyprland first (Wayland)
     const hyprOutput = this.execCommand("hyprctl activewindow -j 2>/dev/null");
     if (hyprOutput) {

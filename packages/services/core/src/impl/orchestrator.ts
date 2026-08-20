@@ -209,7 +209,14 @@ export class Orchestrator {
     const service = await this.resolveService(input, ctx);
     if (!service || !service.executeStream) {
       callbacks.onStatus?.("Generating response...");
-      // Fall back to non-streaming execution
+      // If the resolved service doesn't support streaming, fall back to the
+      // chat service's streaming path so tokens still arrive incrementally.
+      const chatService = this.registry.get(this.fallbackName);
+      if (chatService?.executeStream) {
+        await chatService.executeStream(input, serviceCtx, callbacks);
+        return;
+      }
+      // Last resort: non-streaming (sends entire response as one token)
       try {
         const result = await this.process(input, ctx);
         callbacks.onToken?.(result.text);

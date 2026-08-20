@@ -30,7 +30,10 @@ function getMessageLimit(model: string): number {
  * Get truncation limit based on model size.
  */
 function getTruncationLimit(model: string): number {
-  if (model.includes("0.5b")) return 300;  // 300 chars for small model
+  // Override for benchmarks (Test 12: context knee experiment)
+  const envLimit = process.env.FLUX_TRUNCATION_LIMIT;
+  if (envLimit) return parseInt(envLimit, 10);
+  if (model.includes("0.5b")) return 300;
   return 600;
 }
 
@@ -39,6 +42,7 @@ async function buildChatMessages(
   ctx: ServiceContext,
   personality: string,
   model: string = "default",
+  memoryBlock: string = "",
 ): Promise<ChatMessages> {
   const history = await ctx.memory.history();
   
@@ -70,7 +74,7 @@ async function buildChatMessages(
   // flat blob. A single giant "user" message makes qwen3 dump its
   // reasoning + restate the prompt/system state, producing the
   // 10+ line garbage reply.
-  const systemMessage = `${personality}${systemContextPrompt}`;
+  const systemMessage = `${memoryBlock ? memoryBlock + "\n\n" : ""}${personality}${systemContextPrompt}`;
   const chatMessages: { role: string; content: string }[] = [
     { role: "system", content: systemMessage },
   ];
@@ -170,6 +174,150 @@ function buildSystemContextPrompt(ctx?: SystemContext, model: string = "default"
 export function createChatService(options?: ChatServiceOptions): Service {
   const personality = options?.personality ?? JARVIS_PERSONALITY;
 
+  // --- Dynamic memory extraction ---
+  // Automatically extracts facts from conversation and injects them into
+  // the system message, solving the context-availability problem.
+  const memoryStore = new Map<string, string>();
+
+  function extractFacts(message: string): void {
+    const lower = message.toLowerCase();
+
+    // Project name: "called X", "project name is X", "My project is X"
+    const nameMatch = message.match(/(?:called|project name is|my project is)\s+([A-Z][a-zA-Z0-9]+)/i);
+    if (nameMatch && nameMatch[1]) memoryStore.set("project_name", nameMatch[1]);
+
+    // Tech stack: "uses X", "built with X", "running on X", "stack is X"
+    const techPatterns = [
+      /(?:uses?|built with|running on|stack is)\s+(Node\.?js|Python|FastAPI|Express|Django|Flask|React|Vue|Angular|TypeScript|JavaScript)/gi,
+      /(?:uses?|built with)\s+(PostgreSQL|MySQL|MongoDB|Redis|SQLite)/gi,
+    ];
+    for (const pt of techPatterns) {
+      const m = message.match(pt);
+      if (m) {
+        for (const match of m) {
+          const tech = match.replace(/^(?:uses?|built with|running on|stack is)\s+/i, "").trim();
+          const existing = memoryStore.get("tech_stack") ?? "";
+          if (!existing.includes(tech)) {
+            memoryStore.set("tech_stack", existing ? `${existing}, ${tech}` : tech);
+          }
+        }
+      }
+    }
+
+    // Database: "database is X", "using X for database", "DB is X"
+    const dbMatch = message.match(/(?:database is|using|db is)\s+(PostgreSQL|MySQL|MongoDB|Redis|SQLite)/gi);
+    if (dbMatch) {
+      for (const m of dbMatch) {
+        const db = m.replace(/^(?:database is|using|db is)\s+/i, "").trim();
+        memoryStore.set("database", db);
+      }
+    }
+
+    // Cache: "cache is X", "using X for caching", "Redis for caching"
+    const cacheMatch = message.match(/(?:cache is|using|for caching)\s+(Redis|Memcached)/gi);
+    if (cacheMatch) {
+      for (const m of cacheMatch) {
+        const cache = m.replace(/^(?:cache is|using|for caching)\s+/i, "").trim();
+        memoryStore.set("cache", cache);
+      }
+    }
+
+    // Deployment: "deployed on X", "target is X", "deployment target is X"
+    const deployMatch = message.match(/(?:deployed on|target is|deployment target is)\s+(AWS|GCP|Azure|Docker|Kubernetes|ECS|Fargate)/gi);
+    if (deployMatch) {
+      for (const m of deployMatch) {
+        const deploy = m.replace(/^(?:deployed on|target is|deployment target is)\s+/i, "").trim();
+        memoryStore.set("deployment", deploy);
+      }
+    }
+
+    // Purpose: "it's a X", "purpose is X", "does X"
+    const purposeMatch = message.match(/(?:it's a|purpose is|it does)\s+([^.!?\n]{5,50})/i);
+    if (purposeMatch && purposeMatch[1]) {
+      memoryStore.set("purpose", purposeMatch[1].trim());
+    }
+
+    // Scaling requirements: "must handle X", "requires X concurrent"
+    const scalingMatch = message.match(/(?:must handle|requires?|handle)\s+([\d,]+k?\s*(?:concurrent|connections?|users?))/gi);
+    if (scalingMatch) {
+      for (const m of scalingMatch) {
+        const scaling = m.replace(/^(?:must handle|requires?|handle)\s+/i, "").trim();
+        memoryStore.set("scaling", scaling);
+      }
+    }
+
+    // WebSocket/real-time: "via WebSocket", "Socket.io"
+    if (message.match(/websocket|socket\.io/i)) {
+      memoryStore.set("websocket", "WebSocket");
+    }
+
+    // Mobile: "React Native", "iOS and Android"
+    if (message.match(/react native/i)) {
+      memoryStore.set("mobile", "React Native (iOS + Android)");
+    }
+
+    // ORM: "Prisma", "TypeORM", "Sequelize"
+    const ormMatch = message.match(/\b(Prisma|TypeORM|Sequelize|Mongoose)\b/i);
+    if (ormMatch && ormMatch[1]) {
+      memoryStore.set("orm", ormMatch[1]);
+    }
+
+    // Correction: "actually using X, not Y", "Correction — I'm using X"
+    const correctionMatch = message.match(/(?:actually using|correction.*?using|not\s+\w+.*?but)\s+(\w+)/i);
+    if (correctionMatch && correctionMatch[1]) {
+      const corrected = correctionMatch[1];
+      // Remove the old technology if it's a correction
+      for (const [key, value] of memoryStore) {
+        if (value.toLowerCase().includes(corrected.toLowerCase())) {
+          // This is a correction, update the value
+          memoryStore.set(key, value.replace(new RegExp(corrected, "i"), corrected));
+        }
+      }
+    }
+  }
+
+  function getMemoryBlock(): string {
+    if (memoryStore.size === 0) return "";
+
+    const lines = ["[PROJECT MEMORY]"];
+    for (const [key, value] of memoryStore) {
+      const label = key.replace(/_/g, " ");
+      lines.push(`${label}: ${value}`);
+    }
+    return lines.join("\n");
+  }
+
+  // --- Model routing (N=5 hysteresis) ---
+  // Once a complex query triggers 3B, stay on 3B for 5 turns before
+  // allowing fallback to 0.5B. This amortizes cold-load costs and
+  // improves context retention across multi-turn conversations.
+  let currentModel: "0.5b" | "3b" = "0.5b";
+  let turnsOnCurrentModel = 0;
+  const HYSTERESIS_TURNS = 5;
+
+  function resolveModel(input: string): string {
+    // Force model override for benchmarks
+    const forced = process.env.FLUX_FORCE_MODEL;
+    if (forced) return forced;
+
+    const complexity = detectModelComplexity(input);
+    const wants3b = complexity !== "simple";
+
+    if (wants3b) {
+      currentModel = "3b";
+      turnsOnCurrentModel++;
+    } else {
+      if (currentModel === "3b" && turnsOnCurrentModel < HYSTERESIS_TURNS) {
+        turnsOnCurrentModel++;
+      } else {
+        currentModel = "0.5b";
+        turnsOnCurrentModel = 0;
+      }
+    }
+
+    return currentModel === "3b" ? "default" : "qwen2.5:0.5b";
+  }
+
   return {
     name: "chat",
     description:
@@ -184,10 +332,14 @@ export function createChatService(options?: ChatServiceOptions): Service {
       ctx: ServiceContext,
     ): Promise<ServiceResponse> {
       const t0 = Date.now();
+
+      const model = resolveModel(input);
+      // Extract facts from user message for dynamic memory
+      extractFacts(input);
       // Parallelize memory add and context building for faster response
       const [, chatResult] = await Promise.all([
         ctx.memory.add("user", input),
-        buildChatMessages(input, ctx, personality),
+        buildChatMessages(input, ctx, personality, model, getMemoryBlock()),
       ]);
       const t1 = Date.now();
 
@@ -197,16 +349,10 @@ export function createChatService(options?: ChatServiceOptions): Service {
         return { text: "Chat provider not configured." };
       }
 
-      // Use only messages array (Ollama uses this, flat prompt is ignored)
-      // Include prompt for compatibility with CompletionRequest interface
       // Dynamic maxTokens based on what the response needs to contain,
       // not just complexity. Factual questions get 80, coding gets 512, etc.
       const responseType = classifyResponseType(input);
       const maxTokens = getMaxTokensForResponseType(responseType);
-
-      // Route simple queries to the smaller 0.5b model — greetings, yes/no,
-      // short acknowledgements don't need 3b. Saves 1-3s per simple query.
-      const model = detectModelComplexity(input) === "simple" ? "qwen2.5:0.5b" : "default";
 
       const response = await ctx.provider.complete({
         model,
@@ -237,10 +383,12 @@ export function createChatService(options?: ChatServiceOptions): Service {
         onError?: (error: Error) => void;
       },
     ): Promise<void> {
-      // Parallelize memory add and context building for faster streaming
+      const resolvedModel = resolveModel(input);
+      // Extract facts from user message for dynamic memory
+      extractFacts(input);
       const [, chatResult] = await Promise.all([
         ctx.memory.add("user", input),
-        buildChatMessages(input, ctx, personality),
+        buildChatMessages(input, ctx, personality, resolvedModel, getMemoryBlock()),
       ]);
 
       const { systemMessage, chatMessages, recentHistory } = chatResult;
@@ -253,13 +401,10 @@ export function createChatService(options?: ChatServiceOptions): Service {
       if (!ctx.provider.completeStream) {
         // Fall back to non-streaming completion
         try {
-          // Use only messages array (Ollama uses this, flat prompt is ignored)
-          // Include prompt for compatibility with CompletionRequest interface
           const responseType = classifyResponseType(input);
           const maxTokens = getMaxTokensForResponseType(responseType);
-          const model = detectModelComplexity(input) === "simple" ? "qwen2.5:0.5b" : "default";
           const response = await ctx.provider.complete({
-            model,
+            model: resolvedModel,
             prompt: input,
             messages: chatMessages,
             temperature: 0.8,
@@ -287,14 +432,11 @@ export function createChatService(options?: ChatServiceOptions): Service {
       console.log(
         `[stream] executeStream start messages=${chatMessages.length} hasCompleteStream=${!!provider?.completeStream}`,
       );
-      // Use only messages array (Ollama uses this, flat prompt is ignored)
-      // Include prompt for compatibility with CompletionRequest interface
       const streamResponseType = classifyResponseType(input);
       const maxTokens = getMaxTokensForResponseType(streamResponseType);
-      const streamModel = detectModelComplexity(input) === "simple" ? "qwen2.5:0.5b" : "default";
       await provider.completeStream(
         {
-          model: streamModel,
+          model: resolvedModel,
           prompt: input,
           messages: chatMessages,
           temperature: 0.8,

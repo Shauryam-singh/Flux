@@ -504,8 +504,11 @@ describe("classifyIntent", () => {
     });
 
     it("negation patterns", () => {
-      expect(classifyIntent("don't open chrome")).toBe("system");
-      expect(classifyIntent("never run tests")).toBe("coding");
+      // Negated commands → null (suppressed, not routed to service)
+      expect(classifyIntent("don't open chrome")).toBeNull();
+      expect(classifyIntent("never run tests")).toBeNull();
+      expect(classifyIntent("do NOT play music")).toBeNull();
+      expect(classifyIntent("under no circumstances should you open VS Code")).toBeNull();
     });
   });
 });

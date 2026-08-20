@@ -1,3 +1,130 @@
+// ─── Question/Command gate ───────────────────────────────────────────────────
+// Runs BEFORE regex rules. "Should I open YouTube?" must not trigger browser-control.
+// We match the most common "should I / would I" openers and check if the verb
+// is a genuine action command vs a recommendation question.
+
+// Information-seeking question openers (input starts with these → SAFE)
+const SAFE_QUESTION_OPENERS =
+  /^(should\s+i\s+(open|launch|close|install|delete|remove|run|execute|buy|pay|download|update|upgrade|start|stop|restart)\b|would\s+i\s+(like|want|need)\s+|tell\s+me\s+about\s+(?!yourself|your\b)|can\s+you\s+(explain|describe|clarify|elaborate|tell\s+me\s+about)\b|is\s+.+\s+(better|faster|worse|slower|easier|harder|more|less|worth)\s+(than|compared|versus|vs)|are\s+.+\s+(better|faster|worse|slower|easier|harder|more|less|worth)\s+(than|compared|versus|vs))/i;
+
+// Polite command openers (input starts with these → proceed to action rules)
+const POLITE_COMMAND_OPENERS =
+  /^(can|could|would)\s+you\s+/i;
+
+// Verbs that make "Can you X?" a command, not a question
+const COMMAND_VERBS =
+  /^(play|pause|stop|resume|skip|next|previous|open|close|launch|run|execute|search|find|show|get|set|create|delete|remove|add|start|send|write|fix|debug|help|assist|mute|unmute|minimize|maximize|take)\b/i;
+
+function isSafeQuestion(input: string): boolean {
+  const trimmed = input.trim();
+  const lower = trimmed.toLowerCase();
+
+  // Check if it's a polite command first ("Can you play music?" → command)
+  if (POLITE_COMMAND_OPENERS.test(lower)) {
+    const afterYou = lower.replace(POLITE_COMMAND_OPENERS, "");
+    if (COMMAND_VERBS.test(afterYou)) {
+      // "Can you show me how to X?" → information-seeking, NOT a command
+      if (/^(show|tell|explain|describe|clarify|elaborate)\s+(me\s+)?(how|what|why|when|where)\b/i.test(afterYou)) return true;
+      return false; // It's a command
+    }
+  }
+
+  // Only block "Should I <action>?" questions — specific action recommendations
+  if (SAFE_QUESTION_OPENERS.test(lower)) return true;
+
+  return false;
+}
+
+// ─── Context suppression helpers (run AFTER isSafeQuestion, BEFORE rules) ──────
+// Prevents false-positive action triggers from context that LOOKS like commands.
+
+/**
+ * Strip quoted text and check if any RULES still match.
+ * "My friend said 'open YouTube'" → stripped has no rule match → null
+ * "Open 'this file' and run tests" → stripped "Open and run tests" still matches → allow
+ */
+function isOnlyQuotedCommand(input: string): boolean {
+  const stripped = input.replace(/['"][^'"]*['"]/g, ' ').trim();
+  if (stripped === input) return false; // No quotes found
+  for (const rule of RULES) {
+    if (rule[0].test(stripped)) return false; // Rules still match without quotes
+  }
+  return true; // No rules match without quotes → command was only in quotes
+}
+
+/**
+ * Detect negation patterns that suppress action intent.
+ * "Don't open YouTube", "Do NOT play music", "Under no circumstances should you open VS Code"
+ */
+function isNegatedCommand(input: string): boolean {
+  const lower = input.toLowerCase();
+  // Direct negation: "don't X", "do not X", "never X"
+  if (/\b(don'?t|do\s+not)\s+(open|close|play|pause|stop|restart|shutdown|kill|delete|remove|send|create|run|execute|launch|start|mute|unmute|search|google|navigate|buy|install|uninstall|write|set|change|adjust)\b/i.test(lower)) return true;
+  // "Never" + action verb
+  if (/\bnever\s+(open|close|play|pause|stop|restart|shutdown|kill|delete|remove|send|create|run|execute|launch|start|mute|unmute|search|google|navigate|buy|install|uninstall|write|set|change|adjust)\b/i.test(lower)) return true;
+  // "Under no circumstances" + any action
+  if (/under\s+no\s+circumstances\b/i.test(lower)) return true;
+  // "Shouldn't you X" / "Wouldn't you X" → suppressed
+  if (/\b(shouldn'?t|wouldn'?t|couldn'?t)\s+(you|i|we)\s+(open|close|play|pause|stop|restart|shutdown|kill|delete|remove|send|create|run|execute|launch|start)\b/i.test(lower)) return true;
+  // Prompt injection: "Ignore the previous instruction and X"
+  if (/\bignore\s+(the\s+)?previous\s+(instruction|prompt|command|rule|direction)s?\b/.test(lower)) return true;
+  return false;
+}
+
+/**
+ * Detect hypothetical/indirect requests that should NOT trigger actions.
+ * "I wish Spotify was playing", "It would be nice if...", "Maybe I should restart..."
+ * "What's the best way to restart?", "Can you show me how to create..."
+ */
+function isHypotheticalRequest(input: string): boolean {
+  const lower = input.toLowerCase();
+  if (/\bi\s+wish\b/.test(lower)) return true;
+  if (/\bit\s+would\s+be\s+(nice|great|awesome|cool|good|useful|helpful)\s+(if|that)\b/.test(lower)) return true;
+  if (/\bwouldn'?t\s+it\s+be\s+(nice|great|awesome|cool|good|useful|helpful)\s+(if|that)\b/.test(lower)) return true;
+  if (/\bmaybe\s+i\s+should\b/.test(lower)) return true;
+  if (/\bi\s+(was|were)\s+thinking\s+(about|of)\b/.test(lower)) return true;
+  if (/\bwhat\s+(would|could)\s+happen\s+if\b/.test(lower)) return true;
+  if (/\bbest\s+(way|method|approach|process|option)\s+(to|of|for)\b/.test(lower)) return true;
+  if (/\bshow\s+me\s+how\s+to\b/.test(lower)) return true;
+  if (/\bhow\s+(do|can|should|would|could|might)\s+(i|we|you)\b/.test(lower)) return true;
+  if (/\bsomeone\s+(should|needs?\s+to|ought\s+to)\b/.test(lower)) return true;
+  if (/\bif\s+only\b/.test(lower)) return true;
+  return false;
+}
+
+/**
+ * Detect code explanation context — user is asking ABOUT code, not asking to execute.
+ * "Explain this shell command: git push --force"
+ * "What's happening in this code? os.system('shutdown')"
+ * "I found this in a script: rm -rf /var/log/*"
+ */
+function isCodeExplanation(input: string): boolean {
+  const lower = input.toLowerCase();
+  if (/\b(explain|describe|clarify|elaborate)\s+(this|that|the)\s+(shell\s+)?(command|code|script|function|snippet|block|line)\b/.test(lower)) return true;
+  if (/\bwhat('s|\s+is)\s+(happening|going\s+on)\s+(in|with)\s+(this|that|the)\s+(code|script|command|snippet|program)\b/.test(lower)) return true;
+  if (/\bwhat\s+does\s+(this|that|the)\s+(code|script|command|line)\s+(do|mean)\b/.test(lower)) return true;
+  if (/\b(found|found\s+this|found\s+that)\s+(in|inside)\s+a?\s*(script|code|file|snippet|program|module)\b/.test(lower)) return true;
+  if (/\bin\s+(this|that|the)\s+(code|script|command|snippet|block|program)\b/.test(lower)) return true;
+  if (/\bwhat('s|\s+is)\s+this\s+(code|script|command|snippet)\b/.test(lower)) return true;
+  return false;
+}
+
+/**
+ * If input ends with "?" and is NOT a question word or polite command opener,
+ * it's likely a question, not a command. "open youtube?" → suppress.
+ * But "What's on my screen?" → question word → allow.
+ * "Can you open youtube?" → polite command opener → allow.
+ */
+function isQuestionSuffix(input: string): boolean {
+  const trimmed = input.trim();
+  if (!trimmed.endsWith('?')) return false;
+  const lower = trimmed.toLowerCase();
+  if (POLITE_COMMAND_OPENERS.test(lower)) return false;
+  // Don't suppress if it starts with a question word
+  if (/^(what|why|how|when|where|who|is|are|can|could|would|should|do|does|did|will|shall|which)\b/i.test(lower)) return false;
+  return true;
+}
+
 // ─── Priority-ordered regex rules (fast path) ────────────────────────────────
 // First match wins. Each rule: [regex, service name, optional elevation/depression context]
 type RuleEntry = [RegExp, string] | [RegExp, string, { elevation?: string[]; depression?: string[] }];
@@ -43,11 +170,14 @@ const RULES: RuleEntry[] = [
   [/\b(take\s+a?\s*screenshot|screenshot)\b/i, "desktop-control"],
 
   // ── Spotify (music commands — AFTER desktop-control for volume disambig) ──
+  // Single-word commands (highest confidence — exact matches only)
+  [/^(play|pause|resume|next|prev|previous|skip|stop|mute|unmute|shuffle|repeat)\s*[!?.]*$/i, "spotify"],
+  // Two-word commands
   [/\b(play|pause|stop|resume|skip|next|previous|prev)\s+(music|song|track|playlist|album|artist|something|that)\b/i, "spotify"],
   [/\b(play|pause|stop|resume|skip|next|previous|prev)\s+(the\s+)?(song|track|music|playlist|album)\b/i, "spotify"],
   [/\bwhat('s|\s+is|\s+are)\s+(currently\s+)?(playing|the\s+song|the\s+track|the\s+music)\b/i, "spotify"],
   [/\bwhat\s+(song|track|music|artist|album)\s+(is\s+)?(playing|on|goes|came on)\b/i, "spotify"],
-  [/\b(currently\s+)?playing\b/i, "spotify"],
+  [/\bcurrently\s+playing\b/i, "spotify"],
   [/\b(put on|play|queue)\s+(some\s+)?(music|songs?|a\s+song|a\s+track|something)\b/i, "spotify"],
   [/\b(play|queue)\s+(the\s+)?song\s+["']/i, "spotify"],
   [/\b(shuffle|repeat)\s+(on|off|toggle)\b/i, "spotify"],
@@ -461,7 +591,7 @@ export type ModelComplexity = "simple" | "medium" | "complex";
 const WORK_VERBS = /\b(implement|refactor|debug|analyze|design|plan|optimize|compare|evaluate|write|create|build|develop|fix|explain|describe|review|assess|simplify|migrate|deploy|architect|configure|set\s*up|scaffold|diagnose|troubleshoot|rewrite|redesign|document|test|lint|format|compile)\b/i;
 
 // Words that indicate a technical/programming context
-const TECHNICAL_CONTEXT = /\b(function|class|component|module|service|api|endpoint|database|schema|algorithm|architecture|microservices|docker|kubernetes|typescript|javascript|react|node|python|rust|git|ci\/cd|pipeline|caching|authentication|middleware|dependency|concurrent|distributed|virtualization|serialization|pagination|regex|compiler|interpreter|runtime|type\s*system|interface|generic|async|promise|observable|websocket|graphql|rest|grpc|oauth|jwt|sql|nosql|redis|kafka|terraform|ansible|nginx|webpack|vite|turbo|pnpm|monorepo|workspace|test|tests|bug|error|issue|crash|debug|ci|cd|code|file|script|function|variable|class|method|bug|config|env|envs)\b/i;
+const TECHNICAL_CONTEXT = /\b(function|class|component|module|service|api|endpoint|database|schema|algorithm|architecture|microservices|docker|kubernetes|typescript|javascript|react|node|python|rust|git|ci\/cd|pipeline|caching|authentication|middleware|dependency|concurrent|distributed|virtualization|serialization|pagination|regex|compiler|interpreter|runtime|type\s*system|interface|generic|async|promise|observable|websocket|graphql|rest|grpc|oauth|jwt|sql|nosql|redis|kafka|terraform|ansible|nginx|webpack|vite|turbo|pnpm|monorepo|workspace|test|tests|bug|error|issue|crash|debug|ci|cd|code|file|script|function|variable|class|method|bug|config|env|envs|memory|leak|thread|process|kernel|garbage|heap|stack|buffer|mutex|deadlock|race\s*condition|latency|throughput|bandwidth|performance|bottleneck|tradeoffs?|overhead|scalab|complexity|render|compiler|bytecode|container|orchestration|deploy|monitor|log|trace|profile|benchmark|optimi[zs]|refactor|abstract|encapsulat|polymorphi[zs]|inherit|composit|inject|factori[zs]|observ|strategi[zs]|adap|decor|facade|proxy|mediat|chain|command|state|template|visitor|bridge|flyweight|iterat)\b/i;
 
 // Multi-sentence or multi-step signals
 const MULTI_STEP = /\b(and|then|after|before|also|plus|including|step|first|second|third|finally|additionally|moreover|furthermore)\b/i;
@@ -469,55 +599,110 @@ const MULTI_STEP = /\b(and|then|after|before|also|plus|including|step|first|seco
 // Question patterns that require explanation (not simple facts)
 const EXPLANATION_QUESTIONS = /\b(why|how|explain|describe|what\s+is\s+the\s+difference|what\s+are\s+the|can\s+you\s+(explain|describe|compare)|tell\s+me\s+(about|how|why)|walk\s+me\s+through|what\s+would\s+you)\b/i;
 
+// ─── Context-dependency detection ───────────────────────────────────────
+// Detects queries that REQUIRE conversation history to answer correctly.
+// A 5-char query like "change it" can be harder for 0.5B than a 100-char
+// standalone question, because 0.5B has no mechanism to resolve the reference.
+const PRONOUN_REFERENCE = /\b(it|this|that|them|they|those|these|he|she)\b/i;
+const TEMPORAL_REFERENCE = /\b(earlier|before|previously|already|still|now|then|afterward|later|ago|last\s+time|just\s+now)\b/i;
+const CORRECTION_SIGNAL = /\b(change|modify|update|replace|switch|swap|instead|actually|wait|no\b|wrong|incorrect|not\s+what|fix\s+that|undo|redo|revert|cancel|forget|ignore)/i;
+const META_REFERENCE = /\b(what\s+(did|i\s+)?(did\s+)?(i|we)\s+(say|tell|mention|ask|talk|discuss|write)|as\s+(i|we)\s+(mentioned|said|wrote|told)|you\s+(said|mentioned|wrote|told|remember)|tell\s+me\s+more|what\s+else|and\s+then|keep\s+going|continue|go\s+on|what\s+about)\b/i;
+const POSSESSIVE_CONTEXT = /\b(my|your|our)\s+(project|file|code|app|server|database|config|setup|stack|plan|idea|note|list|task|todo|bug|issue|error|message|email|chat|conversation|previous)\b/i;
+
+export type ContextDependencyScore = "none" | "weak" | "strong";
+
+/**
+ * Detect whether a query depends on conversation history to be answered correctly.
+ *
+ * - "none":  standalone query, 0.5B can answer from the query alone
+ * - "weak":  mild reference ("change it"), 3B preferred but 0.5B might survive
+ * - "strong": explicit correction/continuation ("actually, change that to PostgreSQL"), 3B required
+ *
+ * `hasHistory` should be true if there are prior user/assistant message pairs.
+ */
+export function detectContextDependency(
+  input: string,
+  hasHistory: boolean,
+): ContextDependencyScore {
+  if (!hasHistory) return "none";
+
+  const lower = input.toLowerCase().trim();
+
+  // Strong signals: corrections, meta-references, continuations
+  if (CORRECTION_SIGNAL.test(lower)) return "strong";
+  if (META_REFERENCE.test(lower)) return "strong";
+
+  // Weak signals: pronouns, temporal references, possessive context
+  if (PRONOUN_REFERENCE.test(lower) && lower.split(/\s+/).length <= 6) return "weak";
+  if (TEMPORAL_REFERENCE.test(lower)) return "weak";
+  if (POSSESSIVE_CONTEXT.test(lower)) return "weak";
+
+  return "none";
+}
+
 export function detectModelComplexity(input: string): ModelComplexity {
   const trimmed = input.trim();
   const lower = trimmed.toLowerCase();
 
-  // ── SIMPLE: greetings, acknowledgments, very short factual lookups ──
+  // ── SIMPLE: greetings, acknowledgments — always 0.5b regardless of length ──
   if (trimmed.length < 12) return "simple";
 
   if (/^(hi|hello|hey|thanks|thank you|ok|okay|yes|no|sure|cool|nice|great|good|bad|bye|goodbye|yo|sup|greetings|good\s*(morning|afternoon|evening|night))\s*[!?.]*$/i.test(lower)) {
     return "simple";
   }
 
-  // Very short questions with no technical context
-  if (trimmed.length < 30 && !TECHNICAL_CONTEXT.test(lower) && !WORK_VERBS.test(lower)) {
+  // ── STRONG TECHNICAL SIGNALS override length ──
+  // "Why does memory leak?" (22 chars) → 3b, not 0.5b
+  // "What is a mutex?" (16 chars) → 3b
+  // But "What is a variable?" → still potentially 0.5b (common concept)
+  const hasStrongTechnical = TECHNICAL_CONTEXT.test(lower);
+  const hasWorkVerb = WORK_VERBS.test(lower);
+
+  // If strong technical context + work verb → definitely 3b
+  if (hasStrongTechnical && hasWorkVerb) {
+    // Even short prompts with both signals need 3b
+    let score = 10; // Base: technical + work verb
+    if (MULTI_STEP.test(lower) && trimmed.length > 50) score += 6;
+    if (EXPLANATION_QUESTIONS.test(lower)) score += 4;
+    if (trimmed.length > 200) score += 8;
+    else if (trimmed.length > 100) score += 4;
+    else if (trimmed.length > 60) score += 2;
+    const sentenceCount = trimmed.split(/[.!?]+/).filter(s => s.trim().length > 5).length;
+    if (sentenceCount >= 3) score += 6;
+    if (/\b(function|class|const|let|var|def|import|export|return|=>|{\s*[\n\r])\b/.test(trimmed)) score += 8;
+    if (score >= 10) return "complex";
+    if (score >= 4) return "medium";
     return "simple";
   }
 
-  // ── MEDIUM: questions about concepts, definitions, simple explanations ──
-  // These get 3b because even "what is X" benefits from a smarter model
-  // when X is technical.
+  // If strong technical context alone → at least medium (3b)
+  if (hasStrongTechnical) {
+    return "medium";
+  }
 
-  // ── COMPLEX: anything requiring reasoning, coding, analysis, planning ──
+  // If work verb alone → at least medium (3b)
+  if (hasWorkVerb) {
+    return "medium";
+  }
+
+  // ── LENGTH-BASED SHORTCIRCUIT (only for non-technical, non-work-verb) ──
+  // "What is a variable?" → short + no technical context → simple
+  // "Hello developer" → short + no technical context → simple
+  if (trimmed.length < 30) {
+    return "simple";
+  }
+
+  // ── SCORING for longer prompts ──
   let score = 0;
-
-  // Work verbs are the strongest signal
-  if (WORK_VERBS.test(lower)) score += 10;
-
-  // Technical context adds weight
-  if (TECHNICAL_CONTEXT.test(lower)) score += 5;
-
-  // Multi-step/multi-part instructions
   if (MULTI_STEP.test(lower) && trimmed.length > 50) score += 6;
-
-  // Explanation questions require reasoning
   if (EXPLANATION_QUESTIONS.test(lower)) score += 4;
-
-  // Length signals complexity
   if (trimmed.length > 200) score += 8;
   else if (trimmed.length > 100) score += 4;
   else if (trimmed.length > 60) score += 2;
-
-  // Multiple sentences suggest multi-part request
   const sentenceCount = trimmed.split(/[.!?]+/).filter(s => s.trim().length > 5).length;
   if (sentenceCount >= 3) score += 6;
-
-  // Code snippets in the prompt
   if (/\b(function|class|const|let|var|def|import|export|return|=>|{\s*[\n\r])\b/.test(trimmed)) score += 8;
 
-  // Thresholds: 0-3 = simple, 4-9 = medium, 10+ = complex
-  // But medium and complex both go to 3b, so effectively: 0-3 = 0.5b, 4+ = 3b
   if (score >= 10) return "complex";
   if (score >= 4) return "medium";
   return "simple";
@@ -588,6 +773,22 @@ export function classifyIntent(
   context?: IntentContext,
 ): string | null {
   const trimmed = input.trim();
+
+  // ── Gate: information-seeking questions → SAFE (no action) ──
+  // Must run BEFORE regex rules to prevent "Should I open YouTube?" → browser-control
+  if (isSafeQuestion(trimmed)) return null;
+
+  // ── Gate: context suppression ──
+  // Commands inside quotes are mentions, not commands
+  if (isOnlyQuotedCommand(trimmed)) return null;
+  // Negated commands are not actions ("Don't open YouTube")
+  if (isNegatedCommand(trimmed)) return null;
+  // Hypothetical/indirect requests are not commands ("I wish Spotify was playing")
+  if (isHypotheticalRequest(trimmed)) return null;
+  // Code explanation is asking ABOUT code, not executing it
+  if (isCodeExplanation(trimmed)) return null;
+  // Bare commands with "?" suffix are questions ("open youtube?" → null)
+  if (isQuestionSuffix(trimmed)) return null;
 
   for (const rule of RULES) {
     const [regex, service, opts] = rule;

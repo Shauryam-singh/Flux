@@ -489,7 +489,7 @@ export class DefaultFluxRuntime implements FluxRuntime {
       });
       if (this.recentSensorEvents.length > 100) this.recentSensorEvents.shift();
 
-      if (this.cognitiveReady && this.running) {
+      if (this.cognitiveReady && this.running && !process.env.FLUX_DISABLE_COGNITIVE) {
         const observation = {
           id: `${event.sensorId}_${event.timestamp}`,
           source: event.source,
@@ -543,7 +543,7 @@ export class DefaultFluxRuntime implements FluxRuntime {
     });
 
     // Start the cognitive system's internal timers (5s think cycle, 30min reflection)
-    this.cognitive.start();
+    if (!process.env.FLUX_DISABLE_COGNITIVE) this.cognitive.start();
 
     // Start real-world sensors
     if (this.config.enableSensors !== false) {
@@ -2216,7 +2216,7 @@ export class DefaultFluxRuntime implements FluxRuntime {
     // The cognitive cycle may trigger a local LLM thought-generation call
     // (~30-40s on qwen3), and Ollama serves requests serially. Deferring keeps
     // the user's chat response from queuing behind background reasoning.
-    this.cognitive.message(input);
+    if (!process.env.FLUX_DISABLE_COGNITIVE) this.cognitive.message(input);
 
     // Step 8: Record experience for self-evolution
     this.experienceDb.record({

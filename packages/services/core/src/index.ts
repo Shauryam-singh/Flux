@@ -4,6 +4,7 @@ export type { ModelComplexity, ResponseType, ContextDependencyScore } from "./im
 export { Orchestrator } from "./impl/orchestrator.js";
 export type { Service } from "./interfaces/service.js";
 export type {
+  CognitiveContext,
   LlmProvider,
   ServiceContext,
   SystemContext,

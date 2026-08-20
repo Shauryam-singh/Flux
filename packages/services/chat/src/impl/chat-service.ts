@@ -1,4 +1,5 @@
 import type {
+  CognitiveContext,
   Service,
   ServiceContext,
   ServiceResponse,
@@ -70,11 +71,14 @@ async function buildChatMessages(
     }
   }
 
+  // Build cognitive context prompt (active goals, recent thoughts)
+  const cognitivePrompt = buildCognitivePrompt(ctx.cognitiveContext);
+
   // Send a proper system/user/assistant message sequence instead of a
   // flat blob. A single giant "user" message makes qwen3 dump its
   // reasoning + restate the prompt/system state, producing the
   // 10+ line garbage reply.
-  const systemMessage = `${memoryBlock ? memoryBlock + "\n\n" : ""}${personality}${systemContextPrompt}`;
+  const systemMessage = `${memoryBlock ? memoryBlock + "\n\n" : ""}${personality}${systemContextPrompt}${cognitivePrompt}`;
   const chatMessages: { role: string; content: string }[] = [
     { role: "system", content: systemMessage },
   ];
@@ -169,6 +173,33 @@ function buildSystemContextPrompt(ctx?: SystemContext, model: string = "default"
   }
 
   return parts.join("\n");
+}
+
+/**
+ * Build cognitive context prompt from the cognitive orchestrator's state.
+ * Injects active goals and recent thoughts into the system message so
+ * the LLM can use the cognitive system's analysis.
+ */
+function buildCognitivePrompt(ctx?: CognitiveContext): string {
+  if (!ctx) return "";
+
+  const parts: string[] = [];
+
+  if (ctx.activeGoal) {
+    parts.push(`Active Goal: ${ctx.activeGoal.title} (${ctx.activeGoal.progress}% done)`);
+  }
+
+  if (ctx.recentThoughts.length > 0) {
+    const thoughts = ctx.recentThoughts
+      .slice(-3)
+      .map((t: { type: string; content: string; confidence: number }) => `[${t.type}] ${t.content}`)
+      .join("; ");
+    parts.push(`Recent Analysis: ${thoughts}`);
+  }
+
+  if (parts.length === 0) return "";
+
+  return `\n\nCOGNITIVE STATE:\n${parts.join("\n")}`;
 }
 
 export function createChatService(options?: ChatServiceOptions): Service {

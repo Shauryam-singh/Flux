@@ -1,6 +1,7 @@
 import type { Memory } from "@ai-agent/agent";
 import type { Service } from "../interfaces/service.js";
 import type {
+  CognitiveContext,
   LlmProvider,
   ServiceContext,
   SystemContext,
@@ -23,6 +24,7 @@ export interface OrchestratorContext {
   speak(text: string): void;
   emit(event: string, data: unknown): void;
   getSystemContext?: (() => Promise<SystemContext>) | undefined;
+  cognitiveContext?: CognitiveContext | undefined;
   multiAgent?: {
     orchestrate(goal: string, provider: LlmProvider): Promise<string>;
     getAgents(): ReadonlyArray<{
@@ -140,6 +142,7 @@ export class Orchestrator {
       speak: ctx.speak,
       emit: ctx.emit,
       getSystemContext: ctx.getSystemContext,
+      cognitiveContext: ctx.cognitiveContext,
     };
 
     // Check for multi-agent orchestration
@@ -203,6 +206,7 @@ export class Orchestrator {
       speak: ctx.speak,
       emit: ctx.emit,
       getSystemContext: ctx.getSystemContext,
+      cognitiveContext: ctx.cognitiveContext,
     };
 
     callbacks.onStatus?.("Classifying intent...");

@@ -35,6 +35,12 @@ export interface SystemContext {
   platform: string;
 }
 
+export interface CognitiveContext {
+  activeGoal: { title: string; progress: number } | null;
+  recentThoughts: Array<{ type: string; content: string; confidence: number }>;
+  recentObservations: Array<{ title: string; detail: string; score: number }>;
+}
+
 export interface ServiceContext {
   sessionId: string;
   memory: Memory;
@@ -43,4 +49,5 @@ export interface ServiceContext {
   speak(text: string): void;
   emit(event: string, data: unknown): void;
   getSystemContext?: (() => Promise<SystemContext>) | undefined;
+  cognitiveContext?: CognitiveContext | undefined;
 }

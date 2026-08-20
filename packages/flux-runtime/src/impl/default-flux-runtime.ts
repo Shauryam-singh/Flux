@@ -2169,6 +2169,7 @@ export class DefaultFluxRuntime implements FluxRuntime {
       speak: () => {},
       emit: () => {},
       getSystemContext,
+      cognitiveContext: this.buildCognitiveContext(),
       multiAgent: this.multiAgent,
     });
 
@@ -2414,6 +2415,7 @@ export class DefaultFluxRuntime implements FluxRuntime {
           speak: () => {},
           emit: () => {},
           getSystemContext,
+          cognitiveContext: this.buildCognitiveContext(),
           multiAgent: this.multiAgent,
         },
         {
@@ -2520,6 +2522,22 @@ export class DefaultFluxRuntime implements FluxRuntime {
    * @param skipIfCached - If true, skip collection even if cache is stale
    *   (used during chat to avoid blocking on slow sensors)
    */
+  private buildCognitiveContext() {
+    const state = this.cognitive.getState();
+    const goal = state.activeGoal
+      ? { title: state.activeGoal.title, progress: state.activeGoal.progress }
+      : null;
+    return {
+      activeGoal: goal,
+      recentThoughts: this.recentThoughts.slice(-5).map(t => ({
+        type: t.type,
+        content: t.content,
+        confidence: t.confidence,
+      })),
+      recentObservations: [],
+    };
+  }
+
   private async collectSensorSnapshots(skipIfCached = false): Promise<Record<string, unknown>> {
     const now = Date.now();
     if (now - this.cachedSensorAt < this.SENSOR_CACHE_TTL_MS) {

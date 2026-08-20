@@ -210,7 +210,7 @@ export class DefaultCognitiveOrchestrator implements CognitiveOrchestrator {
         goals: this.goalManager.getAll(),
         thoughts: cycleResult.thoughts,
         recentDecisions: this.recentDecisions,
-        userActive: this.pendingObservations.some((o) => o.source === "user"),
+        userActive: context.recentObservations.some((o) => o.source === "user"),
       };
 
       const decision = await this.decisionEngine.decide(decisionContext);

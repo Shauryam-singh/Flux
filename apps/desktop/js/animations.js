@@ -127,7 +127,7 @@ export function stopParticles() {
   }
 }
 
-// ─── Thought Graph Renderer — Real-time from SSE ───
+// ─── Thought Graph Renderer — Real-time from SSE with force layout ───
 
 let graphNodes = [];
 let graphEdges = [];
@@ -138,24 +138,24 @@ let lastCanvasWidth = 0;
 let lastCanvasHeight = 0;
 
 const graphThoughtTypes = {
-  observation_interpretation: { color: "#55D6FF", radius: 6 },
-  pattern_recognition: { color: "#7C8BFF", radius: 8 },
-  concern: { color: "#FF6B6B", radius: 7 },
-  goal_evaluation: { color: "#49E38A", radius: 7 },
-  user_intent: { color: "#FFC857", radius: 7 },
-  suggestion: { color: "#A78BFA", radius: 6 },
-  insight: { color: "#F472B6", radius: 6 },
-  prediction: { color: "#38BDF8", radius: 5 },
-  reflection: { color: "#FB923C", radius: 5 },
-  opportunity: { color: "#34D399", radius: 6 },
+  observation_interpretation: { color: "#55D6FF", radius: 12 },
+  pattern_recognition: { color: "#7C8BFF", radius: 15 },
+  concern: { color: "#FF6B6B", radius: 14 },
+  goal_evaluation: { color: "#49E38A", radius: 14 },
+  user_intent: { color: "#FFC857", radius: 14 },
+  suggestion: { color: "#A78BFA", radius: 12 },
+  insight: { color: "#F472B6", radius: 13 },
+  prediction: { color: "#38BDF8", radius: 11 },
+  reflection: { color: "#FB923C", radius: 11 },
+  opportunity: { color: "#34D399", radius: 12 },
 };
 
 function clampNode(n, w, h) {
-  const padding = 40;
-  if (n.x < padding) { n.x = padding; n.vx = Math.abs(n.vx) * 0.5; }
-  if (n.x > w - padding) { n.x = w - padding; n.vx = -Math.abs(n.vx) * 0.5; }
-  if (n.y < padding) { n.y = padding; n.vy = Math.abs(n.vy) * 0.5; }
-  if (n.y > h - padding) { n.y = h - padding; n.vy = -Math.abs(n.vy) * 0.5; }
+  const padding = 60;
+  if (n.x < padding) { n.x = padding; n.vx = Math.abs(n.vx) * 0.3; }
+  if (n.x > w - padding) { n.x = w - padding; n.vx = -Math.abs(n.vx) * 0.3; }
+  if (n.y < padding) { n.y = padding; n.vy = Math.abs(n.vy) * 0.3; }
+  if (n.y > h - padding) { n.y = h - padding; n.vy = -Math.abs(n.vy) * 0.3; }
 }
 
 function adjustNodePositions(w, h) {
@@ -169,11 +169,73 @@ function adjustNodePositions(w, h) {
   const scaleX = w / lastCanvasWidth;
   const scaleY = h / lastCanvasHeight;
   for (const n of graphNodes) {
-    n.x = Math.max(40, Math.min(w - 40, n.x * scaleX));
-    n.y = Math.max(40, Math.min(h - 40, n.y * scaleY));
+    n.x = Math.max(60, Math.min(w - 60, n.x * scaleX));
+    n.y = Math.max(60, Math.min(h - 60, n.y * scaleY));
   }
   lastCanvasWidth = w;
   lastCanvasHeight = h;
+}
+
+// Simple force-directed layout: repulsion between all nodes, attraction along edges
+function applyForces(w, h) {
+  const repulsionRadius = 150;
+  const repulsionStrength = 0.8;
+  const attractionStrength = 0.005;
+  const centerGravity = 0.001;
+  const damping = 0.85;
+  const cx = w / 2;
+  const cy = h / 2;
+
+  for (let i = 0; i < graphNodes.length; i++) {
+    const a = graphNodes[i];
+
+    // Center gravity — prevents clusters from drifting to edges
+    a.vx += (cx - a.x) * centerGravity;
+    a.vy += (cy - a.y) * centerGravity;
+
+    // Repulsion from other nodes
+    for (let j = i + 1; j < graphNodes.length; j++) {
+      const b = graphNodes[j];
+      let dx = a.x - b.x;
+      let dy = a.y - b.y;
+      const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+      if (dist < repulsionRadius) {
+        const force = (repulsionStrength * (repulsionRadius - dist)) / repulsionRadius;
+        const fx = (dx / dist) * force;
+        const fy = (dy / dist) * force;
+        a.vx += fx;
+        a.vy += fy;
+        b.vx -= fx;
+        b.vy -= fy;
+      }
+    }
+  }
+
+  // Attraction along edges
+  for (const e of graphEdges) {
+    const from = graphNodes[e.from];
+    const to = graphNodes[e.to];
+    if (!from || !to) continue;
+    const dx = to.x - from.x;
+    const dy = to.y - from.y;
+    const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+    const force = (dist - 100) * attractionStrength;
+    const fx = (dx / dist) * force;
+    const fy = (dy / dist) * force;
+    from.vx += fx;
+    from.vy += fy;
+    to.vx -= fx;
+    to.vy -= fy;
+  }
+
+  // Apply velocity with damping and clamp
+  for (const n of graphNodes) {
+    n.vx *= damping;
+    n.vy *= damping;
+    n.x += n.vx;
+    n.y += n.vy;
+    clampNode(n, w, h);
+  }
 }
 
 function updateGraphFromData(thoughts, edges) {
@@ -199,13 +261,25 @@ function updateGraphFromData(thoughts, edges) {
     const type = t.type || "observation_interpretation";
     const confidence = t.confidence?.value ?? 0.5;
 
+    // If existing node, keep position; otherwise distribute in a spiral pattern
+    let x, y;
+    if (old) {
+      x = old.x;
+      y = old.y;
+    } else {
+      const angle = i * 2.39996; // golden angle in radians
+      const radius = 50 + i * 18;
+      x = w / 2 + Math.cos(angle) * Math.min(radius, w / 3);
+      y = h / 2 + Math.sin(angle) * Math.min(radius, h / 3);
+    }
+
     const node = {
       id: i,
       type,
-      x: old?.x ?? 40 + Math.random() * (w - 80),
-      y: old?.y ?? 40 + Math.random() * (h - 80),
-      vx: old?.vx ?? (Math.random() - 0.5) * 0.15,
-      vy: old?.vy ?? (Math.random() - 0.5) * 0.15,
+      x,
+      y,
+      vx: old?.vx ?? 0,
+      vy: old?.vy ?? 0,
       label,
       confidence: Math.round(confidence * 100),
     };
@@ -224,7 +298,6 @@ function updateGraphFromData(thoughts, edges) {
 }
 
 function initGraphNodes() {
-  // Don't clear if data was already buffered from SSE before graph started
   if (graphNodes.length === 0) {
     graphNodes = [];
     graphEdges = [];
@@ -232,11 +305,11 @@ function initGraphNodes() {
 }
 
 const edgeColors = {
-  supports: "rgba(73, 227, 138, 0.3)",
-  contradicts: "rgba(255, 107, 107, 0.3)",
-  extends: "rgba(85, 214, 255, 0.3)",
-  alternative: "rgba(255, 200, 87, 0.3)",
-  follows: "rgba(167, 139, 250, 0.3)",
+  supports: "rgba(73, 227, 138, 0.6)",
+  contradicts: "rgba(255, 107, 107, 0.6)",
+  extends: "rgba(85, 214, 255, 0.6)",
+  alternative: "rgba(255, 200, 87, 0.6)",
+  follows: "rgba(167, 139, 250, 0.6)",
 };
 
 function animateGraph() {
@@ -256,9 +329,8 @@ function animateGraph() {
 
   gCtx.clearRect(0, 0, w, h);
 
-  // Draw "no data" message if empty
   if (graphNodes.length === 0) {
-    gCtx.globalAlpha = 0.3;
+    gCtx.globalAlpha = 0.4;
     gCtx.fillStyle = "#F5F7FA";
     gCtx.font = "14px Inter, sans-serif";
     gCtx.textAlign = "center";
@@ -268,61 +340,84 @@ function animateGraph() {
     return;
   }
 
-  // Update positions (gentle drift)
-  graphNodes.forEach((n) => {
-    n.x += n.vx;
-    n.y += n.vy;
-    clampNode(n, w, h);
-  });
+  // Apply force-directed layout
+  applyForces(w, h);
 
-  // Draw edges
-  gCtx.lineWidth = 1;
-  graphEdges.forEach((e) => {
+  // Draw edges with glow
+  for (const e of graphEdges) {
     const from = graphNodes[e.from];
     const to = graphNodes[e.to];
-    if (!from || !to) return;
-    gCtx.strokeStyle = edgeColors[e.type] || "rgba(85, 214, 255, 0.2)";
+    if (!from || !to) continue;
+
+    const color = edgeColors[e.type] || "rgba(85, 214, 255, 0.4)";
+
+    // Edge glow (wider, more transparent)
+    gCtx.globalAlpha = 0.15;
+    gCtx.strokeStyle = color;
+    gCtx.lineWidth = 4;
     gCtx.beginPath();
     gCtx.moveTo(from.x, from.y);
     gCtx.lineTo(to.x, to.y);
     gCtx.stroke();
-  });
+
+    // Edge line
+    gCtx.globalAlpha = 0.6;
+    gCtx.lineWidth = 1.5;
+    gCtx.beginPath();
+    gCtx.moveTo(from.x, from.y);
+    gCtx.lineTo(to.x, to.y);
+    gCtx.stroke();
+  }
 
   // Draw nodes
-  graphNodes.forEach((n) => {
-    const style =
-      graphThoughtTypes[n.type] || graphThoughtTypes.observation_interpretation;
+  for (const n of graphNodes) {
+    const style = graphThoughtTypes[n.type] || graphThoughtTypes.observation_interpretation;
 
-    // Glow
-    gCtx.globalAlpha = 0.15;
+    // Outer glow
+    gCtx.globalAlpha = 0.2;
     gCtx.fillStyle = style.color;
     gCtx.beginPath();
-    gCtx.arc(n.x, n.y, style.radius + 6, 0, Math.PI * 2);
+    gCtx.arc(n.x, n.y, style.radius + 8, 0, Math.PI * 2);
     gCtx.fill();
 
-    // Node
-    gCtx.globalAlpha = 0.9;
+    // Main circle
+    gCtx.globalAlpha = 0.95;
     gCtx.fillStyle = style.color;
     gCtx.beginPath();
     gCtx.arc(n.x, n.y, style.radius, 0, Math.PI * 2);
     gCtx.fill();
 
-    // Confidence ring
-    gCtx.globalAlpha = 0.4;
-    gCtx.strokeStyle = style.color;
-    gCtx.lineWidth = 1.5;
+    // Confidence arc ring
+    gCtx.globalAlpha = 0.5;
+    gCtx.strokeStyle = "#fff";
+    gCtx.lineWidth = 2;
     const arcLen = (n.confidence / 100) * Math.PI * 2;
     gCtx.beginPath();
-    gCtx.arc(n.x, n.y, style.radius + 3, -Math.PI / 2, -Math.PI / 2 + arcLen);
+    gCtx.arc(n.x, n.y, style.radius + 4, -Math.PI / 2, -Math.PI / 2 + arcLen);
     gCtx.stroke();
 
-    // Label
-    gCtx.globalAlpha = 0.6;
-    gCtx.fillStyle = "#F5F7FA";
-    gCtx.font = "9px Inter, sans-serif";
-    gCtx.textAlign = "center";
-    gCtx.fillText(n.label, n.x, n.y + style.radius + 12);
-  });
+    // Label with background for readability
+    const labelText = n.label;
+    if (labelText) {
+      gCtx.font = "11px Inter, sans-serif";
+      gCtx.textAlign = "center";
+      const textWidth = gCtx.measureText(labelText).width;
+      const labelY = n.y + style.radius + 16;
+
+      // Background pill
+      gCtx.globalAlpha = 0.7;
+      gCtx.fillStyle = "rgba(15, 23, 42, 0.8)";
+      const pad = 4;
+      gCtx.beginPath();
+      gCtx.roundRect(n.x - textWidth / 2 - pad, labelY - 10, textWidth + pad * 2, 16, 4);
+      gCtx.fill();
+
+      // Text
+      gCtx.globalAlpha = 0.9;
+      gCtx.fillStyle = "#F5F7FA";
+      gCtx.fillText(labelText, n.x, labelY);
+    }
+  }
 
   gCtx.globalAlpha = 1;
   graphAnimFrame = requestAnimationFrame(animateGraph);
@@ -330,13 +425,11 @@ function animateGraph() {
 
 export function startGraph() {
   if (graphActive) {
-    // Already running — just force canvas resize in case tab just became visible
     resizeGraphCanvas();
     return;
   }
   graphActive = true;
   initGraphNodes();
-  // Delay first frame slightly so the panel has time to become visible
   setTimeout(() => {
     resizeGraphCanvas();
     animateGraph();
@@ -354,11 +447,9 @@ function resizeGraphCanvas() {
   lastCanvasHeight = h;
 }
 
-// Export for SSE-based updates
 export function updateGraphFromThoughts(thoughts) {
   if (!thoughts || thoughts.length === 0) return;
   if (!graphActive) {
-    // Buffer the data — will be rendered when graph starts
     updateGraphFromData(thoughts, []);
     return;
   }

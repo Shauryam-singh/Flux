@@ -2,7 +2,7 @@ import { createServer } from "node:http";
 import { createFlux, type FluxConfig } from "@ai-agent/cli/flux";
 import { WhisperEngine } from "@ai-agent/voice-stt";
 import { PiperEngine } from "@ai-agent/voice-tts";
-import { AutomationEngine } from "@ai-agent/automation";
+import { AutomationEngine, type AutomationCallbacks } from "@ai-agent/automation";
 import { analyzeScreenContext } from "@ai-agent/automation";
 
 const PORT = parseInt(process.env.FLUX_API_PORT ?? "3141", 10);
@@ -20,19 +20,22 @@ const fluxConfig: FluxConfig = {
 const flux = createFlux(fluxConfig);
 
 // ─── Automation Engine (behavior learning, context profiles, proactive suggestions) ──
-const automation = new AutomationEngine(undefined, {
+const automationCallbacks: AutomationCallbacks = {
   onModeChange: (mode, profile) => {
     console.log(`[automation] Mode changed: ${mode}${profile ? ` (profile: ${profile.name})` : ""}`);
   },
   onSuggestion: (suggestion) => {
     console.log(`[automation] Suggestion: ${suggestion.title} (confidence: ${suggestion.confidence})`);
   },
-});
+};
+const automation = new AutomationEngine(undefined, automationCallbacks);
 
 process.on("unhandledRejection", (reason) => {
   console.error("[unhandledRejection]", reason);
 });
 process.on("uncaughtException", (err) => {
+  // Suppress EPIPE from piper TTS — the process died but it's not fatal
+  if ((err as NodeJS.ErrnoException).code === "EPIPE") return;
   console.error("[uncaughtException]", err);
 });
 process.on("exit", (code) => {
@@ -859,8 +862,10 @@ const server = createServer(async (req, res) => {
       } else {
         sendJson(res, 200, { temp: null, condition: "No data available", city: String(city) });
       }
-    } catch {
-      sendJson(res, 200, { temp: null, condition: "Weather service unavailable", city: "unknown" });
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : String(err);
+      console.error("[weather] fetch failed:", reason);
+      sendJson(res, 200, { temp: null, condition: "Weather service unavailable", city: "unknown", error: reason });
     }
     return;
   }

@@ -43,6 +43,7 @@
     { "path": "../../packages/env-timeline" },
     { "path": "../../packages/context-fusion" },
     { "path": "../../packages/prediction" },
-    { "path": "../../packages/ambient-core" }
+    { "path": "../../packages/ambient-core" },
+    { "path": "../../packages/flux-runtime" }
   ]
 }

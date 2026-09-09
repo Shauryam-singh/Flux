@@ -384,11 +384,24 @@ export class PiperEngine implements TTSEngine {
         this.piperStdoutBuffer = Buffer.concat([this.piperStdoutBuffer, chunk]);
       });
 
-      this.piperProcess.on("error", () => {
+      // Swallow EPIPE on stdin — the process died but close event hasn't fired yet
+      this.piperProcess.stdin?.on("error", (err: NodeJS.ErrnoException) => {
+        if (err.code === "EPIPE") {
+          // Silently handle — process is dead, close event will clean up
+          return;
+        }
+        console.error("[piper] stdin error:", err.message);
+      });
+
+      this.piperProcess.on("error", (err) => {
+        console.error("[piper] process error:", err.message);
         this.piperProcess = null;
       });
 
-      this.piperProcess.on("close", () => {
+      this.piperProcess.on("close", (code) => {
+        if (code && code !== 0) {
+          console.error(`[piper] process exited with code ${code}`);
+        }
         this.piperProcess = null;
       });
 
@@ -475,6 +488,13 @@ export class PiperEngine implements TTSEngine {
         proc.stdout.on("data", (chunk: Buffer) => chunks.push(chunk));
       }
 
+      // Swallow EPIPE on one-shot stdin
+      proc.stdin?.on("error", (err: NodeJS.ErrnoException) => {
+        if (err.code !== "EPIPE") {
+          console.error("[piper] one-shot stdin error:", err.message);
+        }
+      });
+
       if (proc.stdin) {
         proc.stdin.write(this.stripEmoji(text));
         proc.stdin.end();
@@ -513,7 +533,12 @@ export class PiperEngine implements TTSEngine {
    * Synthesize using the persistent piper process (faster - no model reload).
    */
   private async synthesizeWithPersistentProcess(text: string): Promise<Buffer> {
-    if (!this.piperProcess || !this.piperProcess.stdin) {
+    if (!this.piperProcess || this.piperProcess.killed) {
+      return Buffer.alloc(0);
+    }
+
+    const stdin = this.piperProcess.stdin;
+    if (!stdin || !stdin.writable) {
       return Buffer.alloc(0);
     }
 
@@ -521,9 +546,27 @@ export class PiperEngine implements TTSEngine {
     this.piperStdoutBuffer = Buffer.alloc(0);
 
     try {
-      // Write text to stdin
-      this.piperProcess.stdin.write(this.stripEmoji(text));
-      this.piperProcess.stdin.write("\n"); // newline signals end of input
+      // Write text + newline to stdin — wrap each write individually
+      // to catch EPIPE thrown synchronously when the pipe is broken
+      try {
+        stdin.write(this.stripEmoji(text));
+      } catch (err: any) {
+        if (err?.code === "EPIPE") {
+          this.piperBusy = false;
+          return Buffer.alloc(0);
+        }
+        throw err;
+      }
+
+      try {
+        stdin.write("\n");
+      } catch (err: any) {
+        if (err?.code === "EPIPE") {
+          this.piperBusy = false;
+          return Buffer.alloc(0);
+        }
+        throw err;
+      }
 
       // Wait for output — use inactivity timer (no new data for 500ms = done)
       const rawPcm = await new Promise<Buffer>((resolve) => {
@@ -536,22 +579,17 @@ export class PiperEngine implements TTSEngine {
           resolve(this.piperStdoutBuffer);
         };
 
-        // Hard timeout — 10s max regardless
         hardTimer = setTimeout(finish, 10000);
 
-        // Inactivity timer — if no new data for 500ms, piper is done
         const resetInactivity = () => {
           clearTimeout(inactivityTimer);
           inactivityTimer = setTimeout(finish, 500);
         };
 
-        // Start polling for first byte, then switch to inactivity-based detection
         const checkOutput = () => {
           if (this.piperStdoutBuffer.length > 0) {
-            // Data arrived — switch to inactivity-based detection
             resetInactivity();
           } else {
-            // Still waiting — check again in 10ms
             setTimeout(checkOutput, 10);
           }
         };
@@ -563,7 +601,10 @@ export class PiperEngine implements TTSEngine {
       if (rawPcm.length > 0) {
         return this.rawPcmToWav(rawPcm, 22050);
       }
-    } catch {
+    } catch (err: any) {
+      if (err?.code !== "EPIPE") {
+        console.error("[piper] synthesis error:", err.message);
+      }
       this.piperBusy = false;
     }
 

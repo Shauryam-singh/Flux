@@ -59,13 +59,22 @@ async function buildChatMessages(
   }));
 
   // For simple queries (greetings, yes/no), skip the full system context
-  // to reduce prompt size and latency. The personality alone is enough.
+  // to reduce prompt size and latency. But always include goals — they're
+  // small and critical for the LLM to know what the user is working on.
   const complexity = detectModelComplexity(input);
   let systemContextPrompt = "";
-  if (complexity !== "simple" && ctx.getSystemContext) {
+  if (ctx.getSystemContext) {
     try {
       const sysCtx = await ctx.getSystemContext();
-      systemContextPrompt = buildSystemContextPrompt(sysCtx, model);
+      if (complexity !== "simple") {
+        systemContextPrompt = buildSystemContextPrompt(sysCtx, model);
+      } else if (sysCtx.goals && sysCtx.goals.length > 0) {
+        // Simple query: include only goals for context awareness
+        const goalList = sysCtx.goals
+          .map((g) => `${g.name} (${g.progress}% ${g.status})`)
+          .join("; ");
+        systemContextPrompt = `\n\nCURRENT STATE:\n- Goals: ${goalList}`;
+      }
     } catch {
       // System context unavailable — continue without it
     }
@@ -160,6 +169,25 @@ function buildSystemContextPrompt(ctx?: SystemContext, model: string = "default"
         .map((g) => `${g.name} (${g.progress}% ${g.status})`)
         .join("; ");
       parts.push(`- Goals: ${goalList}`);
+    }
+
+    // Coding session — active project info (from sensors)
+    const coding = ctx.sensors?.codingSession as
+      | { durationMs?: number; filesChanged?: number; languages?: string[]; projects?: string[] }
+      | undefined;
+    if (coding?.projects && coding.projects.length > 0) {
+      parts.push(`- Active projects: ${coding.projects.join(", ")}`);
+    }
+    if (coding?.languages && coding.languages.length > 0) {
+      parts.push(`- Languages: ${coding.languages.join(", ")}`);
+    }
+
+    // Browser context — active website context (from sensors)
+    const browser = ctx.sensors?.browserContext as
+      | { site?: string; isGitHub?: boolean; isStackOverflow?: boolean; isDocs?: boolean }
+      | undefined;
+    if (browser?.site) {
+      parts.push(`- Browsing: ${browser.site}`);
     }
   } else {
     // Small model: only include essential info

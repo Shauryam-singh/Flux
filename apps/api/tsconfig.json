@@ -45,6 +45,8 @@
     { "path": "../../packages/context-fusion" },
     { "path": "../../packages/prediction" },
     { "path": "../../packages/ambient-core" },
+    { "path": "../../packages/automation" },
+    { "path": "../../packages/flux-runtime" },
     { "path": "../cli" }
   ]
 }

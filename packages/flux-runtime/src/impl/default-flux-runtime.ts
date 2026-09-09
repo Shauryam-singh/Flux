@@ -2066,6 +2066,120 @@ export class DefaultFluxRuntime implements FluxRuntime {
     return briefing;
   }
 
+  // ─── Goal/Project Intent Handling ────────────────────────────────
+
+  private handleGoalIntent(input: string): string | null {
+    const lower = input.toLowerCase().trim();
+    const stripped = lower.replace(/['']/g, "").replace(/\s+/g, " ");
+
+    // ── LIST goals ──
+    if (
+      /^(?:what(?:'s| is| are)?|show|list|tell me about|check|view|see|how(?:'s| is| are)?|got any|give me)\s+(?:my\s+|the\s+)?goals?\b/i.test(stripped)
+      || /^(?:my|the|all)\s+goals?\s*$/i.test(stripped)
+      || /^goals?\s*(?:list|please|\?)?\s*$/i.test(stripped)
+    ) {
+      const goals = this.goalManager.getAll();
+      if (goals.length === 0) return "You don't have any goals set yet. Want to create one?";
+      const lines = goals.map((g) => {
+        const status = g.status === "completed" ? "✓" : g.status === "active" ? "→" : g.status === "in_progress" ? "⟳" : g.status === "abandoned" ? "✗" : "○";
+        return `  ${status} ${g.title} (${g.progress}% — ${g.status})`;
+      });
+      return `Your goals:\n${lines.join("\n")}`;
+    }
+
+    // ── CREATE goal ──
+    const createMatch = input.match(/(?:add|create|set|new|make|start|begin|open)\s+(?:a\s+)?(?:new\s+)?goal\s+(?:to\s+|for\s+|:?\s*)(.+)/i)
+      ?? input.match(/(?:my\s+goal\s+is\s+(?:to\s+)?|i\s+(?:want|need|will|shall|plan)\s+to\s+|let(?:'| us)\s+|gonna\s+|going\s+to\s+)(.+)/i)
+      ?? input.match(/(?:goal)\s*:\s*(.+)/i)
+      ?? input.match(/(?:i(?:'| am)\s+(?:working|focused|trying)\s+on)\s+(.+)/i);
+    if (createMatch && createMatch[1]) {
+      const title = createMatch[1].replace(/[.!?]+$/, "").trim();
+      if (title.length < 2) return "Please provide a goal description.";
+      const goal = this.goalManager.create({
+        title,
+        description: title,
+        status: "active",
+        priority: 50,
+        progress: 0,
+        source: "user_request",
+        parentGoalId: null,
+        blockers: [],
+        dependencies: [],
+        estimatedCompletion: null,
+      });
+      return `Goal created: "${goal.title}" (id: ${goal.id})`;
+    }
+
+    // ── COMPLETE goal ──
+    const completeMatch = input.match(/(?:complete|finish|done|mark done|close|check off|cross off)\s+(?:the\s+)?(?:goal\s+)?(?:["']?(.+?)["']?\s*$)/i)
+      ?? input.match(/(?:i(?:'| have)\s+(?:finished|completed|done|achieved|accomplished))\s+(?:the\s+)?(.+)/i)
+      ?? input.match(/(?:done\s+with|finished\s+with|completed)\s+(?:the\s+)?(.+)/i);
+    if (completeMatch && completeMatch[1]) {
+      const query = completeMatch[1].trim().toLowerCase().replace(/^goal\s+/, "");
+      const goals = this.goalManager.getAll();
+      const match = goals.find((g) => g.title.toLowerCase().includes(query) && g.status !== "completed");
+      if (!match) return `No active goal matching "${completeMatch[1].trim()}" found.`;
+      this.goalManager.complete(match.id);
+      return `Goal completed: "${match.title}" ✓`;
+    }
+
+    // ── DELETE/ABANDON goal ──
+    const deleteMatch = input.match(/(?:delete|remove|abandon|drop|cancel|scrap|get rid of)\s+(?:the\s+)?(?:goal\s+)?(?:["']?(.+?)["']?\s*$)/i)
+      ?? input.match(/(?:never\s+mind|forget|nvm|scratch)\s+(?:the\s+)?(?:goal\s+)?(.+)/i);
+    if (deleteMatch && deleteMatch[1]) {
+      const query = deleteMatch[1].trim().toLowerCase().replace(/^goal\s+/, "");
+      const goals = this.goalManager.getAll();
+      const match = goals.find((g) => g.title.toLowerCase().includes(query) && g.status !== "completed");
+      if (!match) return `No active goal matching "${deleteMatch[1].trim()}" found.`;
+      this.goalManager.update({ goalId: match.id, changes: { status: "abandoned" } });
+      return `Goal abandoned: "${match.title}"`;
+    }
+
+    // ── UPDATE goal progress ──
+    const progressMatch = input.match(/(?:update|set|change)\s+(?:the\s+)?(?:goal\s+)?["']?(.+?)["']?\s+(?:to|progress|at)\s+(\d+)\s*%?/i)
+      ?? input.match(/["']?(.+?)["']?\s+(?:is\s+)?(?:now\s+)?(\d+)\s*%/i)
+      ?? input.match(/(?:progress|update)\s+(?:on\s+)?["']?(.+?)["']?\s+(?:to\s+)?(\d+)\s*%?/i);
+    if (progressMatch && progressMatch[1] && progressMatch[2]) {
+      const query = progressMatch[1].trim().toLowerCase();
+      const pct = Math.min(100, Math.max(0, parseInt(progressMatch[2], 10)));
+      const goals = this.goalManager.getAll();
+      const match = goals.find((g) => g.title.toLowerCase().includes(query) && g.status !== "completed");
+      if (!match) return `No active goal matching "${progressMatch[1].trim()}" found.`;
+      const changes: { progress: number; status?: "completed" } = { progress: pct };
+      if (pct >= 100) changes.status = "completed";
+      this.goalManager.update({ goalId: match.id, changes });
+      return pct >= 100
+        ? `Goal completed: "${match.title}" ✓`
+        : `Goal "${match.title}" updated to ${pct}%`;
+    }
+
+    // ── LIST projects (from memory) ──
+    if (
+      /^(?:what(?:'s| is| are)?|show|list|tell me about|check|view|see)\s+(?:my\s+|the\s+)?projects?\b/i.test(stripped)
+      || /^(?:my|the|all)\s+projects?\s*$/i.test(stripped)
+      || /^projects?\s*(?:list|please|\?)?\s*$/i.test(stripped)
+    ) {
+      try {
+        const projectMems = this.memory.getProject();
+        if (projectMems.length === 0) {
+          return "No projects stored yet. Tell me about a project and I'll remember it.";
+        }
+        const seen = new Set<string>();
+        const unique = projectMems.filter((m) => {
+          if (seen.has(m.projectName)) return false;
+          seen.add(m.projectName);
+          return true;
+        });
+        const lines = unique.map((m) => `  • ${m.projectName} — ${m.description.slice(0, 60)}`);
+        return `Your projects:\n${lines.join("\n")}`;
+      } catch {
+        return "No projects stored yet. Tell me about a project and I'll remember it.";
+      }
+    }
+
+    return null; // Not a goal/project intent — proceed to LLM
+  }
+
   // ─── Core Processing ─────────────────────────────────────────────
 
   async process(input: string): Promise<FluxRuntimeResult> {
@@ -2080,6 +2194,16 @@ export class DefaultFluxRuntime implements FluxRuntime {
 
       // Step 2: Record in history
       this.history.push({ role: "user", content: input, timestamp: Date.now() });
+
+      // Step 2b: Handle goal/project intents directly (no LLM needed)
+      const goalResponse = this.handleGoalIntent(input);
+      if (goalResponse !== null) {
+        this.history.push({ role: "assistant", content: goalResponse, timestamp: Date.now() });
+        this.workingMemory.add({ type: "observation", content: `User: ${input}`, weight: 0.7, source: "user" });
+        this.workingMemory.add({ type: "observation", content: `Assistant: ${goalResponse}`, weight: 0.6, source: "assistant" });
+        this.userRequestActive = false;
+        return { text: goalResponse, confidence: 1.0, toolsUsed: ["goal-manager"], duration: Date.now() - start, metadata: { totalInteractions: this.totalInteractions, goalHandled: true } };
+      }
 
     // Step 4: Process through service orchestrator (intent classification + routing)
     const getSystemContext = async () => {
@@ -2396,6 +2520,17 @@ export class DefaultFluxRuntime implements FluxRuntime {
     try {
       // Step 1: Record in history
       this.history.push({ role: "user", content: input, timestamp: Date.now() });
+
+      // Step 1b: Handle goal/project intents directly (no LLM needed)
+      const goalResponse = this.handleGoalIntent(input);
+      if (goalResponse !== null) {
+        this.history.push({ role: "assistant", content: goalResponse, timestamp: Date.now() });
+        this.workingMemory.add({ type: "observation", content: `User: ${input}`, weight: 0.7, source: "user" });
+        this.workingMemory.add({ type: "observation", content: `Assistant: ${goalResponse}`, weight: 0.6, source: "assistant" });
+        callbacks.onDone?.(goalResponse);
+        this.userRequestActive = false;
+        return;
+      }
 
       const getSystemContext = async () => {
         // Skip sensor collection during chat if cache is fresh to minimize delay

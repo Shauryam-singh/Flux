@@ -1,10 +1,12 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { existsSync, unlinkSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync, unlinkSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { afterAll, afterEach, beforeEach, describe, expect, it } from "vitest";
 import { AgentRegistry } from "../impl/agent-registry.js";
 import type { SubAgent } from "../interfaces/multi-agent.js";
 
-const TEST_AGENTS_FILE = join(process.env.HOME ?? "/tmp", ".flux", "agents.json");
+const TEST_DIR = mkdtempSync(join(tmpdir(), "flux-agents-"));
+const TEST_AGENTS_FILE = join(TEST_DIR, "agents.json");
 
 function makeAgent(overrides: Partial<SubAgent> = {}): SubAgent {
   return {
@@ -27,7 +29,8 @@ function makeAgent(overrides: Partial<SubAgent> = {}): SubAgent {
         lower.includes(c.toLowerCase()),
       );
     },
-    execute: async (intent: string) => `[${overrides.name ?? "Test Agent"}] ${intent}`,
+    execute: async (intent: string) =>
+      `[${overrides.name ?? "Test Agent"}] ${intent}`,
   };
 }
 
@@ -39,13 +42,19 @@ describe("AgentRegistry", () => {
     try {
       if (existsSync(TEST_AGENTS_FILE)) unlinkSync(TEST_AGENTS_FILE);
     } catch {}
-    registry = new AgentRegistry();
+    registry = new AgentRegistry(TEST_AGENTS_FILE);
   });
 
   afterEach(() => {
     registry.destroy();
     try {
       if (existsSync(TEST_AGENTS_FILE)) unlinkSync(TEST_AGENTS_FILE);
+    } catch {}
+  });
+
+  afterAll(() => {
+    try {
+      rmSync(TEST_DIR, { recursive: true, force: true });
     } catch {}
   });
 
@@ -185,7 +194,7 @@ describe("AgentRegistry", () => {
     registry.flush();
 
     // Create new registry that loads from disk
-    const registry2 = new AgentRegistry();
+    const registry2 = new AgentRegistry(TEST_AGENTS_FILE);
     const loaded = registry2.get("persist-1");
     expect(loaded).not.toBeNull();
     expect(loaded!.name).toBe("Persist Test");

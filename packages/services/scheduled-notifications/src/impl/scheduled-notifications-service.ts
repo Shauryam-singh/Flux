@@ -12,6 +12,7 @@ import { execSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
+import { getConfigPath } from "@ai-agent/shared";
 import type { Service, ServiceContext, ServiceResponse } from "@ai-agent/services-core";
 
 // ─── Types ──────────────────────────────────────────────────────
@@ -180,7 +181,7 @@ const CANCEL_MATCH = /\b(cancel|remove|delete|clear)\b.*\b(notification|alert|re
 const FIRE_MATCH = /\b(fire|trigger|test)\b.*\b(notification|alert|reminder)\b/i;
 
 export function createScheduledNotificationsService(): Service {
-  const filePath = `${process.env.HOME ?? "."}/.flux/scheduled-notifications.json`;
+  const filePath = getConfigPath("scheduled-notifications.json");
   return createScheduledNotificationsServiceAt(filePath);
 }
 

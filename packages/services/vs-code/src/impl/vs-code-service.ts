@@ -20,6 +20,7 @@
  */
 
 import { execSync } from "node:child_process";
+import { homedir } from "node:os";
 import type { Service, ServiceContext, ServiceResponse } from "@ai-agent/services-core";
 
 // ─── Helpers ────────────────────────────────────────────────────
@@ -142,8 +143,8 @@ function changeTheme(name: string): string {
     `);
   } else {
     const settingsPath = platform === "darwin"
-      ? `${process.env.HOME}/Library/Application Support/Code/User/settings.json`
-      : `${process.env.HOME}/.config/Code/User/settings.json`;
+      ? `${homedir()}/Library/Application Support/Code/User/settings.json`
+      : `${homedir()}/.config/Code/User/settings.json`;
     try {
       const settings = JSON.parse(run(`cat "${settingsPath}"`) || "{}");
       settings["workbench.colorTheme"] = name;

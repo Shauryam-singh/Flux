@@ -13,6 +13,7 @@
 
 import { readFileSync, statSync, readdirSync } from "node:fs";
 import { extname, basename, resolve, dirname, join, relative } from "node:path";
+import { expandHome } from "@ai-agent/shared";
 import type { Service, ServiceContext, ServiceResponse } from "@ai-agent/services-core";
 
 // ─── File reading helpers ───────────────────────────────────────
@@ -217,7 +218,7 @@ function cleanFilePath(raw: string): string {
   return raw
     .replace(/^["']|["']$/g, "")
     .replace(/^file:\/\//, "")
-    .replace(/^~/, process.env.HOME ?? ".")
+    .replace(/^~/, expandHome("~"))
     .trim();
 }
 

@@ -34,6 +34,29 @@ export interface LlmIntentOptions {
 const INTENT_MODEL = process.env.FLUX_INTENT_MODEL || "qwen2.5:3b";
 const INTENT_TIMEOUT_MS = Number(process.env.FLUX_INTENT_TIMEOUT_MS ?? 1300);
 const INTENT_MAX_TOKENS = Number(process.env.FLUX_INTENT_MAX_TOKENS ?? 96);
+// Intent results are cached briefly so repeated identical commands skip the
+// (~1s) model call entirely. Set FLUX_INTENT_CACHE_MS=0 to disable.
+const INTENT_CACHE_TTL_MS = Number(process.env.FLUX_INTENT_CACHE_MS ?? 2000);
+
+interface CacheEntry {
+  at: number;
+  actions: LlmIntentAction[];
+}
+
+// WeakMap keyed by provider instance: the production runtime shares one
+// provider (cache hits across turns), while tests with fresh providers are
+// always isolated from each other.
+const intentCache = new WeakMap<object, Map<string, CacheEntry>>();
+
+function cacheKey(model: string, services: readonly string[], input: string): string {
+  return `${model}|${services.join(",")}|${input.trim().toLowerCase()}`;
+}
+
+// Action-level injection guard: drop steps that try to override the system
+// ("ignore previous instructions and open chrome"). The orchestrator already
+// vetoes negations pre-call; this is a second net on the model's output.
+const INJECTION_MARKERS =
+  /\b(ignore|forget|disregard|skip)\b.*\b(previous\s+(instruction|prompt|command|rule|direction)s?|all\s+(previous|prior)\s+(instructions|prompts)|system\s+prompt)\b/i;
 
 // Hints only for names whose purpose isn't obvious from the name itself.
 const SERVICE_HINTS: Record<string, string> = {
@@ -181,6 +204,28 @@ function isGrounded(command: string, input: string): boolean {
 }
 
 /**
+ * Filter model output to known services, drop injection- and hallucination-
+ * style steps, dedupe consecutive identical steps.
+ */
+function sanitizeActions(
+  parsed: ReadonlyArray<{ service: string; command: string }>,
+  validServices: ReadonlySet<string>,
+  input: string,
+): LlmIntentAction[] {
+  const actions: LlmIntentAction[] = [];
+  for (const step of parsed) {
+    if (INJECTION_MARKERS.test(step.command)) continue;
+    if (!validServices.has(step.service)) continue;
+    if (step.service === "chat") continue; // model said chat|... → no action
+    if (!isGrounded(step.command, input)) continue;
+    const last = actions[actions.length - 1];
+    if (last && last.service === step.service && last.command === step.command) continue;
+    actions.push({ service: step.service, command: step.command });
+  }
+  return actions;
+}
+
+/**
  * Ask the model to classify input into one or more service actions.
  *
  * Resolves with:
@@ -193,11 +238,21 @@ export async function classifyIntentsWithLlm(
   options: LlmIntentOptions,
 ): Promise<LlmIntentAction[] | null> {
   const validServices = new Set(options.services.map((s) => s.toLowerCase()));
-  const messages = buildPrompt(input, options.services);
-
   const timeoutMs = options.timeoutMs ?? INTENT_TIMEOUT_MS;
   const model = options.model ?? INTENT_MODEL;
 
+  // Fast path: identical command seen recently → skip the model call.
+  if (INTENT_CACHE_TTL_MS > 0) {
+    const cache = intentCache.get(provider);
+    const key = cacheKey(model, options.services, input);
+    const hit = cache?.get(key);
+    if (hit && Date.now() - hit.at < INTENT_CACHE_TTL_MS) {
+      console.log(`[intent] cache hit actions=${hit.actions.length}`);
+      return hit.actions;
+    }
+  }
+
+  const messages = buildPrompt(input, options.services);
   let timer: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<null>((resolve) => {
     timer = setTimeout(() => resolve(null), timeoutMs);
@@ -230,19 +285,20 @@ export async function classifyIntentsWithLlm(
       return null;
     }
 
-    // Filter to known services, drop ungrounded steps, dedupe consecutive
-    const actions: LlmIntentAction[] = [];
-    for (const step of parsed) {
-      if (!validServices.has(step.service)) continue;
-      if (step.service === "chat") continue; // model said chat|... → no action
-      if (!isGrounded(step.command, input)) continue;
-      const last = actions[actions.length - 1];
-      if (last && last.service === step.service && last.command === step.command) continue;
-      actions.push({ service: step.service, command: step.command });
-    }
+    const actions = sanitizeActions(parsed, validServices, input);
     console.log(
-      `[intent] llm ok=${elapsed}ms actions=${actions.length} raw=${parsed.length} model=${model}`,
+      `[intent] llm ok=${elapsed}ms actions=${actions.length} raw=${parsed.length} model=${model}${actions.length > 0 ? ` route=${actions.map((a) => a.service).join("+")}` : ""}`,
     );
+
+    if (INTENT_CACHE_TTL_MS > 0) {
+      let cache = intentCache.get(provider);
+      if (!cache) {
+        cache = new Map();
+        intentCache.set(provider, cache);
+      }
+      if (cache.size > 256) cache.delete(cache.keys().next().value!);
+      cache.set(cacheKey(model, options.services, input), { at: Date.now(), actions });
+    }
     return actions;
   } catch (err) {
     console.log(

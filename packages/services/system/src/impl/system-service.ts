@@ -1,4 +1,5 @@
 import { exec, execSync } from "node:child_process";
+import { tmpFilePath } from "@ai-agent/shared";
 import type { Service } from "@ai-agent/services-core";
 import type { ServiceContext } from "@ai-agent/services-core";
 import type { ServiceResponse } from "@ai-agent/services-core";
@@ -1379,7 +1380,7 @@ async function closeApplication(appName: string): Promise<string> {
 
 async function takeScreenshot(): Promise<string> {
   const platform = getPlatform();
-  const path = `/tmp/flux_screenshot_${Date.now()}.png`;
+  const path = tmpFilePath(`flux_screenshot_${Date.now()}.png`);
 
   if (platform === "linux") {
     const hyprland = runSync("echo $HYPRLAND_INSTANCE_SIGNATURE 2>/dev/null");

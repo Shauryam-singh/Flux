@@ -9,6 +9,7 @@
 import { randomUUID } from "node:crypto";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
+import { getConfigPath } from "@ai-agent/shared";
 
 export interface SessionSummary {
   readonly id: string;
@@ -28,7 +29,7 @@ export class SessionSummaryStore {
   private summaries: SessionSummary[] = [];
   private filePath: string;
 
-  constructor(filePath = `${process.env.HOME ?? "."}/.flux/session-summaries.json`) {
+  constructor(filePath = getConfigPath("session-summaries.json")) {
     this.filePath = filePath;
     this.load();
   }

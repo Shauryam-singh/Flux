@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
+import { fluxHomeDir } from "@ai-agent/shared";
 import type { Memory } from "./memory.js";
 
 type Message = {
@@ -8,7 +9,7 @@ type Message = {
   content: string;
 };
 
-const MEMORY_DIR = join(process.env.HOME ?? process.env.USERPROFILE ?? "/tmp", ".flux");
+const MEMORY_DIR = fluxHomeDir();
 const MEMORY_FILE = join(MEMORY_DIR, "session-memory.json");
 const MAX_MESSAGES = 200;
 
@@ -79,7 +80,7 @@ export class DefaultMemory implements Memory {
    */
   private async flushAsync(): Promise<void> {
     if (!this.dirty || this.flushing) return;
-    
+
     this.flushing = true;
     try {
       if (!existsSync(MEMORY_DIR)) {

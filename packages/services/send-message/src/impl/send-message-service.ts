@@ -23,6 +23,7 @@
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { execSync } from "node:child_process";
+import { getConfigPath } from "@ai-agent/shared";
 import type { Service, ServiceContext, ServiceResponse } from "@ai-agent/services-core";
 
 // ─── Config ─────────────────────────────────────────────────────
@@ -61,7 +62,7 @@ export interface MessagingConfig {
   };
 }
 
-const CONFIG_PATH = `${process.env.HOME ?? "."}/.flux/messaging.json`;
+const CONFIG_PATH = getConfigPath("messaging.json");
 
 function loadConfig(): MessagingConfig {
   try {

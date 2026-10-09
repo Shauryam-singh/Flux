@@ -1,5 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
+import { fluxHomeDir } from "@ai-agent/shared";
 import type {
   SubAgent,
   AgentRole,
@@ -7,7 +8,7 @@ import type {
   AgentMemory,
 } from "../interfaces/multi-agent.js";
 
-const AGENTS_DIR = join(process.env.HOME ?? "/tmp", ".flux");
+const AGENTS_DIR = fluxHomeDir();
 const AGENTS_FILE = join(AGENTS_DIR, "agents.json");
 
 interface PersistedAgent {
@@ -30,8 +31,10 @@ export class AgentRegistry {
   private agents: Map<string, SubAgent> = new Map();
   private dirty = false;
   private flushTimer: ReturnType<typeof setInterval> | null = null;
+  private readonly filePath: string;
 
-  constructor() {
+  constructor(filePath = AGENTS_FILE) {
+    this.filePath = filePath;
     this.load();
     this.flushTimer = setInterval(() => {
       if (this.dirty) this.flush();
@@ -172,8 +175,8 @@ export class AgentRegistry {
 
   private load(): void {
     try {
-      if (!existsSync(AGENTS_FILE)) return;
-      const raw = readFileSync(AGENTS_FILE, "utf-8");
+      if (!existsSync(this.filePath)) return;
+      const raw = readFileSync(this.filePath, "utf-8");
       const data = JSON.parse(raw) as PersistedAgent[];
       for (const p of data) {
         // We store the persisted data but can't reconstruct functions.
@@ -206,7 +209,7 @@ export class AgentRegistry {
         successRate: a.successRate,
         memory: a.memory,
       }));
-      writeFileSync(AGENTS_FILE, JSON.stringify(data, null, 2), "utf-8");
+      writeFileSync(this.filePath, JSON.stringify(data, null, 2), "utf-8");
       this.dirty = false;
     } catch {
       // Disk error — non-fatal

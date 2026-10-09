@@ -5,6 +5,8 @@ export * from "./common/result.js";
 
 export * from "./events/event-bus.js";
 
+export * from "./fs/paths.js";
+
 export * from "./memory/memory-store.js";
 
 export * from "./model/language-model.js";

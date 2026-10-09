@@ -54,6 +54,7 @@
  */
 
 import { execSync, spawn } from "node:child_process";
+import { getPicturesDir, getVideosDir } from "@ai-agent/shared";
 import type { Service, ServiceContext, ServiceResponse } from "@ai-agent/services-core";
 
 // ─── Platform detection & execution ─────────────────────────────
@@ -290,7 +291,7 @@ function adjustBrightness(delta: number): string {
 
 function takeScreenshot(area?: "selection" | "window"): Promise<string> {
   const ts = Date.now();
-  const path = `${process.env.HOME}/Pictures/screenshot_${ts}.png`;
+  const path = `${getPicturesDir()}/screenshot_${ts}.png`;
   if (area === "selection") {
     return new Promise((resolve) => {
       // grim + slurp for region selection
@@ -307,7 +308,7 @@ let recordingPath = "";
 
 function startRecording(): string {
   if (recordingProcess) return "Already recording.";
-  recordingPath = `${process.env.HOME}/Videos/recording_${Date.now()}.mp4`;
+  recordingPath = `${getVideosDir()}/recording_${Date.now()}.mp4`;
   try {
     execSync(`ffmpeg -f x11grab -framerate 30 -i :0 -c:v libx264 -preset ultrafast "${recordingPath}" &`, {
       timeout: 5000,
@@ -904,7 +905,7 @@ function handleSystem(intent: DesktopIntent): ServiceResponse {
       return { text: setBrightness(intent.value ?? 50) };
     }
     case "screenshot": {
-      const path = `${process.env.HOME}/Pictures/screenshot_${Date.now()}.png`;
+      const path = `${getPicturesDir()}/screenshot_${Date.now()}.png`;
       if (intent.target === "selection") {
         run(`grim -g "$(slurp)" ${path}`);
       } else {

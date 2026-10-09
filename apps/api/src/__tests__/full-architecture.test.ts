@@ -97,10 +97,12 @@ describe('Full Architecture Feature Test', () => {
     expect(results.at(-1)!.ms).toBeGreaterThan(0);
   }, 30000);
 
-  it('reminders: check goals', async () => {
-    await timedAsync('Reminders: check', () => flux.process('what are my goals'));
-    expect(results.at(-1)!.ms).toBeGreaterThan(0);
-  }, 30000);
+it('reminders: check goals', async () => {
+  const response = await timedAsync('Reminders: check', () => flux.process('what are my goals'));
+  // Goal listing is handled in-memory (no LLM), so timing can round to 0ms —
+  // assert on the actual answer instead.
+  expect(String(response)).toMatch(/goal/i);
+}, 30000);
 
   // ─── 6. SCREEN CONTEXT ────────────────────────────────────
   it('screen: VS Code context', () => {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { classifyIntent, detectModelComplexity, classifyResponseType, getMaxTokensForResponseType } from "../impl/intent-classifier.js";
+import { classifyIntent, detectModelComplexity, classifyResponseType, getMaxTokensForResponseType, suppressUnsafeIntent } from "../impl/intent-classifier.js";
 
 describe("classifyIntent", () => {
   // ──────────────────────────────────────────────────────
@@ -317,7 +317,8 @@ describe("classifyIntent", () => {
     });
 
     it("latest/current", () => {
-      expect(classifyIntent("latest news")).toBeNull();
+      // news keywords are now active — "latest news" routes to the news service
+      expect(classifyIntent("latest news")).toBe("news");
       expect(classifyIntent("current weather")).toBeNull();
       expect(classifyIntent("recent updates")).toBeNull();
     });
@@ -613,5 +614,26 @@ describe("getMaxTokensForResponseType", () => {
     expect(getMaxTokensForResponseType("explanation")).toBe(192);
     expect(getMaxTokensForResponseType("coding")).toBe(512);
     expect(getMaxTokensForResponseType("implementation")).toBe(1024);
+  });
+});
+
+describe("suppressUnsafeIntent", () => {
+  it("suppresses negation, hypotheticals and safe questions", () => {
+    expect(suppressUnsafeIntent("don't open youtube")).toBe(true);
+    expect(suppressUnsafeIntent("DO NOT open terminal")).toBe(true);
+    expect(suppressUnsafeIntent("should I open notepad?")).toBe(true);
+    expect(suppressUnsafeIntent("could you not play music")).toBe(true);
+    expect(suppressUnsafeIntent("I wish Spotify would play music")).toBe(true);
+    expect(suppressUnsafeIntent("how do I open a file?")).toBe(true);
+    expect(suppressUnsafeIntent("what would happen if I delete node_modules?")).toBe(true);
+  });
+
+  it("lets genuine commands through", () => {
+    expect(suppressUnsafeIntent("open notepad")).toBe(false);
+    expect(suppressUnsafeIntent("open notepad, terminal then vs code")).toBe(false);
+    expect(suppressUnsafeIntent("play some music")).toBe(false);
+    expect(suppressUnsafeIntent("search javascript one shot video on youtube")).toBe(false);
+    expect(suppressUnsafeIntent("what is my battery level")).toBe(false);
+    expect(suppressUnsafeIntent("who is the president of france")).toBe(false);
   });
 });

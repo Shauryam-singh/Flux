@@ -1,6 +1,22 @@
 export { DefaultServiceRegistry } from "./impl/default-service-registry.js";
-export { classifyIntent, detectModelComplexity, classifyResponseType, getMaxTokensForResponseType, detectContextDependency } from "./impl/intent-classifier.js";
-export type { ModelComplexity, ResponseType, ContextDependencyScore } from "./impl/intent-classifier.js";
+export type {
+  ContextDependencyScore,
+  ModelComplexity,
+  ResponseType,
+} from "./impl/intent-classifier.js";
+export {
+  classifyIntent,
+  classifyResponseType,
+  detectContextDependency,
+  detectModelComplexity,
+  getMaxTokensForResponseType,
+  suppressUnsafeIntent,
+} from "./impl/intent-classifier.js";
+export type { LlmIntentAction } from "./impl/llm-intent-classifier.js";
+export {
+  classifyIntentsWithLlm,
+  parseIntentOutput,
+} from "./impl/llm-intent-classifier.js";
 export { Orchestrator } from "./impl/orchestrator.js";
 export type { Service } from "./interfaces/service.js";
 export type {

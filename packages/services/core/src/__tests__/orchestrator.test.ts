@@ -90,7 +90,9 @@ describe("Orchestrator", () => {
   });
 
   it("should use multi-agent orchestration for complex tasks", async () => {
-    const mockOrchestrate = vi.fn().mockResolvedValue("Orchestrated result: API built with auth and docs");
+    const mockOrchestrate = vi
+      .fn()
+      .mockResolvedValue("Orchestrated result: API built with auth and docs");
     const ctxWithMultiAgent = {
       ...ctx,
       multiAgent: {
@@ -142,5 +144,128 @@ describe("Orchestrator", () => {
 
     await orchestrator.process("hello", ctxWithMultiAgent);
     expect(mockOrchestrate).not.toHaveBeenCalled();
+  });
+
+  // ── LLM-based intent routing (model decides, no regex) ──
+
+  function mockLlmReply(json: string) {
+    return { complete: vi.fn().mockResolvedValue({ text: json }) };
+  }
+
+  it("routes via model intent for a single action command", async () => {
+    const llmCtx = {
+      ...ctx,
+      provider: mockLlmReply('[{"service":"system","command":"open notepad"}]'),
+    };
+    const systemService = createMockService("system");
+    registry = createMockRegistry([
+      searchService,
+      codingService,
+      chatService,
+      systemService,
+    ]);
+    orchestrator = new Orchestrator(registry);
+
+    await orchestrator.process("open notepad for me", llmCtx);
+
+    expect(systemService.execute).toHaveBeenCalledWith(
+      "open notepad",
+      expect.anything(),
+    );
+  });
+
+  it("executes every step of a multi-command input in order", async () => {
+    const llmCtx = {
+      ...ctx,
+      provider: mockLlmReply(
+        '[{"service":"system","command":"open notepad"},{"service":"vs-code","command":"open vs code"},{"service":"browser-control","command":"search javascript one shot video on yt"}]',
+      ),
+    };
+    const systemService = createMockService("system");
+    const vsCodeService = createMockService("vs-code");
+    const browserService = createMockService("browser-control");
+    registry = createMockRegistry([
+      searchService,
+      codingService,
+      chatService,
+      systemService,
+      vsCodeService,
+      browserService,
+    ]);
+    orchestrator = new Orchestrator(registry);
+
+    const result = await orchestrator.process(
+      "open notepad, vs code then search javascript one shot video on yt",
+      llmCtx,
+    );
+
+    expect(systemService.execute).toHaveBeenCalled();
+    expect(vsCodeService.execute).toHaveBeenCalled();
+    expect(browserService.execute).toHaveBeenCalled();
+    expect(chatService.execute).not.toHaveBeenCalled();
+    // Each service gets only its own slice of the input
+    expect(vsCodeService.execute).toHaveBeenCalledWith(
+      "open vs code",
+      expect.anything(),
+    );
+    expect(browserService.execute).toHaveBeenCalledWith(
+      "search javascript one shot video on yt",
+      expect.anything(),
+    );
+    // Combined responses
+    expect(result.text).toContain("system response");
+    expect(result.text).toContain("vs-code response");
+    expect(result.text).toContain("browser-control response");
+  });
+
+  it("routes empty model intent ([] = just chatting) to the chat fallback", async () => {
+    const llmCtx = { ...ctx, provider: mockLlmReply("[]") };
+
+    await orchestrator.process("who is the president", llmCtx);
+
+    expect(chatService.execute).toHaveBeenCalled();
+  });
+
+  it("falls back to regex classification when the model output is garbage", async () => {
+    const llmCtx = { ...ctx, provider: mockLlmReply("I cannot do that") };
+
+    await orchestrator.process("search for cats", llmCtx);
+
+    expect(searchService.execute).toHaveBeenCalled();
+  });
+
+  it("streams multi-command results progressively", async () => {
+    const llmCtx = {
+      ...ctx,
+      provider: mockLlmReply(
+        '[{"service":"system","command":"open notepad"},{"service":"coding","command":"write a function to sort an array"}]',
+      ),
+    };
+    const systemService = createMockService("system");
+    registry = createMockRegistry([
+      chatService,
+      codingService,
+      searchService,
+      systemService,
+    ]);
+    orchestrator = new Orchestrator(registry);
+
+    const tokens: string[] = [];
+    let doneText = "";
+    await orchestrator.processStream(
+      "open notepad then write a function to sort an array",
+      llmCtx,
+      {
+        onToken: (t) => tokens.push(t),
+        onDone: (t) => {
+          doneText = t;
+        },
+      },
+    );
+
+    expect(systemService.execute).toHaveBeenCalled();
+    expect(codingService.execute).toHaveBeenCalled();
+    expect(tokens).toHaveLength(2); // progressive — one per completed action
+    expect(doneText).toBe("system response\n\ncoding response");
   });
 });

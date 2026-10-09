@@ -1,10 +1,11 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { homedir } from "node:os";
 import { join } from "node:path";
 import type { GoalManager } from "../interfaces/goal-manager.js";
 import type { Goal, GoalUpdate, Blocker } from "../types/goal.js";
 import type { WorldState } from "@ai-agent/world-model";
 
-const GOALS_DIR = join(process.env.HOME ?? "/tmp", ".flux");
+const GOALS_DIR = join(homedir(), ".flux");
 const GOALS_FILE = join(GOALS_DIR, "goals.json");
 
 export class DefaultGoalManager implements GoalManager {

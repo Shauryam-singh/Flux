@@ -60,6 +60,8 @@ function isNegatedCommand(input: string): boolean {
   const lower = input.toLowerCase();
   // Direct negation: "don't X", "do not X", "never X"
   if (/\b(don'?t|do\s+not)\s+(open|close|play|pause|stop|restart|shutdown|kill|delete|remove|send|create|run|execute|launch|start|mute|unmute|search|google|navigate|buy|install|uninstall|write|set|change|adjust)\b/i.test(lower)) return true;
+  // Polite negation: "could you not play music" → don't play
+  if (/^(could|would|can|will)\s+you\s+not\s+(open|close|play|pause|stop|restart|shutdown|kill|delete|remove|send|create|run|execute|launch|start|mute|unmute|search|google|navigate|buy|install|uninstall|write|set|change|adjust)\b/i.test(lower)) return true;
   // "Never" + action verb
   if (/\bnever\s+(open|close|play|pause|stop|restart|shutdown|kill|delete|remove|send|create|run|execute|launch|start|mute|unmute|search|google|navigate|buy|install|uninstall|write|set|change|adjust)\b/i.test(lower)) return true;
   // "Under no circumstances" + any action
@@ -310,7 +312,7 @@ const RULES: RuleEntry[] = [
   [/\b(search|look\s*up|find|google|research)\s+(?!this\b|that\b|it\b|the\s+(web|internet|online)\s+(for|about|on))\S+/i, "search"],
   [/\b(who|what|where|when|why|how)\s+(is|are|was|were)\s+(the\s+)?(current|latest|newest|biggest|smallest|fastest|most|least)\s+/i, "search"],
 
-  // ── Reminders (task/note commands — after search so "fix bug" → coding, not reminders) ──
+  // ── Reminders: task/note commands — after search so "fix bug" → coding, not reminders ──
   [/\b(add|create|new|save|set)\s+(a\s+)?(reminder|note|task|todo)\b/i, "reminders"],
   [
     /\b(list|show)\s+(my\s+)?(open\s+)?(reminders?|notes?|tasks?|todos?)\b/i,
@@ -320,6 +322,35 @@ const RULES: RuleEntry[] = [
   [/\b(complete|done|finish|mark)\s+(a\s+)?(task|reminder|todo)\b/i, "reminders"],
   [/\b(delete|remove|clear)\s+(a\s+)?(task|reminder|note|todo)\b/i, "reminders"],
   [/^(my\s+)?(open\s+)?(reminders?|notes?|tasks?|todos?)\s*$/i, "reminders"],
+
+  // ── Finance (crypto, stocks, market — BEFORE search) ──
+  [/\b(price|worth|value|cost)\s+(of\s+)?(bitcoin|btc|ethereum|eth|solana|sol|dogecoin|doge|ripple|xrp|cardano|ada|polkadot|dot|litecoin|ltc|chainlink|link|uniswap|uni)\b/i, "finance"],
+  [/\b(bitcoin|btc|ethereum|eth|solana|sol|dogecoin|doge|ripple|xrp|cardano|ada)\s+(price|worth|value|cost|rate)\b/i, "finance"],
+  [/\b(crypto|cryptocurrency)\s+(price|prices|rate|rates|market|overview)\b/i, "finance"],
+  [/\b(stock|share|equity)\s+(price|quote|market|of)\b/i, "finance"],
+  [/\b(aapl|msft|googl|goog|amzn|tsla|nvda|meta|nflx|amd|intc|crm|pypl)\b/i, "finance"],
+  [/\b(apple|microsoft|google|amazon|tesla|nvidia|meta|netflix|amd|intel|salesforce|paypal)\s+(stock|share|price|market)\b/i, "finance"],
+  [/\b(how('?s|\s+is)\s+the\s+market|market\s+(overview|summary|status|today)|stock\s+market)\b/i, "finance"],
+  [/\b(dollar|usd|inr|eur|gbp|jpy)\s+(to|in|into)\s+(dollar|usd|inr|eur|gbp|jpy)\b/i, "finance"],
+  [/\b(exchange\s+rate|currency\s+conversion|forex)\b/i, "finance"],
+
+  // ── News (headlines, indian news, tech news — BEFORE search) ──
+  [/\b(indian\s+news|news\s+from\s+india|ndtv|times\s+of\s+india|toi)\b/i, "news"],
+  [/\b(tech\s+news|dev\s+news|programming\s+news|hacker\s*news)\b/i, "news"],
+  [/\b(reddit\s+news|programming\s+news)\b/i, "news"],
+  [/\b(headlines?|breaking\s+news|top\s+stories|latest\s+news)\b/i, "news"],
+  [/\b(what('s|s|\s+is)\s+(happening|going\s+on)\s+(in|around)|any\s+news|got\s+news)\b/i, "news"],
+
+  // ── Entertainment (movies, anime, games, trivia — BEFORE search) ──
+  [/\b(trending|popular|top|best|latest)\s+(movies?|films?|shows?|tv)\b/i, "entertainment"],
+  [/\b(what('s|s|\s+is)\s+(trending|popular|new|out)\s+(in|on|for)?\s*(movies?|tv|anime|games?))\b/i, "entertainment"],
+  [/\b(what\s+should\s+i\s+(watch|play|read|listen))\b/i, "entertainment"],
+  [/\b(search|find|look\s+up|show)\s+(a\s+)?(movie|film|anime|manga|game|book)\b/i, "entertainment"],
+  [/\b(trending|popular|top|best)\s+anime\b/i, "entertainment"],
+  [/\b(trending|popular|top|best)\s+games?\b/i, "entertainment"],
+  [/\b(trivia|quiz|question)\b/i, "entertainment"],
+  [/\b(give\s+me|ask\s+me|start)\s+(a\s+)?(trivia|quiz|question)\b/i, "entertainment"],
+  [/\b(recommend|suggestion)\s+(a\s+)?(movie|film|anime|game|book|show)\b/i, "entertainment"],
 ];
 
 // ─── Keyword scoring dictionary (~100 entries) ────────────────────────────────
@@ -425,8 +456,8 @@ const KEYWORDS: Record<string, [string, number][]> = {
   "weather":    [],
   "temperature":[["search", 7]],
   "forecast":   [["search", 8]],
-  "latest":     [],
-  "news":       [],
+  "latest":     [["search", 4], ["news", 4]],
+  "news":       [["news", 10]],
   "recent":     [["search", 6]],
   "current":    [["search", 5]],
   "evaluate":   [["search", 8]],
@@ -468,7 +499,7 @@ const KEYWORDS: Record<string, [string, number][]> = {
   "health":     [["monitor", 8]],
   "monitor":    [["monitor", 9]],
   "threshold":  [["monitor", 9]],
-  "watch":      [["monitor", 7]],
+  "watch":      [["monitor", 7], ["entertainment", 5]],
   "watches":    [["monitor", 7]],
   "network":    [["monitor", 7]],
   "server":     [["monitor", 7]],
@@ -536,6 +567,52 @@ const KEYWORDS: Record<string, [string, number][]> = {
   "louder":         [["desktop-control", 8], ["system", 3]],
   "quieter":        [["desktop-control", 8], ["system", 3]],
   "dimmer":         [["desktop-control", 8]],
+  // ── Finance ──
+  "bitcoin":        [["finance", 10]],
+  "btc":            [["finance", 10]],
+  "ethereum":       [["finance", 10]],
+  "eth":            [["finance", 9]],
+  "solana":         [["finance", 9]],
+  "sol":            [["finance", 8]],
+  "dogecoin":       [["finance", 9]],
+  "doge":           [["finance", 8]],
+  "crypto":         [["finance", 8]],
+  "stock":          [["finance", 9]],
+  "stocks":         [["finance", 9]],
+  "market":         [["finance", 7], ["monitor", 3]],
+  "forex":          [["finance", 9]],
+  "dollar":         [["finance", 7]],
+  "rupee":          [["finance", 8]],
+  "inr":            [["finance", 8]],
+  "usd":            [["finance", 7]],
+  "eur":            [["finance", 7]],
+  "gbp":            [["finance", 7]],
+  "price":          [["finance", 6], ["search", 3]],
+  "trading":        [["finance", 8]],
+  "portfolio":      [["finance", 8]],
+  "investment":     [["finance", 7]],
+  // ── News ──
+  "headline":       [["news", 10]],
+  "headlines":      [["news", 10]],
+  "ndtv":           [["news", 10]],
+  "india":          [["news", 6], ["search", 3]],
+  "dev":            [["news", 5], ["coding", 4]],
+  "hacker":         [["news", 8], ["coding", 3]],
+  // ── Entertainment ──
+  "movie":          [["entertainment", 10]],
+  "movies":         [["entertainment", 10]],
+  "film":           [["entertainment", 9]],
+  "films":          [["entertainment", 9]],
+  "anime":          [["entertainment", 10]],
+  "manga":          [["entertainment", 10]],
+  "game":           [["entertainment", 9], ["system", 2]],
+  "games":          [["entertainment", 9], ["system", 2]],
+  "trivia":         [["entertainment", 10]],
+  "quiz":           [["entertainment", 10]],
+  "book":           [["entertainment", 8]],
+  "books":          [["entertainment", 8]],
+  "trending":       [["entertainment", 6], ["search", 3]],
+  "recommend":      [["entertainment", 8], ["search", 4]],
   "hello":          [["chat", 10]],
   "hey":            [["chat", 10]],
   "hi":             [["chat", 10]],
@@ -610,6 +687,23 @@ const META_REFERENCE = /\b(what\s+(did|i\s+)?(did\s+)?(i|we)\s+(say|tell|mention
 const POSSESSIVE_CONTEXT = /\b(my|your|our)\s+(project|file|code|app|server|database|config|setup|stack|plan|idea|note|list|task|todo|bug|issue|error|message|email|chat|conversation|previous)\b/i;
 
 export type ContextDependencyScore = "none" | "weak" | "strong";
+
+/**
+ * Safety veto: deterministic suppression of requests that LOOK like commands
+ * but must not be executed ("don't open youtube", "should I open notepad?",
+ * "I wish Spotify was playing", quoted mentions of commands, code
+ * explanations). Not intent routing — the LLM decides intent; this only
+ * prevents known-unsafe misclassifications. Cheap and deterministic.
+ */
+export function suppressUnsafeIntent(input: string): boolean {
+  const trimmed = input.trim();
+  if (isOnlyQuotedCommand(trimmed)) return true;
+  if (isNegatedCommand(trimmed)) return true;
+  if (isHypotheticalRequest(trimmed)) return true;
+  if (isCodeExplanation(trimmed)) return true;
+  if (isQuestionSuffix(trimmed)) return true;
+  return isSafeQuestion(trimmed);
+}
 
 /**
  * Detect whether a query depends on conversation history to be answered correctly.

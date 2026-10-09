@@ -62,6 +62,9 @@
     { "path": "../../packages/services/web-automation-chains" },
     { "path": "../../packages/services/context-suggestions" },
     { "path": "../../packages/services/accessibility-voice" },
-    { "path": "../../packages/services/wake-word" }
+    { "path": "../../packages/services/wake-word" },
+    { "path": "../../packages/services/finance" },
+    { "path": "../../packages/services/news" },
+    { "path": "../../packages/services/entertainment" }
   ]
 }

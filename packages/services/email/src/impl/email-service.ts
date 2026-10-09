@@ -35,6 +35,9 @@ interface EmailConfig {
   smtpUser?: string;
   smtpPass?: string;
   signature?: string;
+  resendApiKey?: string;
+  resendFromEmail?: string;
+  resendFromName?: string;
 }
 
 const CONFIG_PATH = join(homedir(), ".flux", "email.json");
@@ -264,17 +267,47 @@ Write a clear, professional email with subject line.`,
   return `Draft for ${to}:\n\n${result.text.trim()}`;
 }
 
-function sendEmail(to: string, subject: string, body: string): string {
-  const platform = process.platform;
+async function sendViaResend(to: string, subject: string, body: string): Promise<string> {
   const config = loadConfig();
+  if (!config.resendApiKey) return "";
+
+  const fromEmail = config.resendFromEmail || "onboarding@resend.dev";
+  const fromName = config.resendFromName || "Flux Assistant";
+  const from = `${fromName} <${fromEmail}>`;
+
+  try {
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${config.resendApiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ from, to, subject, text: body }),
+      signal: AbortSignal.timeout(15000),
+    });
+
+    if (!res.ok) {
+      const err = await res.text();
+      return `Resend API error (${res.status}): ${err}`;
+    }
+
+    const data = await res.json() as { id?: string };
+    return `Email sent to ${to} via Resend (id: ${data.id ?? "unknown"})`;
+  } catch (e) {
+    return `Resend error: ${e instanceof Error ? e.message : String(e)}`;
+  }
+}
+
+function sendEmailLocal(to: string, subject: string, body: string): string {
+  const platform = process.platform;
 
   if (platform === "linux") {
     try {
       const cmd = `echo '${body.replace(/'/g, "'\\''")}' | mail -s '${subject.replace(/'/g, "'\\''")}' '${to.replace(/'/g, "'\\''")}'`;
       execSync(cmd, { timeout: 10000, stdio: "pipe" });
-      return `Email sent to ${to}`;
+      return `Email sent to ${to} via mail`;
     } catch {
-      return "Failed to send email via mail command.";
+      return "";
     }
   }
 
@@ -293,11 +326,27 @@ function sendEmail(to: string, subject: string, body: string): string {
       });
       return `Email sent to ${to} via Outlook`;
     } catch {
-      return "Failed to send via Outlook.";
+      return "";
     }
   }
 
-  return "Email sending not supported on this platform.";
+  return "";
+}
+
+async function sendEmail(to: string, subject: string, body: string): Promise<string> {
+  const config = loadConfig();
+
+  // Resend API is preferred (cross-platform, reliable)
+  if (config.resendApiKey) {
+    const result = await sendViaResend(to, subject, body);
+    if (result.startsWith("Email sent")) return result;
+  }
+
+  // Fallback to local mail clients
+  const localResult = sendEmailLocal(to, subject, body);
+  if (localResult) return localResult;
+
+  return "Email sending failed. Configure Resend API key in ~/.flux/email.json for reliable sending:\n{ \"resendApiKey\": \"re_xxx\", \"resendFromEmail\": \"you@yourdomain.com\" }";
 }
 
 // ─── Service ────────────────────────────────────────────────────
@@ -367,7 +416,7 @@ export function createEmailService(): Service {
         // Send email
         const sendMatch = input.match(/\bsend\s+email\s+to\s+(.+?)\s+subject\s+(.+?)\s+body\s+(.+)/i);
         if (sendMatch) {
-          const text = sendEmail(sendMatch[1]!.trim(), sendMatch[2]!.trim(), sendMatch[3]!.trim());
+          const text = await sendEmail(sendMatch[1]!.trim(), sendMatch[2]!.trim(), sendMatch[3]!.trim());
           return { text };
         }
 

@@ -1089,6 +1089,9 @@ importers:
       '@ai-agent/services-email':
         specifier: workspace:*
         version: link:../services/email
+      '@ai-agent/services-entertainment':
+        specifier: workspace:*
+        version: link:../services/entertainment
       '@ai-agent/services-file-creator':
         specifier: workspace:*
         version: link:../services/file-creator
@@ -1101,12 +1104,18 @@ importers:
       '@ai-agent/services-files':
         specifier: workspace:*
         version: link:../services/files
+      '@ai-agent/services-finance':
+        specifier: workspace:*
+        version: link:../services/finance
       '@ai-agent/services-game-updater':
         specifier: workspace:*
         version: link:../services/game-updater
       '@ai-agent/services-monitor':
         specifier: workspace:*
         version: link:../services/monitor
+      '@ai-agent/services-news':
+        specifier: workspace:*
+        version: link:../services/news
       '@ai-agent/services-notifications':
         specifier: workspace:*
         version: link:../services/notifications
@@ -1657,6 +1666,15 @@ importers:
         specifier: workspace:*
         version: link:../../shared
 
+  packages/services/entertainment:
+    dependencies:
+      '@ai-agent/services-core':
+        specifier: workspace:*
+        version: link:../core
+      '@ai-agent/shared':
+        specifier: workspace:*
+        version: link:../../shared
+
   packages/services/file-creator:
     dependencies:
       '@ai-agent/services-core':
@@ -1693,6 +1711,15 @@ importers:
         specifier: workspace:*
         version: link:../../shared
 
+  packages/services/finance:
+    dependencies:
+      '@ai-agent/services-core':
+        specifier: workspace:*
+        version: link:../core
+      '@ai-agent/shared':
+        specifier: workspace:*
+        version: link:../../shared
+
   packages/services/game-updater:
     dependencies:
       '@ai-agent/services-core':
@@ -1703,6 +1730,15 @@ importers:
         version: link:../../shared
 
   packages/services/monitor:
+    dependencies:
+      '@ai-agent/services-core':
+        specifier: workspace:*
+        version: link:../core
+      '@ai-agent/shared':
+        specifier: workspace:*
+        version: link:../../shared
+
+  packages/services/news:
     dependencies:
       '@ai-agent/services-core':
         specifier: workspace:*

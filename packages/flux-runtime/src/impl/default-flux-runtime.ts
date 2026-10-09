@@ -78,6 +78,9 @@ import { createWebAutomationChainsService } from "@ai-agent/services-web-automat
 import { createContextSuggestionsService } from "@ai-agent/services-context-suggestions";
 import { createAccessibilityVoiceService } from "@ai-agent/services-accessibility-voice";
 import { createWakeWordService } from "@ai-agent/services-wake-word";
+import { createFinanceService } from "@ai-agent/services-finance";
+import { createNewsService } from "@ai-agent/services-news";
+import { createEntertainmentService } from "@ai-agent/services-entertainment";
 import { DefaultPluginLoader, type FluxPlugin } from "@ai-agent/plugins";
 import { DefaultKnowledgeBase } from "@ai-agent/knowledge-base";
 import { DefaultMultiAgentCoordinator, AgentFactory } from "@ai-agent/multi-agent";
@@ -357,6 +360,9 @@ export class DefaultFluxRuntime implements FluxRuntime {
     serviceRegistry.register(createContextSuggestionsService());
     serviceRegistry.register(createAccessibilityVoiceService());
     serviceRegistry.register(createWakeWordService());
+    serviceRegistry.register(createFinanceService());
+    serviceRegistry.register(createNewsService());
+    serviceRegistry.register(createEntertainmentService());
 
     this.orchestrator = new Orchestrator(serviceRegistry);
 
